@@ -11,7 +11,7 @@ env:
 
 jobs:
   build:
-    if: env.build_enabled == 'true'
+    if: ${{ env.build_enabled == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
