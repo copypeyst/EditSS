@@ -1,12 +1,17 @@
-name: Build project after push
+name: Build APK (Toggleable)
 
 on:
-  issue_comment:
-    types: [created, edited]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  build_enabled: "true"   # Change to "false" to skip building
 
 jobs:
   build:
-    if: ${{ !github.event.issue.pull_request && github.event.issue.number == 1 }}
+    if: env.build_enabled == 'true'
     runs-on: ubuntu-latest
 
     steps:
