@@ -1,4 +1,4 @@
-name: Build APK (Toggleable)
+name: Build project manually
 
 on:
   push:
@@ -9,11 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
-    env:
-      build_enabled: "true"   # Change to "false" to skip building
-
-    if: ${{ env.build_enabled == 'true' }}
 
     steps:
       - name: Checkout repository
@@ -29,11 +24,13 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # ===== ENABLE THIS SECTION TO BUILD =====
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Verify APK output
         run: ls -al app/build/outputs/apk/debug
+      # ===== END OF BUILD SECTION =====
 
       - name: Create GitHub Release
         id: create_release
