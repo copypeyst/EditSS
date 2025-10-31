@@ -6,13 +6,14 @@ on:
       - main
   workflow_dispatch:
 
-env:
-  build_enabled: "true"   # Change to "false" to skip building
-
 jobs:
   build:
-    if: ${{ env.build_enabled == 'true' }}
     runs-on: ubuntu-latest
+
+    env:
+      build_enabled: "true"   # Change to "false" to skip building
+
+    if: ${{ env.build_enabled == 'true' }}
 
     steps:
       - name: Checkout repository
