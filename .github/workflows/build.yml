@@ -33,21 +33,11 @@ jobs:
       - name: Verify APK output
         run: ls -al app/build/outputs/apk/debug
 
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Release
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
         with:
           tag_name: ${{ github.run_number }}
-          release_name: ${{ github.event.repository.name }} v${{ github.run_number }}
-
-      - name: Upload Release APK
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: app/build/outputs/apk/debug/app-debug.apk
-          asset_name: ${{ github.event.repository.name }}.apk
-          asset_content_type: application/vnd.android.package-archive
+          name: ${{ github.event.repository.name }} v${{ github.run_number }}
+          files: app/build/outputs/apk/debug/app-debug.apk
