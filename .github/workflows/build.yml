@@ -6,8 +6,11 @@ on:
       - main
   workflow_dispatch:
 
+    
 jobs:
   build:
+    # change to 'true' to enable building
+    if: false
     runs-on: ubuntu-latest
 
     steps:
@@ -24,13 +27,11 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # # ===== ENABLE THIS SECTION TO BUILD =====
-      # - name: Build Debug APK
-      #   run: ./gradlew assembleDebug --stacktrace
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
-      # - name: Verify APK output
-      #   run: ls -al app/build/outputs/apk/debug
-      # # ===== END OF BUILD SECTION =====
+      - name: Verify APK output
+        run: ls -al app/build/outputs/apk/debug
 
       - name: Create GitHub Release
         id: create_release
