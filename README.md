@@ -1,5 +1,4 @@
 Notes:
-
 - This project is a modified implementation of BaseMax/AndroidAutoBuildAPK. It automates CI for a native Android Gradle project. Do not modify the core workflow logic.
 
 - preview.html is a visualizer for the user to visualize how the app roughly looks like and is meant to be coded manually.
@@ -7,10 +6,9 @@ Notes:
 Edit SS
 
 UI (top to bottom)
-├─ Theme = Medium Light (fixed)
+├─ Theme = Dark (fixed)
 ├─ Google Ad Banner
 ├─ ActionBar (icons)
-│  ├─ New → Panel: Width/Height, Background (White/Black/Transparent), Confirm/Cancel
 │  ├─ Import
 │  ├─ Camera
 │  ├─ Undo / Redo
@@ -32,7 +30,7 @@ UI (top to bottom)
 5. When permissions are denied, display a non-blocking dialog: “Permission denied. Please allow access in Settings.” with a button linking to system settings via ACTION_APPLICATION_DETAILS_SETTINGS.
 6. Detect if permissions are revoked mid-session (e.g. via onResume) and prompt the user to reopen system settings to re-enable access before proceeding.
 7. Handle ACTION_VIEW and ACTION_EDIT intents on launch by checking the incoming Intent data URI and setting the editor state accordingly.
-8. Track each image’s origin using an enum with the following members: NEW, IMPORTED_READONLY, IMPORTED_WRITABLE, CAMERA_CAPTURED, and EDITED_INTERNAL. Each must store a boolean flag canOverwrite that reflects write permissions.
+8. Track each image’s origin using an enum with the following members: IMPORTED_READONLY, IMPORTED_WRITABLE, CAMERA_CAPTURED, and EDITED_INTERNAL. Each must store a boolean flag canOverwrite that reflects write permissions.
 9. Define EDITED_INTERNAL to represent images created or saved by the app itself. Only show an Overwrite option if the image has a writable URI.
 10. If canOverwrite becomes false due to permission loss or URI revocation, disable Overwrite in the UI and default to SaveCopy to preserve data integrity.
 11. For Import, open the Android 13+ Photo Picker API. On older versions, use ACTION_OPEN_DOCUMENT with intent.addCategory(CATEGORY_OPENABLE) and type="image/*".
@@ -53,32 +51,30 @@ UI (top to bottom)
 26. On Android 10 and newer, rely on MediaStore for immediate visibility in gallery apps; on Android 9 and older, call MediaScannerConnection.scanFile() after saving.
 27. When sharing a saved image, use its content URI directly. Grant temporary access with FLAG_GRANT_READ_URI_PERMISSION on the share intent.
 28. For unsaved edits, export to cache via FileProvider, share that URI, and delete the temporary file after the share intent completes (or schedule a short-lived cleanup).
-29. The Save panel should show SaveCopy and Overwrite based on origin and canOverwrite: hide Overwrite for NEW or IMPORTED_READONLY; show both for IMPORTED_WRITABLE, CAMERA_CAPTURED, and EDITED_INTERNAL if writable.
-30. The New option opens a panel to set Width, Height, and Background (White, Black, or Transparent) with Confirm and Cancel buttons.
-31. Use vector drawables for all icons and UI assets to reduce APK size and ensure resolution independence.
-32. Make all toolbar buttons toggleable. The active state is indicated by a subtle shade change or highlight color.
-33. Draw, Circle, and Square tools share global Color, Size, and Opacity values that synchronize across these three tools only.
-34. Circle and Square tools are drawn by single-finger dragging, defining both size and position interactively like MS Paint.
-35. The Crop tool offers four modes: FreeForm, Square, Portrait, and Landscape. Switching modes resets the current selection.
-36. The Adjust tool provides three sliders for Brightness, Contrast, and Saturation adjustments.
-37. Implement pinch-to-zoom centered at the midpoint between fingers. Allow simultaneous pan and zoom for fluid control.
-38. Implement pinch/gesture precedence rules so gestures do not conflict: define one-finger for drawing/shape placement, two-finger for zoom/pan, and long-press+drag for selection/move.
-39. Undo and Redo are global across all tools. Use serialized edit commands stored in a circular buffer with a maximum depth of 10 to manage memory.
-40. Define the edit command structure clearly so that each module (Draw, Crop, Adjust, etc.) can push and revert its own actions independently, favoring delta/operation metadata over full bitmap snapshots where feasible to reduce memory.
-41. Use RecyclerView with setHasFixedSize(true) and proper ViewHolder recycling for any lists/panels (tools, format options, recent items) to minimize layout overhead and GC churn.
-42. If Import fails (e.g. user cancels or image cannot be read), show “Couldn’t load image. Please try again.” and return to the main panel safely.
-43. If Camera capture fails or returns null, show “Camera error. No image captured.” and reset the capture state.
-44. If Save fails (e.g. due to write error or low space), show “Save failed. Check storage and try again.” and keep unsaved data in memory.
-45. If Share fails (e.g. no compatible app found), show “No apps available to share this image.” and allow user to retry or save instead.
-46. If any editing tool crashes (Crop, Adjust, or Draw), catch exceptions and show “Tool error. Please reset tool and try again.”
-47. If URI generation for sharing fails, show “Sharing error. File access not available.” and prevent share intent launch.
-48. If MediaStore insertion fails during save, show “Save failed. Couldn’t create image entry.” and prevent further write attempts to null URIs.
-49. Recycle or close all temporary Bitmaps and resources when the editor is destroyed or when switching to a different image to prevent leaks; null references and call Bitmap.recycle() as needed.
-50. Use hardware acceleration selectively: enable hardware-accelerated Canvas transforms and view rendering for performance, but disable hardware acceleration for specific Canvas operations that produce artifacts; make this toggleable per-canvas.
-51. Ensure that all bitmap mutations and Canvas drawing occur on mutable Bitmap objects and are synchronized with the UI thread when rendering results; produce copies when necessary to avoid editing immutable sources.
-52. Limit Undo/Redo memory footprint by storing operation deltas, small region snapshots, or vector metadata when possible; when full-bitmap snapshots are necessary, compress or downsample before storing and keep counts within the defined max depth.
-53. Offload image encoding (JPEG/WEBP) and heavy I/O operations to a background worker that can survive short configuration changes (e.g., a retained ViewModel coroutine or WorkManager job) and report completion on the main thread.
-54. Always close streams and release file handles in the save/export flows; on failure, remove any partially written MediaStore rows or set IS_PENDING=0 and delete the entry to avoid orphaned entries.
-55. Add a lightweight LRU thumbnail cache accessible to UI modules so lists and panels can show small previews without decoding full bitmaps on the main thread.
-56. Verify no third-party native libraries depend on 32-bit ABIs before excluding those ABIs from the AAB packaging; document the ABI decision in the repo README.
-
+29. The Save panel should show SaveCopy and Overwrite based on origin and canOverwrite: hide Overwrite for IMPORTED_READONLY; show both for IMPORTED_WRITABLE, CAMERA_CAPTURED, and EDITED_INTERNAL if writable.
+30. Use vector drawables for all icons and UI assets to reduce APK size and ensure resolution independence.
+31. Make all toolbar buttons toggleable. The active state is indicated by a subtle shade change or highlight color suitable for Dark Mode contrast.
+32. Draw, Circle, and Square tools share global Color, Size, and Opacity values that synchronize across these three tools only.
+33. Circle and Square tools are drawn by single-finger dragging, defining both size and position interactively like MS Paint.
+34. The Crop tool offers four modes: FreeForm, Square, Portrait, and Landscape. Switching modes resets the current selection.
+35. The Adjust tool provides three sliders for Brightness, Contrast, and Saturation adjustments.
+36. Implement pinch-to-zoom centered at the midpoint between fingers. Allow simultaneous pan and zoom for fluid control.
+37. Implement pinch/gesture precedence rules so gestures do not conflict: define one-finger for drawing/shape placement, two-finger for zoom/pan, and long-press+drag for selection/move.
+38. Undo and Redo are global across all tools. Use serialized edit commands stored in a circular buffer with a maximum depth of 10 to manage memory.
+39. Define the edit command structure clearly so that each module (Draw, Crop, Adjust, etc.) can push and revert its own actions independently, favoring delta/operation metadata over full bitmap snapshots where feasible to reduce memory.
+40. Use RecyclerView with setHasFixedSize(true) and proper ViewHolder recycling for any lists/panels (tools, format options, recent items) to minimize layout overhead and GC churn.
+41. If Import fails (e.g. user cancels or image cannot be read), show “Couldn’t load image. Please try again.” and return to the main panel safely.
+42. If Camera capture fails or returns null, show “Camera error. No image captured.” and reset the capture state.
+43. If Save fails (e.g. due to write error or low space), show “Save failed. Check storage and try again.” and keep unsaved data in memory.
+44. If Share fails (e.g. no compatible app found), show “No apps available to share this image.” and allow user to retry or save instead.
+45. If any editing tool crashes (Crop, Adjust, or Draw), catch exceptions and show “Tool error. Please reset tool and try again.”
+46. If URI generation for sharing fails, show “Sharing error. File access not available.” and prevent share intent launch.
+47. If MediaStore insertion fails during save, show “Save failed. Couldn’t create image entry.” and prevent further write attempts to null URIs.
+48. Recycle or close all temporary Bitmaps and resources when the editor is destroyed or when switching to a different image to prevent leaks; null references and call Bitmap.recycle() as needed.
+49. Use hardware acceleration selectively: enable hardware-accelerated Canvas transforms and view rendering for performance, but disable hardware acceleration for specific Canvas operations that produce artifacts; make this toggleable per-canvas.
+50. Ensure that all bitmap mutations and Canvas drawing occur on mutable Bitmap objects and are synchronized with the UI thread when rendering results; produce copies when necessary to avoid editing immutable sources.
+51. Limit Undo/Redo memory footprint by storing operation deltas, small region snapshots, or vector metadata when possible; when full-bitmap snapshots are necessary, compress or downsample before storing and keep counts within the defined max depth.
+52. Offload image encoding (JPEG/WEBP) and heavy I/O operations to a background worker that can survive short configuration changes (e.g., a retained ViewModel coroutine or WorkManager job) and report completion on the main thread.
+53. Always close streams and release file handles in the save/export flows; on failure, remove any partially written MediaStore rows or set IS_PENDING=0 and delete the entry to avoid orphaned entries.
+54. Add a lightweight LRU thumbnail cache accessible to UI modules so lists and panels can show small previews without decoding full bitmaps on the main thread.
+55. Verify no third-party native libraries depend on 32-bit ABIs before excluding those ABIs from the AAB packaging; document the ABI decision in the repo README.
