@@ -1,10 +1,7 @@
-// Instructions: Scan the project and update the codes here to reveal how it would look visually.
-
 <!DOCTYPE html>
 <html>
 <head>
   <style>
-    /* DO NOT CHANGE: Simulates phone screen size and dark theme */
     body {
       margin: 0;
       background: #000;
@@ -14,32 +11,94 @@
       height: 100vh;
     }
 
-    /* DO NOT CHANGE: Phone container dimensions and styling */
     .phone {
-      width: 360px; /* DO NOT MODIFY: base width for 9:16 ratio */
-      height: 640px; /* DO NOT MODIFY: base height for 9:16 ratio */
+      width: 360px;
+      height: 640px;
       background: #111;
       border: 1px solid #444;
       border-radius: 20px;
       overflow: hidden;
       box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
     }
 
-    /* SAFE TO EDIT: Layout content styling */
     .content {
       width: 100%;
       height: 100%;
       display: flex;
-      justify-content: center;
-      align-items: center;
+      flex-direction: column;
       color: white;
       font-size: 18px;
     }
+
+    .ad-banner {
+        height: 50px;
+        background: #333;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: #888;
+    }
+
+    .action-bar {
+        height: 56px;
+        background: #222;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+    }
+
+    .canvas {
+        flex-grow: 1;
+        background: #FFF;
+    }
+
+    .tool-options {
+        height: 80px;
+        background: #222;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: #888;
+    }
+
+    .tools {
+        height: 60px;
+        background: #111;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+    }
+
+    .icon {
+        font-size: 24px;
+        color: #FFF;
+    }
+
   </style>
 </head>
 <body>
   <div class="phone">
-    <div class="content">Hello World!</div> <!-- SAFE TO EDIT: Replace text or add more elements -->
+    <div class="content">
+        <div class="ad-banner">Ad Banner</div>
+        <div class="action-bar">
+            <div class="icon">&#43;</div> <!-- New -->
+            <div class="icon">&#x21E9;</div> <!-- Import -->
+            <div class="icon">&#x1F4F7;</div> <!-- Camera -->
+            <div class="icon">&#x21B6;</div> <!-- Undo -->
+            <div class="icon">&#x21B7;</div> <!-- Redo -->
+            <div class="icon">&#x2194;</div> <!-- Share -->
+            <div class="icon">&#x1F4BE;</div> <!-- Save -->
+        </div>
+        <div class="canvas"></div>
+        <div class="tool-options">Tool Options</div>
+        <div class="tools">
+            <div class="icon">&#x270F;</div> <!-- Draw -->
+            <div class="icon">&#x2712;</div> <!-- Crop -->
+            <div class="icon">&#x1F39B;</div> <!-- Adjust -->
+        </div>
+    </div>
   </div>
 </body>
 </html>

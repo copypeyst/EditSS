@@ -6,13 +6,176 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Hello World!"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+    <!-- Google Ad Banner -->
+    <View
+        android:id="@+id/ad_banner"
+        android:layout_width="0dp"
+        android:layout_height="50dp"
+        android:background="#FFDDDDDD"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- ActionBar -->
+    <LinearLayout
+        android:id="@+id/action_bar"
+        android:layout_width="0dp"
+        android:layout_height="?attr/actionBarSize"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        app:layout_constraintTop_toBottomOf="@id/ad_banner"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageView
+            android:id="@+id/button_new"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_new"
+            android:contentDescription="New" />
+
+        <ImageView
+            android:id="@+id/button_import"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_import"
+            android:contentDescription="Import" />
+
+        <ImageView
+            android:id="@+id/button_camera"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_camera"
+            android:contentDescription="Camera" />
+
+        <ImageView
+            android:id="@+id/button_undo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_undo"
+            android:contentDescription="Undo" />
+
+        <ImageView
+            android:id="@+id/button_redo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_redo"
+            android:contentDescription="Redo" />
+
+        <ImageView
+            android:id="@+id/button_share"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_share"
+            android:contentDescription="Share" />
+
+        <ImageView
+            android:id="@+id/button_save"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_save"
+            android:contentDescription="Save" />
+    </LinearLayout>
+
+    <!-- Tools -->
+    <LinearLayout
+        android:id="@+id/tools"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageView
+            android:id="@+id/tool_draw"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_draw"
+            android:contentDescription="Draw" />
+
+        <ImageView
+            android:id="@+id/tool_crop"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_crop"
+            android:contentDescription="Crop" />
+
+        <ImageView
+            android:id="@+id/tool_adjust"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:src="@drawable/ic_adjust"
+            android:contentDescription="Adjust" />
+    </LinearLayout>
+
+    <!-- ToolOptions -->
+    <LinearLayout
+        android:id="@+id/tool_options"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="8dp"
+        android:background="#FFEEEEEE"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/tools"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- Crop Options -->
+        <LinearLayout
+            android:id="@+id/crop_options"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:visibility="gone">
+            <Button android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Free"/>
+            <Button android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Square"/>
+            <Button android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Portrait"/>
+            <Button android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Landscape"/>
+        </LinearLayout>
+
+        <!-- Adjust Options -->
+        <LinearLayout
+            android:id="@+id/adjust_options"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Brightness"/>
+            <SeekBar android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Contrast"/>
+            <SeekBar android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Saturation"/>
+            <SeekBar android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Canvas -->
+    <ImageView
+        android:id="@+id/canvas"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#FFFFFFFF"
+        app:layout_constraintTop_toBottomOf="@id/action_bar"
+        app:layout_constraintBottom_toTopOf="@id/tool_options"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:contentDescription="Canvas" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
