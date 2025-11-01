@@ -9,7 +9,7 @@ on:
     
 jobs:
   build:
-    # change to 'true' to enable building 
+    # change to 'true' to enable building
     if: true
     runs-on: ubuntu-latest
 
