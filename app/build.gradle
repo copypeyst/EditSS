@@ -24,6 +24,14 @@ android {
         }
     }
 
+    applicationVariants.all { variant ->
+        if (variant.buildType.name == "debug") {
+            variant.outputs.all {
+                outputFileName = "ImageSS.apk"
+            }
+        }
+    }
+
     buildFeatures {
         viewBinding true
     }
