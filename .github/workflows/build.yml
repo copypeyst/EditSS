@@ -24,13 +24,13 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # ===== ENABLE THIS SECTION TO BUILD =====
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      # # ===== ENABLE THIS SECTION TO BUILD =====
+      # - name: Build Debug APK
+      #   run: ./gradlew assembleDebug --stacktrace
 
-      - name: Verify APK output
-        run: ls -al app/build/outputs/apk/debug
-      # ===== END OF BUILD SECTION =====
+      # - name: Verify APK output
+      #   run: ls -al app/build/outputs/apk/debug
+      # # ===== END OF BUILD SECTION =====
 
       - name: Create GitHub Release
         id: create_release
