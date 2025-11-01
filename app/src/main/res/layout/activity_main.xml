@@ -11,7 +11,7 @@
         android:id="@+id/ad_banner"
         android:layout_width="0dp"
         android:layout_height="50dp"
-        android:background="#FFDDDDDD"
+        android:background="#FF222222"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
@@ -29,13 +29,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <ImageView
-            android:id="@+id/button_new"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:src="@drawable/ic_new"
-            android:contentDescription="New" />
+
 
         <ImageView
             android:id="@+id/button_import"
@@ -130,7 +124,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="8dp"
-        android:background="#FFEEEEEE"
+        android:background="#FF333333"
         android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@id/tools"
         app:layout_constraintStart_toStartOf="parent"
@@ -171,7 +165,7 @@
         android:id="@+id/canvas"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="#FFFFFFFF"
+        android:background="#FF000000"
         app:layout_constraintTop_toBottomOf="@id/action_bar"
         app:layout_constraintBottom_toTopOf="@id/tool_options"
         app:layout_constraintStart_toStartOf="parent"
