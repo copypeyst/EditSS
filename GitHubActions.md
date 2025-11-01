@@ -20,12 +20,14 @@ GitHub Actions Setup Instructions
 
 Building:
 
-1. Uncomment:
-      # - name: Build Debug APK
-      #   run: ./gradlew assembleDebug --stacktrace
+1. Set to if to true in build.yml to build apk.
 
-      # - name: Verify APK output
-      #   run: ls -al app/build/outputs/apk/debug
+jobs:
+  build:
+    # change to 'true' to enable building
+    if: false
+    runs-on: ubuntu-latest
+
 
 2. Download apk:
 https://github.com/[USERNAME]/[PROJECT]/actions
