@@ -1,7 +1,7 @@
 Notes:
 - This project is a modified implementation of BaseMax/AndroidAutoBuildAPK. It automates CI for a native Android Gradle project. Do not modify the core workflow logic.
 
-- preview.html is a visualizer for the user to visualize how the app roughly looks like and is meant to be coded manually.
+- preview.html is a visualizer for the user to visualize how the app looks like as close as possible and is meant to be coded manually.
 
 Edit SS
 
