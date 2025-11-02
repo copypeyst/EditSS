@@ -23,6 +23,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adjustOptionsLayout: LinearLayout
 
     private var currentActiveTool: ImageView? = null
+    private var currentDrawMode: ImageView? = null
+    private var currentCropMode: ImageView? = null
+    private var currentColor: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         toolDraw.setOnClickListener {
             if (currentActiveTool == toolDraw) {
                 toolOptionsLayout.visibility = View.GONE
+                currentActiveTool?.isSelected = false
                 currentActiveTool = null
             } else {
                 toolOptionsLayout.visibility = View.VISIBLE
@@ -73,6 +77,8 @@ class MainActivity : AppCompatActivity() {
                 cropOptionsLayout.visibility = View.GONE
                 adjustOptionsLayout.visibility = View.GONE
                 savePanel.visibility = View.GONE // Hide save panel
+                currentActiveTool?.isSelected = false
+                toolDraw.isSelected = true
                 currentActiveTool = toolDraw
             }
         }
@@ -80,6 +86,7 @@ class MainActivity : AppCompatActivity() {
         toolCrop.setOnClickListener {
             if (currentActiveTool == toolCrop) {
                 toolOptionsLayout.visibility = View.GONE
+                currentActiveTool?.isSelected = false
                 currentActiveTool = null
             } else {
                 toolOptionsLayout.visibility = View.VISIBLE
@@ -87,6 +94,8 @@ class MainActivity : AppCompatActivity() {
                 drawOptionsLayout.visibility = View.GONE
                 adjustOptionsLayout.visibility = View.GONE
                 savePanel.visibility = View.GONE // Hide save panel
+                currentActiveTool?.isSelected = false
+                toolCrop.isSelected = true
                 currentActiveTool = toolCrop
             }
         }
@@ -94,6 +103,7 @@ class MainActivity : AppCompatActivity() {
         toolAdjust.setOnClickListener {
             if (currentActiveTool == toolAdjust) {
                 toolOptionsLayout.visibility = View.GONE
+                currentActiveTool?.isSelected = false
                 currentActiveTool = null
             } else {
                 toolOptionsLayout.visibility = View.VISIBLE
@@ -101,6 +111,8 @@ class MainActivity : AppCompatActivity() {
                 drawOptionsLayout.visibility = View.GONE
                 cropOptionsLayout.visibility = View.GONE
                 savePanel.visibility = View.GONE // Hide save panel
+                currentActiveTool?.isSelected = false
+                toolAdjust.isSelected = true
                 currentActiveTool = toolAdjust
             }
         }
@@ -127,22 +139,84 @@ class MainActivity : AppCompatActivity() {
         findViewById<RadioButton>(R.id.radio_png)
         findViewById<RadioButton>(R.id.radio_webp)
 
-        // Initialize Draw Options (no logic yet)
+        // Initialize Draw Options
         findViewById<SeekBar>(R.id.draw_size_slider)
         findViewById<SeekBar>(R.id.draw_opacity_slider)
-        findViewById<ImageView>(R.id.draw_mode_pen)
-        findViewById<ImageView>(R.id.draw_mode_circle)
-        findViewById<ImageView>(R.id.draw_mode_square)
+        val drawModePen: ImageView = findViewById(R.id.draw_mode_pen)
+        val drawModeCircle: ImageView = findViewById(R.id.draw_mode_circle)
+        val drawModeSquare: ImageView = findViewById(R.id.draw_mode_square)
 
-        // Initialize Crop Options (no logic yet)
-        findViewById<ImageView>(R.id.crop_mode_freeform)
-        findViewById<ImageView>(R.id.crop_mode_square)
-        findViewById<ImageView>(R.id.crop_mode_portrait)
-        findViewById<ImageView>(R.id.crop_mode_landscape)
+        drawModePen.setOnClickListener {
+            currentDrawMode?.isSelected = false
+            drawModePen.isSelected = true
+            currentDrawMode = drawModePen
+        }
+        drawModeCircle.setOnClickListener {
+            currentDrawMode?.isSelected = false
+            drawModeCircle.isSelected = true
+            currentDrawMode = drawModeCircle
+        }
+        drawModeSquare.setOnClickListener {
+            currentDrawMode?.isSelected = false
+            drawModeSquare.isSelected = true
+            currentDrawMode = drawModeSquare
+        }
+
+        // Initialize Crop Options
+        val cropModeFreeform: ImageView = findViewById(R.id.crop_mode_freeform)
+        val cropModeSquare: ImageView = findViewById(R.id.crop_mode_square)
+        val cropModePortrait: ImageView = findViewById(R.id.crop_mode_portrait)
+        val cropModeLandscape: ImageView = findViewById(R.id.crop_mode_landscape)
+
+        cropModeFreeform.setOnClickListener {
+            currentCropMode?.isSelected = false
+            cropModeFreeform.isSelected = true
+            currentCropMode = cropModeFreeform
+        }
+        cropModeSquare.setOnClickListener {
+            currentCropMode?.isSelected = false
+            cropModeSquare.isSelected = true
+            currentCropMode = cropModeSquare
+        }
+        cropModePortrait.setOnClickListener {
+            currentCropMode?.isSelected = false
+            cropModePortrait.isSelected = true
+            currentCropMode = cropModePortrait
+        }
+        cropModeLandscape.setOnClickListener {
+            currentCropMode?.isSelected = false
+            cropModeLandscape.isSelected = true
+            currentCropMode = cropModeLandscape
+        }
 
         // Initialize Adjust Options (no logic yet)
         findViewById<SeekBar>(R.id.adjust_brightness_slider)
         findViewById<SeekBar>(R.id.adjust_contrast_slider)
         findViewById<SeekBar>(R.id.adjust_saturation_slider)
+
+        // Color Swatches Logic
+        val colorBlack: View = findViewById(R.id.color_black)
+        val colorWhite: View = findViewById(R.id.color_white)
+        val colorRed: View = findViewById(R.id.color_red)
+        val colorGreen: View = findViewById(R.id.color_green)
+        val colorBlue: View = findViewById(R.id.color_blue)
+        val colorYellow: View = findViewById(R.id.color_yellow)
+        val colorOrange: View = findViewById(R.id.color_orange)
+        val colorPink: View = findViewById(R.id.color_pink)
+
+        val colorClickListener = View.OnClickListener { v ->
+            currentColor?.isSelected = false
+            v.isSelected = true
+            currentColor = v
+        }
+
+        colorBlack.setOnClickListener(colorClickListener)
+        colorWhite.setOnClickListener(colorClickListener)
+        colorRed.setOnClickListener(colorClickListener)
+        colorGreen.setOnClickListener(colorClickListener)
+        colorBlue.setOnClickListener(colorClickListener)
+        colorYellow.setOnClickListener(colorClickListener)
+        colorOrange.setOnClickListener(colorClickListener)
+        colorPink.setOnClickListener(colorClickListener)
     }
 }

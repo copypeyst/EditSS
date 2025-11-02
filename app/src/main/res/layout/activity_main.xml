@@ -44,7 +44,9 @@
             android:layout_weight="1"
             android:src="@drawable/importicon"
             android:contentDescription="Import"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="@drawable/ripple_effect"
+            android:clickable="true"
+            android:focusable="true" />
 
         <ImageView
             android:id="@+id/button_camera"
@@ -53,7 +55,9 @@
             android:layout_weight="1"
             android:src="@drawable/cameraicon"
             android:contentDescription="Camera"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="@drawable/ripple_effect"
+            android:clickable="true"
+            android:focusable="true" />
 
         <ImageView
             android:id="@+id/button_undo"
@@ -62,7 +66,9 @@
             android:layout_weight="1"
             android:src="@drawable/undoicon"
             android:contentDescription="Undo"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="@drawable/ripple_effect"
+            android:clickable="true"
+            android:focusable="true" />
 
         <ImageView
             android:id="@+id/button_redo"
@@ -71,7 +77,9 @@
             android:layout_weight="1"
             android:src="@drawable/redoicon"
             android:contentDescription="Redo"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="@drawable/ripple_effect"
+            android:clickable="true"
+            android:focusable="true" />
 
         <ImageView
             android:id="@+id/button_share"
@@ -80,7 +88,9 @@
             android:layout_weight="1"
             android:src="@drawable/shareicon"
             android:contentDescription="Share"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="@drawable/ripple_effect"
+            android:clickable="true"
+            android:focusable="true" />
 
         <ImageView
             android:id="@+id/button_save"
@@ -89,7 +99,9 @@
             android:layout_weight="1"
             android:src="@drawable/saveicon"
             android:contentDescription="Save"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="@drawable/ripple_effect"
+            android:clickable="true"
+            android:focusable="true" />
     </LinearLayout>
 
     <!-- Tools -->
@@ -111,7 +123,9 @@
             android:layout_weight="1"
             android:src="@drawable/drawicon"
             android:contentDescription="Draw"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="@drawable/button_background"
+            android:clickable="true"
+            android:focusable="true" />
 
         <ImageView
             android:id="@+id/tool_crop"
@@ -120,7 +134,9 @@
             android:layout_weight="1"
             android:src="@drawable/cropicon"
             android:contentDescription="Crop"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="@drawable/button_background"
+            android:clickable="true"
+            android:focusable="true" />
 
         <ImageView
             android:id="@+id/tool_adjust"
@@ -129,7 +145,9 @@
             android:layout_weight="1"
             android:src="@drawable/adjusticon"
             android:contentDescription="Adjust"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="@drawable/button_background"
+            android:clickable="true"
+            android:focusable="true" />
     </LinearLayout>
 
     <!-- ToolOptions -->
@@ -163,9 +181,9 @@
                 android:gravity="center"
                 android:layout_marginBottom="0dp"
                 android:layout_marginTop="0dp">
-                <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="Pen Mode" android:background="?attr/selectableItemBackgroundBorderless" android:padding="4dp" android:layout_marginEnd="10dp"/> <!-- ADJUST THIS VALUE TO CHANGE GAP BETWEEN ICONS -->
-                <ImageView android:id="@+id/draw_mode_circle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/circleicon" android:contentDescription="Circle Mode" android:background="?attr/selectableItemBackgroundBorderless" android:padding="4dp" android:layout_marginEnd="12dp"/>
-                <ImageView android:id="@+id/draw_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/squareicon" android:contentDescription="Square Mode" android:background="?attr/selectableItemBackgroundBorderless" android:padding="4dp"/>
+                <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="Pen Mode" android:background="@drawable/button_background" android:padding="4dp" android:layout_marginEnd="10dp" android:clickable="true" android:focusable="true"/> <!-- ADJUST THIS VALUE TO CHANGE GAP BETWEEN ICONS -->
+                <ImageView android:id="@+id/draw_mode_circle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/circleicon" android:contentDescription="Circle Mode" android:background="@drawable/button_background" android:padding="4dp" android:layout_marginEnd="12dp" android:clickable="true" android:focusable="true"/>
+                <ImageView android:id="@+id/draw_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/squareicon" android:contentDescription="Square Mode" android:background="@drawable/button_background" android:padding="4dp" android:clickable="true" android:focusable="true"/>
             </LinearLayout>
 
             <!-- Colors -->
@@ -178,14 +196,14 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="0dp"
                 android:layout_marginTop="12dp">
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF000000" android:layout_marginEnd="8dp"/> <!-- Black --> <!-- ADJUST THIS VALUE TO DECREASE/INCREASE DISTANCE BETWEEN COLORS -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFFFFF" android:layout_marginEnd="8dp"/> <!-- White -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFF0000" android:layout_marginEnd="8dp"/> <!-- Red -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF00FF00" android:layout_marginEnd="8dp"/> <!-- Green -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF0000FF" android:layout_marginEnd="8dp"/> <!-- Blue -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFFF00" android:layout_marginEnd="8dp"/> <!-- Yellow -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFA500" android:layout_marginEnd="8dp"/> <!-- Orange -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFC0CB"/> <!-- Pink -->
+                <View android:id="@+id/color_black" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FF000000" android:layout_marginEnd="8dp"/> <!-- Black --> <!-- ADJUST THIS VALUE TO DECREASE/INCREASE DISTANCE BETWEEN COLORS -->
+                <View android:id="@+id/color_white" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FFFFFFFF" android:layout_marginEnd="8dp"/> <!-- White -->
+                <View android:id="@+id/color_red" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FFFF0000" android:layout_marginEnd="8dp"/> <!-- Red -->
+                <View android:id="@+id/color_green" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FF00FF00" android:layout_marginEnd="8dp"/> <!-- Green -->
+                <View android:id="@+id/color_blue" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FF0000FF" android:layout_marginEnd="8dp"/> <!-- Blue -->
+                <View android:id="@+id/color_yellow" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FFFFFF00" android:layout_marginEnd="8dp"/> <!-- Yellow -->
+                <View android:id="@+id/color_orange" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FFFFA500" android:layout_marginEnd="8dp"/> <!-- Orange -->
+                <View android:id="@+id/color_pink" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FFFFC0CB"/> <!-- Pink -->
             </LinearLayout>
 
             <!-- Size/Opacity Sliders -->
@@ -204,10 +222,10 @@
             android:orientation="horizontal"
             android:gravity="center"
             android:visibility="gone">
-            <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/cropfreeformicon" android:contentDescription="Freeform Crop" android:background="?attr/selectableItemBackgroundBorderless"/>
-            <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/cropsquareicon" android:contentDescription="Square Crop" android:background="?attr/selectableItemBackgroundBorderless"/>
-            <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/cropportraiticon" android:contentDescription="Portrait Crop" android:background="?attr/selectableItemBackgroundBorderless"/>
-            <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="Landscape Crop" android:background="?attr/selectableItemBackgroundBorderless"/>
+            <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/cropfreeformicon" android:contentDescription="Freeform Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/cropsquareicon" android:contentDescription="Square Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/cropportraiticon" android:contentDescription="Portrait Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="Landscape Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
         </LinearLayout>
 
         <!-- Adjust Options -->
@@ -270,14 +288,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Save Copy"
-                android:layout_marginEnd="8dp"/>
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="?attr/colorSecondary"/>
 
             <Button
                 android:id="@+id/button_overwrite"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Overwrite"
-                android:layout_marginStart="8dp"/>
+                android:layout_marginStart="8dp"
+                android:backgroundTint="?attr/colorSecondary"/>
         </LinearLayout>
 
         <RadioGroup
