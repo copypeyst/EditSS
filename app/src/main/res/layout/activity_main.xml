@@ -154,7 +154,7 @@
                 android:gravity="center"
                 android:layout_marginBottom="0dp"
                 android:layout_marginTop="0dp">
-                <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="Pen Mode" android:background="@drawable/outlined_background" android:padding="4dp" android:layout_marginEnd="12dp"/>
+                <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="Pen Mode" android:background="@drawable/outlined_background" android:padding="4dp" android:layout_marginEnd="12dp"/> <!-- ADJUST THIS VALUE TO CHANGE GAP BETWEEN ICONS -->
                 <ImageView android:id="@+id/draw_mode_circle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/circleicon" android:contentDescription="Circle Mode" android:background="@drawable/outlined_background" android:padding="4dp" android:layout_marginEnd="12dp"/>
                 <ImageView android:id="@+id/draw_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/squareicon" android:contentDescription="Square Mode" android:background="@drawable/outlined_background" android:padding="4dp"/>
             </LinearLayout>
@@ -261,14 +261,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Save Copy"
-                android:layout_marginEnd="8dp"/>
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="?attr/colorSecondary"/>
 
             <Button
                 android:id="@+id/button_overwrite"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Overwrite"
-                android:layout_marginStart="8dp"/>
+                android:layout_marginStart="8dp"
+                android:backgroundTint="?attr/colorSecondary"/>
         </LinearLayout>
 
         <RadioGroup
