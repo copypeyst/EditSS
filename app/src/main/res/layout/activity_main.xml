@@ -143,8 +143,8 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:visibility="gone"
-            android:paddingStart="5dp" <!--  -->
-            android:paddinTHIS PADDING PREVENTS SLIDERS/TEXT FROM STICKING TO SIDESgEnd="16dp"> <!-- THIS PADDING PREVENTS SLIDERS/TEXT FROM STICKING TO SIDES -->
+            android:paddingStart="5dp"
+            android:paddingEnd="5dp">
 
             <!-- Draw Modes -->
             <LinearLayout
