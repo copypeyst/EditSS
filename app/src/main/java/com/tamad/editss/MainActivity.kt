@@ -21,11 +21,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var drawOptionsLayout: LinearLayout
     private lateinit var cropOptionsLayout: LinearLayout
     private lateinit var adjustOptionsLayout: LinearLayout
+    private lateinit var scrim: View
 
     private var currentActiveTool: ImageView? = null
     private var currentDrawMode: ImageView? = null
     private var currentCropMode: ImageView? = null
-    private var currentColor: View? = null
+    private var currentSelectedColor: FrameLayout? = null
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,26 +45,22 @@ class MainActivity : AppCompatActivity() {
         drawOptionsLayout = findViewById(R.id.draw_options)
         cropOptionsLayout = findViewById(R.id.crop_options)
         adjustOptionsLayout = findViewById(R.id.adjust_options)
+        scrim = findViewById(R.id.scrim)
 
         // Save Panel Logic
         buttonSave.setOnClickListener {
-            savePanel.visibility = if (savePanel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-            // Hide other tool options if Save panel is shown
-            toolOptionsLayout.visibility = View.GONE
-            currentActiveTool = null // No tool is active when save panel is open
+            if (savePanel.visibility == View.VISIBLE) {
+                savePanel.visibility = View.GONE
+                scrim.visibility = View.GONE
+            } else {
+                savePanel.visibility = View.VISIBLE
+                scrim.visibility = View.VISIBLE
+            }
         }
 
-        // Close save panel when tapping outside it
-        rootLayout.setOnTouchListener { v, event ->
-            if (savePanel.visibility == View.VISIBLE) {
-                val outRect = android.graphics.Rect()
-                savePanel.getGlobalVisibleRect(outRect)
-                if (!outRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
-                    savePanel.visibility = View.GONE
-                    return@setOnTouchListener true
-                }
-            }
-            false
+        scrim.setOnClickListener {
+            savePanel.visibility = View.GONE
+            scrim.visibility = View.GONE
         }
 
         // Tool Buttons Logic
@@ -195,28 +193,38 @@ class MainActivity : AppCompatActivity() {
         findViewById<SeekBar>(R.id.adjust_saturation_slider)
 
         // Color Swatches Logic
-        val colorBlack: View = findViewById(R.id.color_black)
-        val colorWhite: View = findViewById(R.id.color_white)
-        val colorRed: View = findViewById(R.id.color_red)
-        val colorGreen: View = findViewById(R.id.color_green)
-        val colorBlue: View = findViewById(R.id.color_blue)
-        val colorYellow: View = findViewById(R.id.color_yellow)
-        val colorOrange: View = findViewById(R.id.color_orange)
-        val colorPink: View = findViewById(R.id.color_pink)
+        val colorBlackContainer: FrameLayout = findViewById(R.id.color_black_container)
+        val colorWhiteContainer: FrameLayout = findViewById(R.id.color_white_container)
+        val colorRedContainer: FrameLayout = findViewById(R.id.color_red_container)
+        val colorGreenContainer: FrameLayout = findViewById(R.id.color_green_container)
+        val colorBlueContainer: FrameLayout = findViewById(R.id.color_blue_container)
+        val colorYellowContainer: FrameLayout = findViewById(R.id.color_yellow_container)
+        val colorOrangeContainer: FrameLayout = findViewById(R.id.color_orange_container)
+        val colorPinkContainer: FrameLayout = findViewById(R.id.color_pink_container)
 
         val colorClickListener = View.OnClickListener { v ->
-            currentColor?.isSelected = false
-            v.isSelected = true
-            currentColor = v
+            currentSelectedColor?.findViewWithTag<View>("border")?.visibility = View.GONE
+            val border = v.findViewWithTag<View>("border")
+            border?.visibility = View.VISIBLE
+            currentSelectedColor = v as FrameLayout
         }
 
-        colorBlack.setOnClickListener(colorClickListener)
-        colorWhite.setOnClickListener(colorClickListener)
-        colorRed.setOnClickListener(colorClickListener)
-        colorGreen.setOnClickListener(colorClickListener)
-        colorBlue.setOnClickListener(colorClickListener)
-        colorYellow.setOnClickListener(colorClickListener)
-        colorOrange.setOnClickListener(colorClickListener)
-        colorPink.setOnClickListener(colorClickListener)
+        colorBlackContainer.setOnClickListener(colorClickListener)
+        colorWhiteContainer.setOnClickListener(colorClickListener)
+        colorRedContainer.setOnClickListener(colorClickListener)
+        colorGreenContainer.setOnClickListener(colorClickListener)
+        colorBlueContainer.setOnClickListener(colorClickListener)
+        colorYellowContainer.setOnClickListener(colorClickListener)
+        colorOrangeContainer.setOnClickListener(colorClickListener)
+        colorPinkContainer.setOnClickListener(colorClickListener)
+
+        // Set default selections
+        drawModePen.isSelected = true
+        currentDrawMode = drawModePen
+
+        cropModeFreeform.isSelected = true
+        currentCropMode = cropModeFreeform
+
+        colorRedContainer.performClick()
     }
 }

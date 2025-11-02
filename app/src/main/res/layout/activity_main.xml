@@ -196,14 +196,150 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="0dp"
                 android:layout_marginTop="12dp">
-                <View android:id="@+id/color_black" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FF000000" android:layout_marginEnd="8dp"/> <!-- Black --> <!-- ADJUST THIS VALUE TO DECREASE/INCREASE DISTANCE BETWEEN COLORS -->
-                <View android:id="@+id/color_white" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FFFFFFFF" android:layout_marginEnd="8dp"/> <!-- White -->
-                <View android:id="@+id/color_red" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FFFF0000" android:layout_marginEnd="8dp"/> <!-- Red -->
-                <View android:id="@+id/color_green" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FF00FF00" android:layout_marginEnd="8dp"/> <!-- Green -->
-                <View android:id="@+id/color_blue" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FF0000FF" android:layout_marginEnd="8dp"/> <!-- Blue -->
-                <View android:id="@+id/color_yellow" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FFFFFF00" android:layout_marginEnd="8dp"/> <!-- Yellow -->
-                <View android:id="@+id/color_orange" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FFFFA500" android:layout_marginEnd="8dp"/> <!-- Orange -->
-                <View android:id="@+id/color_pink" android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/color_state_selector" android:backgroundTint="#FFFFC0CB"/> <!-- Pink -->
+
+                <FrameLayout
+                    android:id="@+id/color_red_container"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_marginEnd="8dp">
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/round_color_background"
+                        android:backgroundTint="#FFFF0000" />
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/faded_round_border"
+                        android:visibility="gone"
+                        android:tag="border" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/color_green_container"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_marginEnd="8dp">
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/round_color_background"
+                        android:backgroundTint="#FF00FF00" />
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/faded_round_border"
+                        android:visibility="gone"
+                        android:tag="border" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/color_blue_container"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_marginEnd="8dp">
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/round_color_background"
+                        android:backgroundTint="#FF0000FF" />
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/faded_round_border"
+                        android:visibility="gone"
+                        android:tag="border" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/color_yellow_container"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_marginEnd="8dp">
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/round_color_background"
+                        android:backgroundTint="#FFFFFF00" />
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/faded_round_border"
+                        android:visibility="gone"
+                        android:tag="border" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/color_orange_container"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_marginEnd="8dp">
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/round_color_background"
+                        android:backgroundTint="#FFFFA500" />
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/faded_round_border"
+                        android:visibility="gone"
+                        android:tag="border" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/color_pink_container"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_marginEnd="8dp">
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/round_color_background"
+                        android:backgroundTint="#FFFFC0CB" />
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/faded_round_border"
+                        android:visibility="gone"
+                        android:tag="border" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/color_black_container"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_marginEnd="8dp">
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/round_color_background"
+                        android:backgroundTint="#FF000000" />
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/faded_round_border"
+                        android:visibility="gone"
+                        android:tag="border" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/color_white_container"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp">
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/round_color_background"
+                        android:backgroundTint="#FFFFFFFF" />
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/faded_round_border"
+                        android:visibility="gone"
+                        android:tag="border" />
+                </FrameLayout>
+
             </LinearLayout>
 
             <!-- Size/Opacity Sliders -->
@@ -259,6 +395,14 @@
 
 
     </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Scrim -->
+    <View
+        android:id="@+id/scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#80000000"
+        android:visibility="gone" />
 
     <!-- Save Panel (Pop-up) -->
     <androidx.constraintlayout.widget.ConstraintLayout
