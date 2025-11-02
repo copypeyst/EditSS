@@ -1,6 +1,6 @@
 Notes:
 - This project is a modified implementation of BaseMax/AndroidAutoBuildAPK. It automates CI for a native Android Gradle project. Do not modify the core workflow logic.
-
+- Use Model Context Protocol from .kilocode to stay updated with updated info.
 - preview.html is a visualizer for the user to visualize how the app looks like as close as possible and is meant to be coded manually.
 
 Edit SS
@@ -24,6 +24,7 @@ UI (top to bottom)
 │  ├─ Crop → See ToolOptions
 │  └─ Adjust → See ToolOptions
 
+Steps: (Only do 1 each time)
 1. In AndroidManifest.xml, declare intent filters for ACTION_VIEW and ACTION_EDIT with mimeType="image/*", and ensure the activity handles incoming ClipData for multi-image safety.
 2. Set android:exported="true" for all activities that include intent filters, to comply with Android 12 and newer manifest requirements.
 3. Implement runtime permission requests for Android 13+ using READ_MEDIA_IMAGES. Avoid requesting POST_NOTIFICATIONS unless the app explicitly sends notifications.
