@@ -2,6 +2,7 @@ package com.tamad.editss
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
@@ -104,9 +105,24 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Initialize Save Panel buttons (no logic yet)
-        findViewById<Button>(R.id.button_save_copy)
-        findViewById<Button>(R.id.button_overwrite)
+        // Initialize Save Panel buttons
+        val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
+        val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
+
+        val touchListener = View.OnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.alpha = 0.5f
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.alpha = 1.0f
+                }
+            }
+            false
+        }
+
+        buttonSaveCopy.setOnTouchListener(touchListener)
+        buttonOverwrite.setOnTouchListener(touchListener)
         findViewById<RadioButton>(R.id.radio_jpg)
         findViewById<RadioButton>(R.id.radio_png)
         findViewById<RadioButton>(R.id.radio_webp)
