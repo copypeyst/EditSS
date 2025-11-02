@@ -144,6 +144,18 @@
             android:orientation="vertical"
             android:visibility="gone">
 
+            <!-- Draw Modes -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginBottom="8dp">
+                <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="Pen Mode"/>
+                <ImageView android:id="@+id/draw_mode_circle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/circleicon" android:contentDescription="Circle Mode"/>
+                <ImageView android:id="@+id/draw_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/squareicon" android:contentDescription="Square Mode"/>
+            </LinearLayout>
+
             <!-- Colors -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -151,13 +163,13 @@
                 android:orientation="horizontal"
                 android:gravity="center"
                 android:layout_marginBottom="8dp">
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF000000" android:layout_marginEnd="4dp"/> <!-- Black -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFFFFF" android:layout_marginEnd="4dp"/> <!-- White -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFF0000" android:layout_marginEnd="4dp"/> <!-- Red -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF00FF00" android:layout_marginEnd="4dp"/> <!-- Green -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF0000FF" android:layout_marginEnd="4dp"/> <!-- Blue -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFFF00" android:layout_marginEnd="4dp"/> <!-- Yellow -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFA500" android:layout_marginEnd="4dp"/> <!-- Orange -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF000000" android:layout_marginEnd="8dp"/> <!-- Black -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFFFFF" android:layout_marginEnd="8dp"/> <!-- White -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFF0000" android:layout_marginEnd="8dp"/> <!-- Red -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF00FF00" android:layout_marginEnd="8dp"/> <!-- Green -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF0000FF" android:layout_marginEnd="8dp"/> <!-- Blue -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFFF00" android:layout_marginEnd="8dp"/> <!-- Yellow -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFA500" android:layout_marginEnd="8dp"/> <!-- Orange -->
                 <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFC0CB"/> <!-- Pink -->
             </LinearLayout>
 
@@ -166,17 +178,6 @@
             <SeekBar android:id="@+id/draw_size_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp"/>
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Opacity" android:textColor="@android:color/white" android:gravity="center_horizontal"/>
             <SeekBar android:id="@+id/draw_opacity_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp"/>
-
-            <!-- Draw Modes -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center">
-                <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="Pen Mode"/>
-                <ImageView android:id="@+id/draw_mode_circle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/circleicon" android:contentDescription="Circle Mode"/>
-                <ImageView android:id="@+id/draw_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/squareicon" android:contentDescription="Square Mode"/>
-            </LinearLayout>
 
         </LinearLayout>
 
@@ -231,27 +232,17 @@
         android:id="@+id/save_panel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#FF333333"
+        android:background="@drawable/rounded_background"
         android:padding="16dp"
         android:visibility="gone"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_setVerticalBias="0.5"
+        app:layout_setHorizontalBias="0.5"
         android:layout_marginStart="32dp"
         android:layout_marginEnd="32dp">
-
-        <TextView
-            android:id="@+id/save_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Save Options"
-            android:textColor="@android:color/white"
-            android:textSize="20sp"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            android:layout_marginBottom="16dp"/>
 
         <LinearLayout
             android:id="@+id/save_actions"
@@ -259,7 +250,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center"
-            app:layout_constraintTop_toBottomOf="@+id/save_title"
+            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             android:layout_marginTop="16dp">
