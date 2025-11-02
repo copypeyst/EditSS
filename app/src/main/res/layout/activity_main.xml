@@ -129,7 +129,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="8dp"
+        android:padding="4dp"
         android:background="#FF333333"
         android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@id/tools"
@@ -150,10 +150,10 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center"
-                android:layout_marginBottom="2dp"
-                android:layout_marginTop="32dp">
-                <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="Pen Mode" android:background="@drawable/outlined_background" android:padding="4dp" android:layout_marginEnd="16dp"/>
-                <ImageView android:id="@+id/draw_mode_circle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/circleicon" android:contentDescription="Circle Mode" android:background="@drawable/outlined_background" android:padding="4dp" android:layout_marginEnd="16dp"/>
+                android:layout_marginBottom="4dp"
+                android:layout_marginTop="16dp">
+                <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="Pen Mode" android:background="@drawable/outlined_background" android:padding="4dp" android:layout_marginEnd="12dp"/>
+                <ImageView android:id="@+id/draw_mode_circle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/circleicon" android:contentDescription="Circle Mode" android:background="@drawable/outlined_background" android:padding="4dp" android:layout_marginEnd="12dp"/>
                 <ImageView android:id="@+id/draw_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/squareicon" android:contentDescription="Square Mode" android:background="@drawable/outlined_background" android:padding="4dp"/>
             </LinearLayout>
 
@@ -163,17 +163,17 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center"
-                android:layout_marginBottom="2dp"
+                android:layout_marginBottom="8dp"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
-                android:layout_marginTop="4dp">
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF000000" android:layout_marginEnd="8dp"/> <!-- Black -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFFFFF" android:layout_marginEnd="8dp"/> <!-- White -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFF0000" android:layout_marginEnd="8dp"/> <!-- Red -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF00FF00" android:layout_marginEnd="8dp"/> <!-- Green -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF0000FF" android:layout_marginEnd="8dp"/> <!-- Blue -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFFF00" android:layout_marginEnd="8dp"/> <!-- Yellow -->
-                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFA500" android:layout_marginEnd="8dp"/> <!-- Orange -->
+                android:layout_marginTop="12dp">
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF000000" android:layout_marginEnd="12dp"/> <!-- Black -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFFFFF" android:layout_marginEnd="12dp"/> <!-- White -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFF0000" android:layout_marginEnd="12dp"/> <!-- Red -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF00FF00" android:layout_marginEnd="12dp"/> <!-- Green -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FF0000FF" android:layout_marginEnd="12dp"/> <!-- Blue -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFFF00" android:layout_marginEnd="12dp"/> <!-- Yellow -->
+                <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFA500" android:layout_marginEnd="12dp"/> <!-- Orange -->
                 <View android:layout_width="30dp" android:layout_height="30dp" android:background="@drawable/round_color_background" android:backgroundTint="#FFFFC0CB"/> <!-- Pink -->
             </LinearLayout>
 
