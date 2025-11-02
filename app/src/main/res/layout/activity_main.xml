@@ -36,7 +36,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:src="@drawable/import"
+            android:src="@drawable/importicon"
             android:contentDescription="Import" />
 
         <ImageView
@@ -44,7 +44,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:src="@drawable/camera"
+            android:src="@drawable/cameraicon"
             android:contentDescription="Camera" />
 
         <ImageView
@@ -52,7 +52,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:src="@drawable/undo"
+            android:src="@drawable/undoicon"
             android:contentDescription="Undo" />
 
         <ImageView
@@ -60,7 +60,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:src="@drawable/redo"
+            android:src="@drawable/redoicon"
             android:contentDescription="Redo" />
 
         <ImageView
@@ -68,7 +68,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:src="@drawable/share"
+            android:src="@drawable/shareicon"
             android:contentDescription="Share" />
 
         <ImageView
@@ -76,7 +76,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:src="@drawable/save"
+            android:src="@drawable/saveicon"
             android:contentDescription="Save" />
     </LinearLayout>
 
@@ -97,7 +97,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:src="@drawable/draw"
+            android:src="@drawable/drawicon"
             android:contentDescription="Draw" />
 
         <ImageView
@@ -105,7 +105,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:src="@drawable/cropping"
+            android:src="@drawable/cropicon"
             android:contentDescription="Crop" />
 
         <ImageView
@@ -113,7 +113,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:src="@drawable/adjust"
+            android:src="@drawable/adjusticon"
             android:contentDescription="Adjust" />
     </LinearLayout>
 
