@@ -10,20 +10,25 @@ import android.widget.RadioGroup
 import android.widget.RadioButton
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.FrameLayout
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var rootLayout: FrameLayout
     private lateinit var savePanel: View
     private lateinit var toolOptionsLayout: LinearLayout
     private lateinit var drawOptionsLayout: LinearLayout
     private lateinit var cropOptionsLayout: LinearLayout
     private lateinit var adjustOptionsLayout: LinearLayout
 
+    private var currentActiveTool: ImageView? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         // Find UI elements
+        rootLayout = findViewById(R.id.root_layout)
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
@@ -40,31 +45,63 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = if (savePanel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
             // Hide other tool options if Save panel is shown
             toolOptionsLayout.visibility = View.GONE
+            currentActiveTool = null // No tool is active when save panel is open
+        }
+
+        // Close save panel when tapping outside it
+        rootLayout.setOnTouchListener { v, event ->
+            if (savePanel.visibility == View.VISIBLE) {
+                val outRect = android.graphics.Rect()
+                savePanel.getGlobalVisibleRect(outRect)
+                if (!outRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
+                    savePanel.visibility = View.GONE
+                    return@setOnTouchListener true
+                }
+            }
+            false
         }
 
         // Tool Buttons Logic
         toolDraw.setOnClickListener {
-            toolOptionsLayout.visibility = View.VISIBLE
-            drawOptionsLayout.visibility = View.VISIBLE
-            cropOptionsLayout.visibility = View.GONE
-            adjustOptionsLayout.visibility = View.GONE
-            savePanel.visibility = View.GONE // Hide save panel
+            if (currentActiveTool == toolDraw) {
+                toolOptionsLayout.visibility = View.GONE
+                currentActiveTool = null
+            } else {
+                toolOptionsLayout.visibility = View.VISIBLE
+                drawOptionsLayout.visibility = View.VISIBLE
+                cropOptionsLayout.visibility = View.GONE
+                adjustOptionsLayout.visibility = View.GONE
+                savePanel.visibility = View.GONE // Hide save panel
+                currentActiveTool = toolDraw
+            }
         }
 
         toolCrop.setOnClickListener {
-            toolOptionsLayout.visibility = View.VISIBLE
-            cropOptionsLayout.visibility = View.VISIBLE
-            drawOptionsLayout.visibility = View.GONE
-            adjustOptionsLayout.visibility = View.GONE
-            savePanel.visibility = View.GONE // Hide save panel
+            if (currentActiveTool == toolCrop) {
+                toolOptionsLayout.visibility = View.GONE
+                currentActiveTool = null
+            } else {
+                toolOptionsLayout.visibility = View.VISIBLE
+                cropOptionsLayout.visibility = View.VISIBLE
+                drawOptionsLayout.visibility = View.GONE
+                adjustOptionsLayout.visibility = View.GONE
+                savePanel.visibility = View.GONE // Hide save panel
+                currentActiveTool = toolCrop
+            }
         }
 
         toolAdjust.setOnClickListener {
-            toolOptionsLayout.visibility = View.VISIBLE
-            adjustOptionsLayout.visibility = View.VISIBLE
-            drawOptionsLayout.visibility = View.GONE
-            cropOptionsLayout.visibility = View.GONE
-            savePanel.visibility = View.GONE // Hide save panel
+            if (currentActiveTool == toolAdjust) {
+                toolOptionsLayout.visibility = View.GONE
+                currentActiveTool = null
+            } else {
+                toolOptionsLayout.visibility = View.VISIBLE
+                adjustOptionsLayout.visibility = View.VISIBLE
+                drawOptionsLayout.visibility = View.GONE
+                cropOptionsLayout.visibility = View.GONE
+                savePanel.visibility = View.GONE // Hide save panel
+                currentActiveTool = toolAdjust
+            }
         }
 
         // Initialize Save Panel buttons (no logic yet)
