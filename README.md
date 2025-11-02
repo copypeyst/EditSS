@@ -16,10 +16,11 @@ UI (top to bottom)
 │  └─ Save → Panel: SaveCopy and Overwrite (separate Confirm/Cancel), Format (JPG/PNG/WEBP), Transparency warning if needed
 ├─ Canvas
 ├─ ToolOptions (contextual)
+│  ├─ Draw → Modes: Pen/Circle/Square; Options: Colors, Size/Opacity (sliders); Color/Size/Opacity are shared only among drawing tools
 │  ├─ Crop → Mode icons (FreeForm, Square, Portrait, Landscape); selection resets when switching modes
 │  └─ Adjust → Sliders for Brightness, Contrast, Saturation
 ├─ Tools
-│  ├─ Draw → Modes: Pen/Circle/Square; Options: Color (popup), Size/Opacity (sliders); Color/Size/Opacity are shared only among drawing tools
+│  ├─ Draw → See ToolOptions
 │  ├─ Crop → See ToolOptions
 │  └─ Adjust → See ToolOptions
 
