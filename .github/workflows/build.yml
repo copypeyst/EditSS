@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     # change to 'true' to enable building
-    if: false
+    if: true
     runs-on: ubuntu-latest
 
     steps:
