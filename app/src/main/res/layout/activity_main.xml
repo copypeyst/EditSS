@@ -212,7 +212,8 @@
                         android:layout_height="match_parent"
                         android:src="@drawable/faded_round_border"
                         android:visibility="gone"
-                        android:tag="border" />
+                        android:tag="border"
+                        android:padding="1dp" />
                 </FrameLayout>
 
                 <FrameLayout
@@ -230,7 +231,8 @@
                         android:layout_height="match_parent"
                         android:src="@drawable/faded_round_border"
                         android:visibility="gone"
-                        android:tag="border" />
+                        android:tag="border"
+                        android:padding="1dp" />
                 </FrameLayout>
 
                 <FrameLayout
@@ -248,7 +250,8 @@
                         android:layout_height="match_parent"
                         android:src="@drawable/faded_round_border"
                         android:visibility="gone"
-                        android:tag="border" />
+                        android:tag="border"
+                        android:padding="1dp" />
                 </FrameLayout>
 
                 <FrameLayout
@@ -266,7 +269,8 @@
                         android:layout_height="match_parent"
                         android:src="@drawable/faded_round_border"
                         android:visibility="gone"
-                        android:tag="border" />
+                        android:tag="border"
+                        android:padding="1dp" />
                 </FrameLayout>
 
                 <FrameLayout
@@ -284,7 +288,8 @@
                         android:layout_height="match_parent"
                         android:src="@drawable/faded_round_border"
                         android:visibility="gone"
-                        android:tag="border" />
+                        android:tag="border"
+                        android:padding="1dp" />
                 </FrameLayout>
 
                 <FrameLayout
@@ -302,7 +307,8 @@
                         android:layout_height="match_parent"
                         android:src="@drawable/faded_round_border"
                         android:visibility="gone"
-                        android:tag="border" />
+                        android:tag="border"
+                        android:padding="1dp" />
                 </FrameLayout>
 
                 <FrameLayout
@@ -320,7 +326,8 @@
                         android:layout_height="match_parent"
                         android:src="@drawable/faded_round_border"
                         android:visibility="gone"
-                        android:tag="border" />
+                        android:tag="border"
+                        android:padding="1dp" />
                 </FrameLayout>
 
                 <FrameLayout
@@ -337,7 +344,8 @@
                         android:layout_height="match_parent"
                         android:src="@drawable/faded_round_border"
                         android:visibility="gone"
-                        android:tag="border" />
+                        android:tag="border"
+                        android:padding="1dp" />
                 </FrameLayout>
 
             </LinearLayout>
