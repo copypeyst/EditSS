@@ -119,7 +119,7 @@
         <ImageView
             android:id="@+id/tool_draw"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_weight="1"
             android:layout_marginEnd="5dp"
             android:src="@drawable/drawicon"
@@ -131,7 +131,7 @@
         <ImageView
             android:id="@+id/tool_crop"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_weight="1"
             android:layout_marginEnd="5dp"
             android:src="@drawable/cropicon"
@@ -143,7 +143,7 @@
         <ImageView
             android:id="@+id/tool_adjust"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/adjusticon"
             android:contentDescription="Adjust"
@@ -444,7 +444,8 @@
                 android:layout_height="wrap_content"
                 android:text="Save Copy"
                 android:layout_marginEnd="8dp"
-                android:backgroundTint="?attr/colorSecondary"/>
+                android:background="@drawable/ripple_effect"
+                android:textColor="?attr/colorOnSecondary"/>
 
             <Button
                 android:id="@+id/button_overwrite"
@@ -452,7 +453,8 @@
                 android:layout_height="wrap_content"
                 android:text="Overwrite"
                 android:layout_marginStart="8dp"
-                android:backgroundTint="?attr/colorSecondary"/>
+                android:background="@drawable/ripple_effect"
+                android:textColor="?attr/colorOnSecondary"/>
         </LinearLayout>
 
         <RadioGroup
