@@ -25,20 +25,18 @@ UI (top to bottom)
 │  └─ Adjust → See ToolOptions
 
 Steps: (Only do 1 each time)
-✓ 1. In AndroidManifest.xml, declare intent filters for ACTION_VIEW and ACTION_EDIT with mimeType="image/*", and ensure the activity handles incoming ClipData for multi-image safety.
-✓ 2. Set android:exported="true" for all activities that include intent filters, to comply with Android 12 and newer manifest requirements.
-✓ 3. Request READ_MEDIA_IMAGES only when importing images via Photo Picker or ACTION_OPEN_DOCUMENT. Do not request it for camera capture or internal editing workflows. Avoid requesting POST_NOTIFICATIONS unless the app explicitly sends notifications.
-✓ 4. For Android 10–12, rely on the MediaStore API without requesting legacy storage permissions. Never request WRITE_EXTERNAL_STORAGE or READ_EXTERNAL_STORAGE.
-✓ 5. When permissions are denied, display a non-blocking dialog: "Permission denied. Please allow access in Settings." with a button linking to system settings via ACTION_APPLICATION_DETAILS_SETTINGS.
-✓ 6. Detect if permissions are revoked mid-session (e.g. via onResume) and prompt the user to reopen system settings to re-enable access before proceeding.
-✓ 7. Handle ACTION_VIEW and ACTION_EDIT intents on launch by checking the incoming Intent data URI and setting the editor state accordingly.
-✓ 8. Track each image's origin using an enum with the following members: IMPORTED_READONLY, IMPORTED_WRITABLE, CAMERA_CAPTURED, and EDITED_INTERNAL. Each origin must store a boolean flag canOverwrite. This flag is true if the app has confirmed write access to the image's URI—either by owning the URI (e.g., CAMERA_CAPTURED, EDITED_INTERNAL) or by holding persistable URI permission (e.g., IMPORTED_WRITABLE).
-✓ 9. Define EDITED_INTERNAL to represent images created or saved by the app itself. Only show an Overwrite option if the image has a writable URI.
-✓ 10. If canOverwrite becomes false due to permission loss or URI revocation, disable Overwrite in the UI and default to SaveCopy to preserve data integrity.
-✓ 11. For Import, open the Android 13+ Photo Picker API. On older versions, use ACTION_OPEN_DOCUMENT with intent.addCategory(CATEGORY_OPENABLE) and type="image/*".
-    - **Single image selection enforced** (EXTRA_ALLOW_MULTIPLE = false)
-✓ 12. Reject multi-image imports unless the app explicitly supports multiple ClipData items, to keep behavior predictable.
-    - **Current implementation**: Only first image loaded, rest rejected with toast
+1. In AndroidManifest.xml, declare intent filters for ACTION_VIEW and ACTION_EDIT with mimeType="image/*", and ensure the activity handles incoming ClipData for multi-image safety.
+2. Set android:exported="true" for all activities that include intent filters, to comply with Android 12 and newer manifest requirements.
+3. Request READ_MEDIA_IMAGES only when importing images via Photo Picker or ACTION_OPEN_DOCUMENT. Do not request it for camera capture or internal editing workflows. Avoid requesting POST_NOTIFICATIONS unless the app explicitly sends notifications.
+4. For Android 10–12, rely on the MediaStore API without requesting legacy storage permissions. Never request WRITE_EXTERNAL_STORAGE or READ_EXTERNAL_STORAGE.
+5. When permissions are denied, display a non-blocking dialog: “Permission denied. Please allow access in Settings.” with a button linking to system settings via ACTION_APPLICATION_DETAILS_SETTINGS.
+6. Detect if permissions are revoked mid-session (e.g. via onResume) and prompt the user to reopen system settings to re-enable access before proceeding.
+7. Handle ACTION_VIEW and ACTION_EDIT intents on launch by checking the incoming Intent data URI and setting the editor state accordingly.
+8. Track each image’s origin using an enum with the following members: IMPORTED_READONLY, IMPORTED_WRITABLE, CAMERA_CAPTURED, and EDITED_INTERNAL. Each origin must store a boolean flag canOverwrite. This flag is true if the app has confirmed write access to the image’s URI—either by owning the URI (e.g., CAMERA_CAPTURED, EDITED_INTERNAL) or by holding persistable URI permission (e.g., IMPORTED_WRITABLE).
+9. Define EDITED_INTERNAL to represent images created or saved by the app itself. Only show an Overwrite option if the image has a writable URI.
+10. If canOverwrite becomes false due to permission loss or URI revocation, disable Overwrite in the UI and default to SaveCopy to preserve data integrity.
+11. For Import, open the Android 13+ Photo Picker API. On older versions, use ACTION_OPEN_DOCUMENT with intent.addCategory(CATEGORY_OPENABLE) and type="image/*".
+12. Reject multi-image imports unless the app explicitly supports multiple ClipData items, to keep behavior predictable.
 13. For Camera capture, create a new writable URI in MediaStore.Images.Media.EXTERNAL_CONTENT_URI before launching the ACTION_IMAGE_CAPTURE intent.
 14. When decoding or loading large images (from import, camera, or disk), use BitmapFactory.Options.inSampleSize to downsample appropriately to the target display/working resolution to prevent out-of-memory errors.
 15. [REMOVED — merged into item 56]
@@ -46,7 +44,7 @@ Steps: (Only do 1 each time)
 17. Release and recycle temporary or unused Bitmaps when switching images or tools to avoid memory leaks; ensure references are nulled and Bitmap.recycle() is called where appropriate.
 18. Offload heavy image operations (e.g., applyFilter, adjustBrightness/contrast, big-blob encoding) to background threads using coroutines or an executor; synchronize results back to the UI thread for display.
 19. Always close InputStreams and OutputStreams in finally blocks (or use try-with-resources) to prevent file descriptor leaks, for both reading imports and writing saves/exports.
-✓ 20. After image import or capture, call takePersistableUriPermission() if the source URI comes from ACTION_OPEN_DOCUMENT, and store the URI persistently.
+20. After image import or capture, call takePersistableUriPermission() if the source URI comes from ACTION_OPEN_DOCUMENT, and store the URI persistently.
 21. When saving, create a ContentValues object and insert it using ContentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values).
 22. Use openOutputStream() on the URI and write the image data. Set IS_PENDING=1 before writing and IS_PENDING=0 afterward to ensure atomic save completion; ensure cleanup sets IS_PENDING=0 on both success and failure branches.
 23. When naming saved files, use a timestamp-based name like "IMG_yyyyMMdd_HHmmss" with the correct extension matching MIME type (e.g., .jpg → image/jpeg) and append a short random suffix to avoid collisions.
