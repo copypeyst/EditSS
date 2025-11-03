@@ -314,42 +314,42 @@ class MainActivity : AppCompatActivity() {
                     intent.data?.let { uri ->
                         loadImageFromUri(uri, Intent.ACTION_EDIT == intent.action)
                     }
+                }
             
-                    // Step 13: Camera capture with writable MediaStore URI
-                    private fun captureImageFromCamera() {
-                        try {
-                            // Create timestamp-based filename as per plan step 23 (preparation)
-                            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                            val fileName = "IMG_$timestamp"
-                            
-                            // Create ContentValues for MediaStore
-                            val contentValues = android.content.ContentValues().apply {
-                                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                                put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures") // Standard Pictures directory
-                            }
-                            
-                            // Create writable URI in MediaStore
-                            val contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                            val insertUri = contentResolver.insert(contentUri, contentValues)
-                            
-                            if (insertUri != null) {
-                                // Launch camera with the writable URI
-                                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-                                intent.putExtra(MediaStore.EXTRA_OUTPUT, insertUri)
-                                intent.putExtra("android.intent.extra.finishAfterCapture", true)
-                                
-                                // Store the capture URI temporarily for handling result
-                                currentCameraUri = insertUri
-                                
-                                startActivityForResult(intent, CAMERA_REQUEST_CODE)
-                            } else {
-                                Toast.makeText(this, "Camera error. Could not create image entry.", Toast.LENGTH_SHORT).show()
-                            }
-                            
-                        } catch (e: Exception) {
-                            Toast.makeText(this, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
+                // Step 13: Camera capture with writable MediaStore URI
+                private fun captureImageFromCamera() {
+                    try {
+                        // Create timestamp-based filename as per plan step 23 (preparation)
+                        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                        val fileName = "IMG_$timestamp"
+                        
+                        // Create ContentValues for MediaStore
+                        val contentValues = android.content.ContentValues().apply {
+                            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                            put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures") // Standard Pictures directory
                         }
+                        
+                        // Create writable URI in MediaStore
+                        val contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                        val insertUri = contentResolver.insert(contentUri, contentValues)
+                        
+                        if (insertUri != null) {
+                            // Launch camera with the writable URI
+                            val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+                            intent.putExtra(MediaStore.EXTRA_OUTPUT, insertUri)
+                            intent.putExtra("android.intent.extra.finishAfterCapture", true)
+                            
+                            // Store the capture URI temporarily for handling result
+                            currentCameraUri = insertUri
+                            
+                            startActivityForResult(intent, CAMERA_REQUEST_CODE)
+                        } else {
+                            Toast.makeText(this, "Camera error. Could not create image entry.", Toast.LENGTH_SHORT).show()
+                        }
+                        
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
