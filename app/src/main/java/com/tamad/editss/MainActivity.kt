@@ -12,6 +12,7 @@ import android.widget.RadioButton
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.FrameLayout
+import androidx.appcompat.app.AppCompatDelegate
 
 class MainActivity : AppCompatActivity() {
 

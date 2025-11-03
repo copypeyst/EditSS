@@ -444,8 +444,8 @@
                 android:layout_height="wrap_content"
                 android:text="Save Copy"
                 android:layout_marginEnd="8dp"
-                android:background="@drawable/button_ripple_secondary"
-                android:textColor="?attr/colorOnSecondary"/>
+                android:background="@drawable/save_button_background"
+                android:textColor="@android:color/black"/>
 
             <Button
                 android:id="@+id/button_overwrite"
@@ -453,8 +453,8 @@
                 android:layout_height="wrap_content"
                 android:text="Overwrite"
                 android:layout_marginStart="8dp"
-                android:background="@drawable/button_ripple_secondary"
-                android:textColor="?attr/colorOnSecondary"/>
+                android:background="@drawable/save_button_background"
+                android:textColor="@android:color/black"/>
         </LinearLayout>
 
         <RadioGroup
