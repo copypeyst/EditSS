@@ -2,6 +2,11 @@ package com.tamad.editss
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.content.Intent
+import android.content.ClipData
+import android.content.pm.PackageManager
+import android.os.Build
+import android.Manifest
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
@@ -13,8 +18,20 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import android.widget.Toast
+import android.provider.Settings
+import android.net.Uri
+import android.content.DialogInterface
+import androidx.appcompat.app.AlertDialog
 
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        private const val PERMISSION_REQUEST_CODE = 100
+        private const val IMPORT_REQUEST_CODE = 101
+    }
 
     private lateinit var rootLayout: FrameLayout
     private lateinit var savePanel: View
@@ -37,6 +54,7 @@ class MainActivity : AppCompatActivity() {
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
         val buttonSave: ImageView = findViewById(R.id.button_save)
+        val buttonImport: ImageView = findViewById(R.id.button_import)
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
@@ -62,6 +80,15 @@ class MainActivity : AppCompatActivity() {
         scrim.setOnClickListener {
             savePanel.visibility = View.GONE
             scrim.visibility = View.GONE
+        }
+
+        // Import Button Logic
+        buttonImport.setOnClickListener {
+            if (hasImagePermission()) {
+                openImagePicker()
+            } else {
+                requestImagePermission()
+            }
         }
 
         // Tool Buttons Logic
@@ -211,5 +238,133 @@ class MainActivity : AppCompatActivity() {
         toolDraw.isSelected = true
         currentActiveTool = toolDraw
         drawOptionsLayout.visibility = View.VISIBLE
+        
+        // Handle incoming intents
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        intent?.let { handleIntent(it) }
+    }
+
+    private fun handleIntent(intent: Intent) {
+        when (intent.action) {
+            Intent.ACTION_VIEW, Intent.ACTION_EDIT -> {
+                // Check if this is a single image or multiple images
+                val clipData = intent.clipData
+                if (clipData != null) {
+                    val itemCount = clipData.itemCount
+                    if (itemCount > 1) {
+                        // Multiple images - reject for safety
+                        Toast.makeText(this, "Multiple images not supported. Please select a single image.", Toast.LENGTH_LONG).show()
+                        return
+                    }
+                    // Single image from clip data
+                    val item = clipData.getItemAt(0)
+                    item?.uri?.let { uri ->
+                        loadImageFromUri(uri, Intent.ACTION_EDIT == intent.action)
+                    }
+                } else {
+                    // Single image from data URI
+                    intent.data?.let { uri ->
+                        loadImageFromUri(uri, Intent.ACTION_EDIT == intent.action)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
+        // TODO: Implement actual image loading logic
+        // This is a placeholder for the actual implementation
+        Toast.makeText(this, "Loading image from: $uri", Toast.LENGTH_SHORT).show()
+    }
+
+    // Permission checking methods
+    private fun hasImagePermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+        } else {
+            @Suppress("DEPRECATION")
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun requestImagePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.READ_MEDIA_IMAGES),
+                PERMISSION_REQUEST_CODE
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
+                PERMISSION_REQUEST_CODE
+            )
+        }
+    }
+
+    // Photo picker logic (Step 11 - implementing here for step 3 context)
+    private fun openImagePicker() {
+        // Android 13+ Photo Picker
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val intent = Intent(Intent.ACTION_PICK)
+            intent.type = "image/*"
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false) // Single image only
+            startActivityForResult(intent, IMPORT_REQUEST_CODE)
+        } else {
+            // Older versions fallback
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.type = "image/*"
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false) // Single image only
+            startActivityForResult(intent, IMPORT_REQUEST_CODE)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted, proceed with import
+                openImagePicker()
+            } else {
+                // Permission denied - show dialog (Step 5 implementation)
+                showPermissionDeniedDialog()
+            }
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        
+        if (requestCode == IMPORT_REQUEST_CODE && resultCode == RESULT_OK) {
+            data?.data?.let { uri ->
+                loadImageFromUri(uri, false)
+            }
+        }
+    }
+
+    // Permission denied dialog (Step 5)
+    private fun showPermissionDeniedDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Permission Required")
+            .setMessage("Permission denied. Please allow access in Settings.")
+            .setPositiveButton("Settings") { _, _ ->
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                val uri = Uri.fromParts("package", packageName, null)
+                intent.data = uri
+                startActivity(intent)
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(false)
+            .show()
     }
 }
