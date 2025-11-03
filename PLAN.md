@@ -32,7 +32,7 @@ Steps: (Only do 1 each time)
 5. When permissions are denied, display a non-blocking dialog: “Permission denied. Please allow access in Settings.” with a button linking to system settings via ACTION_APPLICATION_DETAILS_SETTINGS.
 6. Detect if permissions are revoked mid-session (e.g. via onResume) and prompt the user to reopen system settings to re-enable access before proceeding.
 7. Handle ACTION_VIEW and ACTION_EDIT intents on launch by checking the incoming Intent data URI and setting the editor state accordingly.
-8. Track each image’s origin using an enum with the following members: IMPORTED_READONLY, IMPORTED_WRITABLE, CAMERA_CAPTURED, and EDITED_INTERNAL. IMPORTED_WRITABLE must only be assigned if the app has taken persistable URI permission and confirmed write access. Each origin must store a boolean flag canOverwrite that reflects write permissions.
+8. Track each image’s origin using an enum with the following members: IMPORTED_READONLY, IMPORTED_WRITABLE, CAMERA_CAPTURED, and EDITED_INTERNAL. Each origin must store a boolean flag canOverwrite. This flag is true if the app has confirmed write access to the image’s URI—either by owning the URI (e.g., CAMERA_CAPTURED, EDITED_INTERNAL) or by holding persistable URI permission (e.g., IMPORTED_WRITABLE).
 9. Define EDITED_INTERNAL to represent images created or saved by the app itself. Only show an Overwrite option if the image has a writable URI.
 10. If canOverwrite becomes false due to permission loss or URI revocation, disable Overwrite in the UI and default to SaveCopy to preserve data integrity.
 11. For Import, open the Android 13+ Photo Picker API. On older versions, use ACTION_OPEN_DOCUMENT with intent.addCategory(CATEGORY_OPENABLE) and type="image/*".
