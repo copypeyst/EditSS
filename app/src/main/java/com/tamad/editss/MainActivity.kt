@@ -75,7 +75,6 @@ class MainActivity : AppCompatActivity() {
     // Step 14: Target image size for display (to prevent OOM errors)
     private val TARGET_IMAGE_SIZE = 2048 // pixels
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -317,6 +316,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
 
     // Step 13: Camera capture with writable MediaStore URI
     private fun captureImageFromCamera() {
@@ -401,7 +401,7 @@ class MainActivity : AppCompatActivity() {
             
             // Load bitmap with calculated inSampleSize
             val options2 = BitmapFactory.Options().apply {
-                inSampleSize = Math.max(width, height)
+                inSampleSize = Math.max(width.toInt(), height.toInt())
             }
             
             contentResolver.openInputStream(uri)?.use { inputStream ->
