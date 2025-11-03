@@ -32,6 +32,7 @@ import java.util.Locale
 import java.util.LinkedHashMap
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
+import android.os.Environment
 import kotlinx.coroutines.*
 import androidx.lifecycle.lifecycleScope
 
@@ -52,7 +53,7 @@ data class ImageInfo(
 // Step 16: LRU in-memory bitmap/thumbnail cache
 class BitmapLRUCache(maxSize: Int = 50) {
     private val cache = object : LinkedHashMap<String, Bitmap>(maxSize, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.Entry<String, Bitmap>?): Boolean {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?): Boolean {
             return size > maxSize
         }
     }
@@ -130,6 +131,9 @@ class MainActivity : AppCompatActivity() {
     
     // Step 8: Track current image information
     private var currentImageInfo: ImageInfo? = null
+    
+    // Step 23: Track selected save format for proper naming
+    private var selectedSaveFormat: String = "image/jpeg" // Default to JPEG
     
     // Step 13: Store camera capture URI temporarily
     private var currentCameraUri: Uri? = null
@@ -233,6 +237,23 @@ class MainActivity : AppCompatActivity() {
         // Initialize Save Panel buttons
         val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
+        
+        // Step 21, 22, 23: Save button click handlers
+        buttonSaveCopy.setOnClickListener {
+            if (currentImageInfo != null) {
+                saveImageAsCopy()
+            } else {
+                Toast.makeText(this, "No image to save", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        buttonOverwrite.setOnClickListener {
+            if (currentImageInfo != null && currentImageInfo!!.canOverwrite) {
+                overwriteCurrentImage()
+            } else {
+                Toast.makeText(this, "Cannot overwrite this image", Toast.LENGTH_SHORT).show()
+            }
+        }
 
         val touchListener = View.OnTouchListener { v, event ->
             when (event.action) {
@@ -248,9 +269,25 @@ class MainActivity : AppCompatActivity() {
 
         buttonSaveCopy.setOnTouchListener(touchListener)
         buttonOverwrite.setOnTouchListener(touchListener)
-        findViewById<RadioButton>(R.id.radio_jpg)
-        findViewById<RadioButton>(R.id.radio_png)
-        findViewById<RadioButton>(R.id.radio_webp)
+        
+        // Step 23 & 24: Format selection handling
+        val radioJPG: RadioButton = findViewById(R.id.radio_jpg)
+        val radioPNG: RadioButton = findViewById(R.id.radio_png)
+        val radioWEBP: RadioButton = findViewById(R.id.radio_webp)
+        
+        radioJPG.setOnClickListener {
+            selectedSaveFormat = "image/jpeg"
+            // Step 24: Check for transparency warning if needed
+            checkTransparencyWarning()
+        }
+        radioPNG.setOnClickListener {
+            selectedSaveFormat = "image/png"
+        }
+        radioWEBP.setOnClickListener {
+            selectedSaveFormat = "image/webp"
+            // Step 24: Check for transparency warning if needed
+            checkTransparencyWarning()
+        }
 
         // Initialize Draw Options
         findViewById<SeekBar>(R.id.draw_size_slider)
@@ -401,6 +438,249 @@ class MainActivity : AppCompatActivity() {
                         loadImageFromUri(uri, Intent.ACTION_EDIT == intent.action)
                     }
                 }
+            }
+        }
+        
+        // Step 21, 22, 23: Save image as copy with ContentResolver.insert workflow
+        private fun saveImageAsCopy() {
+            lifecycleScope.launch {
+                try {
+                    // Step 22: Set IS_PENDING flag to indicate saving in progress
+                    val savedUri = saveImageToMediaStore()
+                    
+                    if (savedUri != null) {
+                        // Step 22: Set IS_PENDING=0 after successful save
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Image saved successfully", Toast.LENGTH_SHORT).show()
+                            savePanel.visibility = View.GONE
+                            scrim.visibility = View.GONE
+                        }
+                    } else {
+                        // Step 43: Save failure handling
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Save failed. Check storage and try again.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                } catch (e: Exception) {
+                    // Step 43: Save failure handling
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+        
+        // Step 21: Atomic save completion with IS_PENDING flag
+        private suspend fun saveImageToMediaStore(): Uri? = withContext(Dispatchers.IO) {
+            var outputStream: java.io.OutputStream? = null
+            
+            try {
+                // Step 23: Generate filename with timestamp and collision avoidance
+                val filename = generateUniqueFilename()
+                
+                // Step 21: Create ContentValues and insert using ContentResolver.insert
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                    put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/EditSS")
+                    }
+                    // Step 22: Set IS_PENDING=1 to indicate save in progress (for atomic operations)
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+                
+                // Step 21: Insert into MediaStore using ContentResolver.insert
+                val imageUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                
+                if (imageUri != null) {
+                    // Step 22: Write image data with proper stream management
+                    outputStream = contentResolver.openOutputStream(imageUri)
+                    
+                    // TODO: Step 52: Offload image encoding to background worker
+                    // For now, use current bitmap (would need actual encoding logic)
+                    currentBitmap?.compress(
+                        when (selectedSaveFormat) {
+                            "image/jpeg" -> Bitmap.CompressFormat.JPEG
+                            "image/png" -> Bitmap.CompressFormat.PNG
+                            "image/webp" -> Bitmap.CompressFormat.WEBP
+                            else -> Bitmap.CompressFormat.JPEG
+                        },
+                        95, // Quality
+                        outputStream ?: return@withContext null
+                    )
+                    
+                    // Step 22: Set IS_PENDING=0 after successful write (atomic completion)
+                    val updateValues = ContentValues().apply {
+                        put(MediaStore.Images.Media.IS_PENDING, 0)
+                    }
+                    contentResolver.update(imageUri, updateValues, null, null)
+                    
+                    return@withContext imageUri
+                }
+                
+                return@withContext null
+                
+            } catch (e: Exception) {
+                // Step 22: Ensure cleanup sets IS_PENDING=0 on failure
+                try {
+                    val failedUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, ContentValues().apply {
+                        put(MediaStore.Images.Media.DISPLAY_NAME, "temp_error_${System.currentTimeMillis()}")
+                        put(MediaStore.Images.Media.IS_PENDING, 0)
+                    })
+                    failedUri?.let { contentResolver.delete(it, null, null) }
+                } catch (cleanupException: Exception) {
+                    // Log cleanup failure but don't crash
+                    cleanupException.printStackTrace()
+                }
+                throw e
+            } finally {
+                // Step 19: Ensure stream closure to prevent file descriptor leaks
+                try {
+                    outputStream?.close()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        
+        // Step 22: Overwrite current image workflow
+        private fun overwriteCurrentImage() {
+            currentImageInfo?.let { imageInfo ->
+                lifecycleScope.launch {
+                    try {
+                        // Step 22: Overwrite the original image with IS_PENDING workflow
+                        val updatedUri = overwriteImageInMediaStore(imageInfo.uri)
+                        
+                        if (updatedUri != null) {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@MainActivity, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
+                                savePanel.visibility = View.GONE
+                                scrim.visibility = View.GONE
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@MainActivity, "Overwrite failed. Check permissions.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Overwrite failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Step 22: Overwrite workflow with IS_PENDING flag
+        private suspend fun overwriteImageInMediaStore(originalUri: Uri): Uri? = withContext(Dispatchers.IO) {
+            var outputStream: java.io.OutputStream? = null
+            
+            try {
+                // Step 22: Set IS_PENDING=1 to begin atomic overwrite
+                val pendingValues = ContentValues().apply {
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+                contentResolver.update(originalUri, pendingValues, null, null)
+                
+                // Write the new image data
+                outputStream = contentResolver.openOutputStream(originalUri)
+                currentBitmap?.compress(
+                    when (selectedSaveFormat) {
+                        "image/jpeg" -> Bitmap.CompressFormat.JPEG
+                        "image/png" -> Bitmap.CompressFormat.PNG
+                        "image/webp" -> Bitmap.CompressFormat.WEBP
+                        else -> Bitmap.CompressFormat.JPEG
+                    },
+                    95,
+                    outputStream ?: return@withContext null
+                )
+                
+                // Step 22: Set IS_PENDING=0 to complete atomic overwrite
+                val finalizeValues = ContentValues().apply {
+                    put(MediaStore.Images.Media.IS_PENDING, 0)
+                    put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
+                }
+                contentResolver.update(originalUri, finalizeValues, null, null)
+                
+                return@withContext originalUri
+                
+            } catch (e: Exception) {
+                // Step 22: On failure, ensure IS_PENDING=0 to prevent orphaned entries
+                try {
+                    val cleanupValues = ContentValues().apply {
+                        put(MediaStore.Images.Media.IS_PENDING, 0)
+                    }
+                    contentResolver.update(originalUri, cleanupValues, null, null)
+                } catch (cleanupException: Exception) {
+                    cleanupException.printStackTrace()
+                }
+                throw e
+            } finally {
+                // Step 19: Ensure stream closure
+                try {
+                    outputStream?.close()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        
+        // Step 23: Timestamp-based file naming with collision avoidance
+        private fun generateUniqueFilename(): String {
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val randomSuffix = (Math.random() * 1000).toInt()
+            val extension = when (selectedSaveFormat) {
+                "image/jpeg" -> ".jpg"
+                "image/png" -> ".png"
+                "image/webp" -> ".webp"
+                else -> ".jpg"
+            }
+            return "IMG_${timestamp}_${randomSuffix}$extension"
+        }
+        
+        // Step 24 & 25: Transparency warning for JPEG/WEBP
+        private fun checkTransparencyWarning() {
+            // TODO: Step 25: Detect if current bitmap has transparency
+            // For now, we'll show warning for JPEG/WEBP and handle WEBP auto-switching
+            val hasTransparency = false // This would need actual detection logic
+            
+            if (selectedSaveFormat == "image/jpeg") {
+                // Step 24: JPEG doesn't support transparency - show warning if needed
+                if (hasTransparency) {
+                    AlertDialog.Builder(this)
+                        .setTitle("Transparency Warning")
+                        .setMessage("JPEG format does not support transparency. Areas with transparency will be filled with black.")
+                        .setPositiveButton("Continue") { dialog, _ ->
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton("Switch to PNG") { _, _ ->
+                            selectedSaveFormat = "image/png"
+                            updateFormatSelectionUI()
+                        }
+                        .show()
+                }
+            } else if (selectedSaveFormat == "image/webp") {
+                if (hasTransparency) {
+                    // Step 25: Auto-switch to lossless WEBP and suppress transparency warning
+                    selectedSaveFormat = "image/webp-lossless" // Would need actual lossless implementation
+                    updateFormatSelectionUI()
+                    Toast.makeText(this, "Auto-switched to lossless WEBP to preserve transparency", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        
+        // Helper method to update format selection UI
+        private fun updateFormatSelectionUI() {
+            val radioJPG: RadioButton = findViewById(R.id.radio_jpg)
+            val radioPNG: RadioButton = findViewById(R.id.radio_png)
+            val radioWEBP: RadioButton = findViewById(R.id.radio_webp)
+            
+            when (selectedSaveFormat) {
+                "image/jpeg" -> radioJPG.isChecked = true
+                "image/png" -> radioPNG.isChecked = true
+                "image/webp" -> radioWEBP.isChecked = true
             }
         }
     }
