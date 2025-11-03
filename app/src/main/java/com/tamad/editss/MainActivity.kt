@@ -243,9 +243,9 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        intent?.let { handleIntent(it) }
+        handleIntent(intent)
     }
 
     private fun handleIntent(intent: Intent) {
@@ -281,13 +281,13 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Loading image from: $uri", Toast.LENGTH_SHORT).show()
     }
 
-    // Permission checking methods
+    // Permission checking methods - Step 4: Only check READ_MEDIA_IMAGES for Android 13+
     private fun hasImagePermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
         } else {
-            @Suppress("DEPRECATION")
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            // Android 10-12: No permission needed for MediaStore API
+            true
         }
     }
 
@@ -299,29 +299,27 @@ class MainActivity : AppCompatActivity() {
                 PERMISSION_REQUEST_CODE
             )
         } else {
-            @Suppress("DEPRECATION")
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
-                PERMISSION_REQUEST_CODE
-            )
+            // Android 10-12: No permission request needed, proceed directly
+            openImagePicker()
         }
     }
 
-    // Photo picker logic (Step 11 - implementing here for step 3 context)
+    // Photo picker logic - Step 4: Use MediaStore API for Android 10-12
     private fun openImagePicker() {
-        // Android 13+ Photo Picker
+        // Android 13+ Photo Picker API
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val intent = Intent(Intent.ACTION_PICK)
             intent.type = "image/*"
             intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false) // Single image only
             startActivityForResult(intent, IMPORT_REQUEST_CODE)
         } else {
-            // Older versions fallback
+            // Android 10-12: Use MediaStore API with ACTION_OPEN_DOCUMENT
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             intent.addCategory(Intent.CATEGORY_OPENABLE)
             intent.type = "image/*"
             intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false) // Single image only
+            
+            // For Android 10-12, we rely on MediaStore API without storage permissions
             startActivityForResult(intent, IMPORT_REQUEST_CODE)
         }
     }
@@ -345,6 +343,18 @@ class MainActivity : AppCompatActivity() {
         
         if (requestCode == IMPORT_REQUEST_CODE && resultCode == RESULT_OK) {
             data?.data?.let { uri ->
+                // Step 20: For Android 10-12, request persistable URI permission for MediaStore
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+                    try {
+                        contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    } catch (e: SecurityException) {
+                        // Handle case where permission can't be persisted
+                        Toast.makeText(this, "Could not persist access to image", Toast.LENGTH_SHORT).show()
+                    }
+                }
                 loadImageFromUri(uri, false)
             }
         }
