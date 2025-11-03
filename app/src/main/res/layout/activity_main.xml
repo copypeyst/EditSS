@@ -167,7 +167,7 @@
         <LinearLayout
             android:id="@+id/draw_options"
             android:layout_width="match_parent"
-            android:layout_height="150dp"
+            android:layout_height="100dp"
             android:orientation="vertical"
             android:visibility="gone"
             android:paddingStart="5dp"
@@ -344,9 +344,9 @@
 
             <!-- Size/Opacity Sliders -->
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Size" android:textColor="@android:color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
-            <SeekBar android:id="@+id/draw_size_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="4dp"/>
+            <SeekBar android:id="@+id/draw_size_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="0dp"/>
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Opacity" android:textColor="@android:color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
-            <SeekBar android:id="@+id/draw_opacity_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="4dp"/>
+            <SeekBar android:id="@+id/draw_opacity_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="0dp"/>
 
         </LinearLayout>
 
@@ -354,22 +354,23 @@
         <LinearLayout
             android:id="@+id/crop_options"
             android:layout_width="match_parent"
-            android:layout_height="150dp"
+            android:layout_height="100dp"
             android:orientation="horizontal"
             android:gravity="center"
             android:visibility="gone">
-            <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/cropfreeformicon" android:contentDescription="Freeform Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
-            <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/cropsquareicon" android:contentDescription="Square Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
-            <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/cropportraiticon" android:contentDescription="Portrait Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
-            <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="Landscape Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1" android:src="@drawable/cropfreeformicon" android:contentDescription="Freeform Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1" android:src="@drawable/cropsquareicon" android:contentDescription="Square Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1" android:src="@drawable/cropportraiticon" android:contentDescription="Portrait Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="Landscape Crop" android:background="@drawable/button_background" android:clickable="true" android:focusable="true"/>
         </LinearLayout>
 
         <!-- Adjust Options -->
         <LinearLayout
             android:id="@+id/adjust_options"
             android:layout_width="match_parent"
-            android:layout_height="150dp"
+            android:layout_height="100dp"
             android:orientation="vertical"
+            android:gravity="center_vertical"
             android:visibility="gone">
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Brightness" android:textColor="@android:color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
             <SeekBar android:id="@+id/adjust_brightness_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="4dp"/>
