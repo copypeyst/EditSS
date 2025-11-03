@@ -368,16 +368,16 @@
             android:orientation="horizontal"
             android:gravity="center"
             android:visibility="gone">
-            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:background="@drawable/button_background" android:clickable="true" android:focusable="true" android:clipToPadding="false" android:foregroundClipToPadding="false" android:clipChildren="false">
+            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:background="@drawable/button_background" android:clickable="true" android:focusable="true" android:clipToPadding="false" android:clipChildren="false">
                 <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="35dp" android:layout_height="35dp" android:layout_gravity="center" android:src="@drawable/cropfreeformicon" android:contentDescription="Freeform Crop" android:scaleType="fitCenter" android:padding="2dp" android:clickable="false" android:focusable="false"/>
             </FrameLayout>
-            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:background="@drawable/button_background" android:clickable="true" android:focusable="true" android:clipToPadding="false" android:foregroundClipToPadding="false" android:clipChildren="false">
+            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:background="@drawable/button_background" android:clickable="true" android:focusable="true" android:clipToPadding="false" android:clipChildren="false">
                 <ImageView android:id="@+id/crop_mode_square" android:layout_width="35dp" android:layout_height="35dp" android:layout_gravity="center" android:src="@drawable/cropsquareicon" android:contentDescription="Square Crop" android:scaleType="fitCenter" android:padding="2dp" android:clickable="false" android:focusable="false"/>
             </FrameLayout>
-            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:background="@drawable/button_background" android:clickable="true" android:focusable="true" android:clipToPadding="false" android:foregroundClipToPadding="false" android:clipChildren="false">
+            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:background="@drawable/button_background" android:clickable="true" android:focusable="true" android:clipToPadding="false" android:clipChildren="false">
                 <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="35dp" android:layout_height="35dp" android:layout_gravity="center" android:src="@drawable/cropportraiticon" android:contentDescription="Portrait Crop" android:scaleType="fitCenter" android:padding="2dp" android:clickable="false" android:focusable="false"/>
             </FrameLayout>
-            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:background="@drawable/button_background" android:clickable="true" android:focusable="true" android:clipToPadding="false" android:foregroundClipToPadding="false" android:clipChildren="false">
+            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:background="@drawable/button_background" android:clickable="true" android:focusable="true" android:clipToPadding="false" android:clipChildren="false">
                 <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="35dp" android:layout_height="35dp" android:layout_gravity="center" android:src="@drawable/croplandscapeicon" android:contentDescription="Landscape Crop" android:scaleType="fitCenter" android:padding="2dp" android:clickable="false" android:focusable="false"/>
             </FrameLayout>
         </LinearLayout>
