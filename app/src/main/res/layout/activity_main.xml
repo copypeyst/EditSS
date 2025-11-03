@@ -444,7 +444,7 @@
                 android:layout_height="wrap_content"
                 android:text="Save Copy"
                 android:layout_marginEnd="8dp"
-                android:background="@drawable/button_ripple_secondary"
+                android:backgroundTint="?attr/colorSecondary"
                 android:textColor="?attr/colorOnSecondary"/>
 
             <Button
@@ -453,7 +453,7 @@
                 android:layout_height="wrap_content"
                 android:text="Overwrite"
                 android:layout_marginStart="8dp"
-                android:background="@drawable/button_ripple_secondary"
+                android:backgroundTint="?attr/colorSecondary"
                 android:textColor="?attr/colorOnSecondary"/>
         </LinearLayout>
 
