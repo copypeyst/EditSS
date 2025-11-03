@@ -25,6 +25,11 @@ import android.provider.Settings
 import android.net.Uri
 import android.content.DialogInterface
 import androidx.appcompat.app.AlertDialog
+import android.provider.MediaStore
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import android.widget.Toast
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -45,6 +50,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val PERMISSION_REQUEST_CODE = 100
         private const val IMPORT_REQUEST_CODE = 101
+        private const val CAMERA_REQUEST_CODE = 102
     }
 
     private lateinit var rootLayout: FrameLayout
@@ -62,6 +68,9 @@ class MainActivity : AppCompatActivity() {
     
     // Step 8: Track current image information
     private var currentImageInfo: ImageInfo? = null
+    
+    // Step 13: Store camera capture URI temporarily
+    private var currentCameraUri: Uri? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,6 +81,7 @@ class MainActivity : AppCompatActivity() {
         rootLayout = findViewById(R.id.root_layout)
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val buttonImport: ImageView = findViewById(R.id.button_import)
+        val buttonCamera: ImageView = findViewById(R.id.button_camera)
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
@@ -106,6 +116,11 @@ class MainActivity : AppCompatActivity() {
             } else {
                 requestImagePermission()
             }
+        }
+
+        // Camera Button Logic - Step 13: Create writable URI in MediaStore for camera capture
+        buttonCamera.setOnClickListener {
+            captureImageFromCamera()
         }
 
         // Tool Buttons Logic
@@ -296,6 +311,43 @@ class MainActivity : AppCompatActivity() {
                     intent.data?.let { uri ->
                         loadImageFromUri(uri, Intent.ACTION_EDIT == intent.action)
                     }
+            
+                    // Step 13: Camera capture with writable MediaStore URI
+                    private fun captureImageFromCamera() {
+                        try {
+                            // Create timestamp-based filename as per plan step 23 (preparation)
+                            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                            val fileName = "IMG_$timestamp"
+                            
+                            // Create ContentValues for MediaStore
+                            val contentValues = android.content.ContentValues().apply {
+                                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                                put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures") // Standard Pictures directory
+                            }
+                            
+                            // Create writable URI in MediaStore
+                            val contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                            val insertUri = contentResolver.insert(contentUri, contentValues)
+                            
+                            if (insertUri != null) {
+                                // Launch camera with the writable URI
+                                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+                                intent.putExtra(MediaStore.EXTRA_OUTPUT, insertUri)
+                                intent.putExtra("android.intent.extra.finishAfterCapture", true)
+                                
+                                // Store the capture URI temporarily for handling result
+                                currentCameraUri = insertUri
+                                
+                                startActivityForResult(intent, CAMERA_REQUEST_CODE)
+                            } else {
+                                Toast.makeText(this, "Camera error. Could not create image entry.", Toast.LENGTH_SHORT).show()
+                            }
+                            
+                        } catch (e: Exception) {
+                            Toast.makeText(this, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             }
         }
@@ -391,30 +443,47 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         
-        if (requestCode == IMPORT_REQUEST_CODE && resultCode == RESULT_OK) {
-            // Safety check: Only process single image even if multiple selection is somehow allowed
-            val uri = data?.data
-            if (uri != null) {
-                // Check for multi-image selection safety
-                val clipData = data.clipData
-                if (clipData != null && clipData.itemCount > 1) {
-                    // If multiple images somehow selected, only use the first one
-                    Toast.makeText(this, "Multiple images not supported. Loading first image only.", Toast.LENGTH_SHORT).show()
-                }
-                
-                // Step 20: For Android 10-12, request persistable URI permission for MediaStore
-                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
-                    try {
-                        contentResolver.takePersistableUriPermission(
-                            uri,
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                        )
-                    } catch (e: SecurityException) {
-                        // Handle case where permission can't be persisted
-                        Toast.makeText(this, "Could not persist access to image", Toast.LENGTH_SHORT).show()
+        when (requestCode) {
+            IMPORT_REQUEST_CODE -> {
+                if (resultCode == RESULT_OK) {
+                    // Safety check: Only process single image even if multiple selection is somehow allowed
+                    val uri = data?.data
+                    if (uri != null) {
+                        // Check for multi-image selection safety
+                        val clipData = data.clipData
+                        if (clipData != null && clipData.itemCount > 1) {
+                            // If multiple images somehow selected, only use the first one
+                            Toast.makeText(this, "Multiple images not supported. Loading first image only.", Toast.LENGTH_SHORT).show()
+                        }
+                        
+                        // Step 20: For Android 10-12, request persistable URI permission for MediaStore
+                        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+                            try {
+                                contentResolver.takePersistableUriPermission(
+                                    uri,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                            } catch (e: SecurityException) {
+                                // Handle case where permission can't be persisted
+                                Toast.makeText(this, "Could not persist access to image", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        loadImageFromUri(uri, false)
                     }
                 }
-                loadImageFromUri(uri, false)
+            }
+            CAMERA_REQUEST_CODE -> {
+                if (resultCode == RESULT_OK) {
+                    // Step 13: Handle camera capture result
+                    currentCameraUri?.let { cameraUri ->
+                        loadImageFromUri(cameraUri, false)
+                        currentCameraUri = null // Clear temporary URI
+                    }
+                } else {
+                    // Camera capture failed or was cancelled
+                    Toast.makeText(this, "Camera error. No image captured.", Toast.LENGTH_SHORT).show()
+                    currentCameraUri = null // Clean up
+                }
             }
         }
     }
