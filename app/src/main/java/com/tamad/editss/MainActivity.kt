@@ -65,54 +65,33 @@ class MainActivity : AppCompatActivity() {
 
         // Tool Buttons Logic
         toolDraw.setOnClickListener {
-            if (currentActiveTool == toolDraw) {
-                toolOptionsLayout.visibility = View.GONE
-                currentActiveTool?.isSelected = false
-                currentActiveTool = null
-            } else {
-                toolOptionsLayout.visibility = View.VISIBLE
-                drawOptionsLayout.visibility = View.VISIBLE
-                cropOptionsLayout.visibility = View.GONE
-                adjustOptionsLayout.visibility = View.GONE
-                savePanel.visibility = View.GONE // Hide save panel
-                currentActiveTool?.isSelected = false
-                toolDraw.isSelected = true
-                currentActiveTool = toolDraw
-            }
+            drawOptionsLayout.visibility = View.VISIBLE
+            cropOptionsLayout.visibility = View.GONE
+            adjustOptionsLayout.visibility = View.GONE
+            savePanel.visibility = View.GONE // Hide save panel
+            currentActiveTool?.isSelected = false
+            toolDraw.isSelected = true
+            currentActiveTool = toolDraw
         }
 
         toolCrop.setOnClickListener {
-            if (currentActiveTool == toolCrop) {
-                toolOptionsLayout.visibility = View.GONE
-                currentActiveTool?.isSelected = false
-                currentActiveTool = null
-            } else {
-                toolOptionsLayout.visibility = View.VISIBLE
-                cropOptionsLayout.visibility = View.VISIBLE
-                drawOptionsLayout.visibility = View.GONE
-                adjustOptionsLayout.visibility = View.GONE
-                savePanel.visibility = View.GONE // Hide save panel
-                currentActiveTool?.isSelected = false
-                toolCrop.isSelected = true
-                currentActiveTool = toolCrop
-            }
+            cropOptionsLayout.visibility = View.VISIBLE
+            drawOptionsLayout.visibility = View.GONE
+            adjustOptionsLayout.visibility = View.GONE
+            savePanel.visibility = View.GONE // Hide save panel
+            currentActiveTool?.isSelected = false
+            toolCrop.isSelected = true
+            currentActiveTool = toolCrop
         }
 
         toolAdjust.setOnClickListener {
-            if (currentActiveTool == toolAdjust) {
-                toolOptionsLayout.visibility = View.GONE
-                currentActiveTool?.isSelected = false
-                currentActiveTool = null
-            } else {
-                toolOptionsLayout.visibility = View.VISIBLE
-                adjustOptionsLayout.visibility = View.VISIBLE
-                drawOptionsLayout.visibility = View.GONE
-                cropOptionsLayout.visibility = View.GONE
-                savePanel.visibility = View.GONE // Hide save panel
-                currentActiveTool?.isSelected = false
-                toolAdjust.isSelected = true
-                currentActiveTool = toolAdjust
-            }
+            adjustOptionsLayout.visibility = View.VISIBLE
+            drawOptionsLayout.visibility = View.GONE
+            cropOptionsLayout.visibility = View.GONE
+            savePanel.visibility = View.GONE // Hide save panel
+            currentActiveTool?.isSelected = false
+            toolAdjust.isSelected = true
+            currentActiveTool = toolAdjust
         }
 
         // Initialize Save Panel buttons
@@ -226,5 +205,10 @@ class MainActivity : AppCompatActivity() {
         currentCropMode = cropModeFreeform
 
         colorRedContainer.performClick()
+
+        // Set draw as default active tool
+        toolDraw.isSelected = true
+        currentActiveTool = toolDraw
+        drawOptionsLayout.visibility = View.VISIBLE
     }
 }
