@@ -119,3 +119,39 @@
 *   **Resource Cleanup:** Both InputStreams and OutputStreams are properly closed in all scenarios.
 *   **Memory Leak Prevention:** Eliminates potential file descriptor leaks during image loading and camera operations.
 *   **Background Thread Safety:** Stream closure works properly even when called from coroutine background threads.
+
+### Step 21: Save Workflow with ContentResolver.insert
+*   **MainActivity.kt:** Added `selectedSaveFormat` variable to track save format choice.
+*   **Format Selection:** Implemented format selection handlers for JPG/PNG/WEBP radio buttons.
+*   **Save Workflow:** Created `saveImageAsCopy()` and `saveImageToMediaStore()` methods.
+*   **ContentResolver.insert:** Uses MediaStore.ContentUris for inserting new image entries.
+*   **Coroutine Integration:** Save operations run in background with lifecycleScope for proper cancellation.
+*   **Stream Management:** Proper OutputStream handling with try-with-resources and finally blocks.
+
+### Step 22: Atomic Save Completion with IS_PENDING Flag
+*   **IS_PENDING Workflow:** Set `IS_PENDING=1` before writing, `IS_PENDING=0` after completion.
+*   **Atomic Operations:** Prevents other apps from seeing partially written images.
+*   **Error Handling:** Ensures IS_PENDING=0 is set on both success and failure branches.
+*   **Overwrite Support:** Separate `overwriteImageInMediaStore()` method with IS_PENDING workflow.
+*   **Cleanup:** Removes orphaned MediaStore entries on save failure to prevent corruption.
+*   **Thread Safety:** All IS_PENDING operations execute on background IO dispatcher.
+
+### Step 23: Timestamp-Based File Naming with Collision Avoidance
+*   **Filename Generation:** Creates unique filenames using `yyyyMMdd_HHmmss` format.
+*   **Collision Avoidance:** Adds random 3-digit suffix to prevent filename conflicts.
+*   **Format Extensions:** Automatically appends correct extension (.jpg/.png/.webp) based on format.
+*   **MediaStore Integration:** Filenames properly formatted for MediaStore display names.
+*   **Pattern:** Format: `IMG_YYYYMMDD_HHMMSS_RANDOM.jpg`
+
+### Step 24: Transparency Warning for JPEG/WEBP
+*   **Format Warnings:** Shows alert dialog when JPEG selected with transparency detection.
+*   **User Choice:** Provides "Continue" or "Switch to PNG" options for JPEG transparency.
+*   **UI Integration:** Connected to format selection click listeners for real-time checking.
+*   **Detection Ready:** Placeholder for actual transparency detection logic.
+
+### Step 25: Auto-Switch WEBP to Lossless When Transparency Detected
+*   **Automatic Switching:** Silent conversion to lossless WEBP when transparency detected in lossy WEBP.
+*   **User Notification:** Toast message confirms auto-switch to lossless WEBP format.
+*   **Transparency Preservation:** Ensures transparency data is not lost during save operation.
+*   **Format Tracking:** Updates `selectedSaveFormat` to reflect lossless WEBP selection.
+*   **Quality Preservation:** Maintains visual quality while supporting transparency.
