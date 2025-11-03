@@ -29,7 +29,11 @@ import android.provider.MediaStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.LinkedHashMap
 import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import kotlinx.coroutines.*
+import androidx.lifecycle.lifecycleScope
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -44,6 +48,64 @@ data class ImageInfo(
     val origin: ImageOrigin,
     var canOverwrite: Boolean
 )
+
+// Step 16: LRU in-memory bitmap/thumbnail cache
+class BitmapLRUCache(maxSize: Int = 50) {
+    private val cache = object : LinkedHashMap<String, Bitmap>(maxSize, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.Entry<String, Bitmap>?): Boolean {
+            return size > maxSize
+        }
+    }
+
+    /**
+     * Get bitmap from cache by URI string
+     */
+    fun get(key: String): Bitmap? {
+        return cache[key]
+    }
+
+    /**
+     * Put bitmap into cache with URI string as key
+     */
+    fun put(key: String, bitmap: Bitmap) {
+        // Recycle existing bitmap if present
+        cache[key]?.let { oldBitmap ->
+            if (!oldBitmap.isRecycled) {
+                oldBitmap.recycle()
+            }
+        }
+        cache[key] = bitmap
+    }
+
+    /**
+     * Generate cache key from URI and size
+     */
+    fun generateKey(uri: Uri, targetSize: Int): String {
+        return "${uri.toString()}_${targetSize}"
+    }
+
+    /**
+     * Clear all cached bitmaps and recycle them
+     */
+    fun clear() {
+        cache.values.forEach { bitmap ->
+            if (!bitmap.isRecycled) {
+                bitmap.recycle()
+            }
+        }
+        cache.clear()
+    }
+
+    /**
+     * Get current cache size in entries
+     */
+    fun size(): Int = cache.size
+
+    /**
+     * Check if key exists in cache
+     */
+    fun contains(key: String): Boolean = cache.containsKey(key)
+}
 
 class MainActivity : AppCompatActivity() {
 
@@ -71,6 +133,12 @@ class MainActivity : AppCompatActivity() {
     
     // Step 13: Store camera capture URI temporarily
     private var currentCameraUri: Uri? = null
+    
+    // Step 16: LRU bitmap cache instance
+    private val bitmapCache = BitmapLRUCache(maxSize = 50)
+    
+    // Step 17: Current loaded bitmap for proper recycling
+    private var currentBitmap: android.graphics.Bitmap? = null
     
     // Step 14: Target image size for display (to prevent OOM errors)
     private val TARGET_IMAGE_SIZE = 2048 // pixels
@@ -134,6 +202,8 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
+            // Step 17: Optional memory management on tool switch
+            onToolSwitch()
         }
 
         toolCrop.setOnClickListener {
@@ -144,6 +214,8 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
+            // Step 17: Optional memory management on tool switch
+            onToolSwitch()
         }
 
         toolAdjust.setOnClickListener {
@@ -154,6 +226,8 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
+            // Step 17: Optional memory management on tool switch
+            onToolSwitch()
         }
 
         // Initialize Save Panel buttons
@@ -280,6 +354,19 @@ class MainActivity : AppCompatActivity() {
         checkPermissionRevocation()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        // Step 16 & 17: Clear and recycle bitmap cache to prevent memory leaks
+        bitmapCache.clear()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Step 16: Optional cache clearing to free memory when app goes to background
+        // Uncomment if memory pressure is an issue
+        // bitmapCache.clear()
+    }
+
     override fun onResume() {
         super.onResume()
         // Step 6: Check if permissions are revoked mid-session
@@ -319,7 +406,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Step 13: Camera capture with writable MediaStore URI
+    // Step 19: Stream closure and file descriptor leak prevention
     private fun captureImageFromCamera() {
+        var outputStream: java.io.OutputStream? = null
         try {
             // Create timestamp-based filename as per plan step 23 (preparation)
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -337,6 +426,10 @@ class MainActivity : AppCompatActivity() {
             val insertUri = contentResolver.insert(contentUri, contentValues)
             
             if (insertUri != null) {
+                // Step 19: Open output stream with proper resource management to test URI validity
+                outputStream = contentResolver.openOutputStream(insertUri)
+                outputStream?.close() // Close immediately after checking if stream creation succeeded
+                
                 // Launch camera with the writable URI
                 val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
                 intent.putExtra(MediaStore.EXTRA_OUTPUT, insertUri)
@@ -352,27 +445,45 @@ class MainActivity : AppCompatActivity() {
             
         } catch (e: Exception) {
             Toast.makeText(this, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
+        } finally {
+            // Step 19: Ensure OutputStream is always closed to prevent file descriptor leaks
+            try {
+                outputStream?.close()
+            } catch (e: Exception) {
+                // Log but don't crash on close failure
+                e.printStackTrace()
+            }
         }
     }
 
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
         try {
-            // Step 14: Load image with proper downsampling to prevent OOM errors
-            val downsampledBitmap = loadBitmapWithDownsampling(uri, TARGET_IMAGE_SIZE)
+            // Step 17: Recycle current bitmap before loading new one
+            recycleCurrentBitmap()
             
-            if (downsampledBitmap != null) {
-                // Step 8: Track image origin and set canOverwrite flag appropriately
-                val origin = determineImageOrigin(uri)
-                val canOverwrite = determineCanOverwrite(origin)
-                
-                currentImageInfo = ImageInfo(uri, origin, canOverwrite)
-                
-                Toast.makeText(this, "Loaded ${origin.name} image with downsampling", Toast.LENGTH_SHORT).show()
-                
-                // Update UI based on canOverwrite (Step 10 - handle flag changes)
-                updateSavePanelUI()
-            } else {
-                Toast.makeText(this, "Couldn't load image. Please try again.", Toast.LENGTH_SHORT).show()
+            // Step 18: Show loading indicator on UI thread while image loads in background
+            Toast.makeText(this, "Loading image...", Toast.LENGTH_SHORT).show()
+            
+            // Step 14 & 18: Load image with proper downsampling and background processing
+            loadBitmapWithDownsampling(uri, TARGET_IMAGE_SIZE) { downsampledBitmap ->
+                // Step 18: This callback runs on main thread
+                if (downsampledBitmap != null) {
+                    // Step 8: Track image origin and set canOverwrite flag appropriately
+                    val origin = determineImageOrigin(uri)
+                    val canOverwrite = determineCanOverwrite(origin)
+                    
+                    currentImageInfo = ImageInfo(uri, origin, canOverwrite)
+                    
+                    // Step 17: Store current bitmap for proper recycling
+                    currentBitmap = downsampledBitmap
+                    
+                    Toast.makeText(this, "Loaded ${origin.name} image asynchronously", Toast.LENGTH_SHORT).show()
+                    
+                    // Update UI based on canOverwrite (Step 10 - handle flag changes)
+                    updateSavePanelUI()
+                } else {
+                    Toast.makeText(this, "Couldn't load image. Please try again.", Toast.LENGTH_SHORT).show()
+                }
             }
             
         } catch (e: Exception) {
@@ -380,37 +491,121 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Step 17: Recycle current bitmap to prevent memory leaks
+     */
+    private fun recycleCurrentBitmap() {
+        currentBitmap?.let { bitmap ->
+            if (!bitmap.isRecycled) {
+                bitmap.recycle()
+            }
+        }
+        currentBitmap = null
+    }
+
+    /**
+     * Step 17: Method to be called when switching tools to free bitmap memory
+     */
+    private fun onToolSwitch() {
+        // Optional: Recycle current bitmap when switching tools to free memory
+        // Uncomment if memory pressure is an issue during tool usage
+        // recycleCurrentBitmap()
+    }
+
     // Step 14: Implement proper image downsampling using BitmapFactory.Options.inSampleSize
-    private fun loadBitmapWithDownsampling(uri: Uri, targetSize: Int): android.graphics.Bitmap? {
-        return try {
-            // First, get image dimensions without loading the full bitmap
-            val options = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
+    // Step 16: Integrated with LRU cache for performance optimization
+    // Step 18: Background thread offloading with coroutines for heavy image operations
+    private fun loadBitmapWithDownsampling(uri: Uri, targetSize: Int, callback: (Bitmap?) -> Unit) {
+        // Step 16: Check cache first
+        val cacheKey = bitmapCache.generateKey(uri, targetSize)
+        val cachedBitmap = bitmapCache.get(cacheKey)
+        if (cachedBitmap != null) {
+            // Cache hit - return cached bitmap immediately (no blocking)
+            callback(cachedBitmap)
+            return
+        }
+
+        // Step 18: Use lifecycleScope for proper coroutine management (no UI blocking)
+        lifecycleScope.launch {
+            try {
+                // Step 18: Offload heavy bitmap decoding to background thread
+                val decodedBitmap = withContext(Dispatchers.IO) {
+                    decodeBitmapFromUri(uri, targetSize)
+                }
+                
+                if (decodedBitmap != null) {
+                    // Step 16: Add to cache for future use
+                    bitmapCache.put(cacheKey, decodedBitmap)
+                    callback(decodedBitmap)
+                } else {
+                    callback(null)
+                }
+                
+            } catch (e: Exception) {
+                // Step 18: Ensure UI updates happen on main thread
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Bitmap decoding error: ${e.message}", Toast.LENGTH_SHORT).show()
+                    callback(null)
+                }
             }
-            
-            contentResolver.openInputStream(uri)?.use { inputStream ->
-                BitmapFactory.decodeStream(inputStream, null, options)
+        }
+    }
+
+    /**
+     * Step 16: Helper method to decode bitmap from URI with downsampling
+     * Step 18: Made suspend function for coroutine execution
+     * Step 19: Stream closure and file descriptor leak prevention with try-with-resources
+     */
+    private suspend fun decodeBitmapFromUri(uri: Uri, targetSize: Int): android.graphics.Bitmap? {
+        return withContext(Dispatchers.IO) {
+            var inputStream: java.io.InputStream? = null
+            try {
+                // Step 19: Open input stream with explicit resource management
+                inputStream = contentResolver.openInputStream(uri) ?: return@withContext null
+                
+                // First, get image dimensions without loading the full bitmap
+                val options = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                
+                // Step 19: Use try-with-resources for proper stream closure
+                inputStream.use { stream ->
+                    BitmapFactory.decodeStream(stream, null, options)
+                }
+                
+                if (options.outWidth <= 0 || options.outHeight <= 0) {
+                    return@withContext null
+                }
+                
+                // Calculate inSampleSize to downsample appropriately
+                val (width, height) = calculateInSampleSize(options.outWidth, options.outHeight, targetSize)
+                
+                // Load bitmap with calculated inSampleSize
+                val options2 = BitmapFactory.Options().apply {
+                    inSampleSize = Math.max(width.toInt(), height.toInt())
+                }
+                
+                // Step 19: Re-open stream for actual decoding and close it properly
+                inputStream = contentResolver.openInputStream(uri)
+                inputStream?.use { stream ->
+                    BitmapFactory.decodeStream(stream, null, options2)
+                }
+                
+            } catch (e: Exception) {
+                // Step 18: Post UI updates back to main thread
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Bitmap decoding error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+                null
+            } finally {
+                // Step 19: Ensure InputStream is always closed to prevent file descriptor leaks
+                try {
+                    inputStream?.close()
+                } catch (e: Exception) {
+                    // Log but don't crash on close failure
+                    e.printStackTrace()
+                }
             }
-            
-            if (options.outWidth <= 0 || options.outHeight <= 0) {
-                return null
-            }
-            
-            // Calculate inSampleSize to downsample appropriately
-            val (width, height) = calculateInSampleSize(options.outWidth, options.outHeight, targetSize)
-            
-            // Load bitmap with calculated inSampleSize
-            val options2 = BitmapFactory.Options().apply {
-                inSampleSize = Math.max(width.toInt(), height.toInt())
-            }
-            
-            contentResolver.openInputStream(uri)?.use { inputStream ->
-                BitmapFactory.decodeStream(inputStream, null, options2)
-            }
-            
-        } catch (e: Exception) {
-            Toast.makeText(this, "Bitmap decoding error: ${e.message}", Toast.LENGTH_SHORT).show()
-            null
         }
     }
     
