@@ -11,6 +11,8 @@
         <item name="colorOnSecondary">@color/black</item>
         <!-- Status bar color. -->
         <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
+        <!-- Smooth button ripple for all buttons -->
+        <item name="android:selectableItemBackgroundBorderless">?attr/actionBarItemBackground</item>
         <!-- Customize your theme here. -->
     </style>
 </resources>
