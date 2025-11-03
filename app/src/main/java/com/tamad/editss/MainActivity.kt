@@ -29,7 +29,7 @@ import android.provider.MediaStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import android.widget.Toast
+import android.graphics.BitmapFactory
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -71,6 +71,9 @@ class MainActivity : AppCompatActivity() {
     
     // Step 13: Store camera capture URI temporarily
     private var currentCameraUri: Uri? = null
+    
+    // Step 14: Target image size for display (to prevent OOM errors)
+    private val TARGET_IMAGE_SIZE = 2048 // pixels
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -354,8 +357,80 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
-        // Step 8: Track image origin and set canOverwrite flag appropriately
-        val origin = when {
+        try {
+            // Step 14: Load image with proper downsampling to prevent OOM errors
+            val downsampledBitmap = loadBitmapWithDownsampling(uri, TARGET_IMAGE_SIZE)
+            
+            if (downsampledBitmap != null) {
+                // Step 8: Track image origin and set canOverwrite flag appropriately
+                val origin = determineImageOrigin(uri)
+                val canOverwrite = determineCanOverwrite(origin)
+                
+                currentImageInfo = ImageInfo(uri, origin, canOverwrite)
+                
+                Toast.makeText(this, "Loaded ${origin.name} image with downsampling", Toast.LENGTH_SHORT).show()
+                
+                // Update UI based on canOverwrite (Step 10 - handle flag changes)
+                updateSavePanelUI()
+            } else {
+                Toast.makeText(this, "Couldn't load image. Please try again.", Toast.LENGTH_SHORT).show()
+            }
+            
+        } catch (e: Exception) {
+            Toast.makeText(this, "Image loading error: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Step 14: Implement proper image downsampling using BitmapFactory.Options.inSampleSize
+    private fun loadBitmapWithDownsampling(uri: Uri, targetSize: Int): android.graphics.Bitmap? {
+        return try {
+            // First, get image dimensions without loading the full bitmap
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                BitmapFactory.decodeStream(inputStream, null, options)
+            }
+            
+            if (options.outWidth <= 0 || options.outHeight <= 0) {
+                return null
+            }
+            
+            // Calculate inSampleSize to downsample appropriately
+            val (width, height) = calculateInSampleSize(options.outWidth, options.outHeight, targetSize)
+            
+            // Load bitmap with calculated inSampleSize
+            val options2 = BitmapFactory.Options().apply {
+                inSampleSize = Math.max(width, height)
+            }
+            
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                BitmapFactory.decodeStream(inputStream, null, options2)
+            }
+            
+        } catch (e: Exception) {
+            Toast.makeText(this, "Bitmap decoding error: ${e.message}", Toast.LENGTH_SHORT).show()
+            null
+        }
+    }
+    
+    // Step 14: Calculate appropriate inSampleSize for downsampling
+    private fun calculateInSampleSize(originalWidth: Int, originalHeight: Int, targetSize: Int): Pair<Int, Int> {
+        var inSampleSize = 1
+        
+        // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+        // width and height larger than the target size
+        while ((originalWidth / inSampleSize) > targetSize || (originalHeight / inSampleSize) > targetSize) {
+            inSampleSize *= 2
+        }
+        
+        return Pair(originalWidth / inSampleSize, originalHeight / inSampleSize)
+    }
+    
+    // Step 8: Helper method to determine image origin
+    private fun determineImageOrigin(uri: Uri): ImageOrigin {
+        return when {
             uri.toString().contains("media") && !uri.toString().contains("persisted") -> {
                 // Imported via MediaStore, may or may not be writable depending on permission
                 if (hasImagePermission()) ImageOrigin.IMPORTED_WRITABLE else ImageOrigin.IMPORTED_READONLY
@@ -364,21 +439,16 @@ class MainActivity : AppCompatActivity() {
             uri.toString().contains("editss") -> ImageOrigin.EDITED_INTERNAL
             else -> ImageOrigin.IMPORTED_READONLY // Default to readonly for unknown sources
         }
-        
-        val canOverwrite = when (origin) {
+    }
+    
+    // Step 8: Helper method to determine canOverwrite flag
+    private fun determineCanOverwrite(origin: ImageOrigin): Boolean {
+        return when (origin) {
             ImageOrigin.CAMERA_CAPTURED -> true
             ImageOrigin.EDITED_INTERNAL -> true
             ImageOrigin.IMPORTED_WRITABLE -> hasImagePermission()
             ImageOrigin.IMPORTED_READONLY -> false
         }
-        
-        currentImageInfo = ImageInfo(uri, origin, canOverwrite)
-        
-        // TODO: Implement actual image loading logic
-        Toast.makeText(this, "Loading ${origin.name} image: $uri", Toast.LENGTH_SHORT).show()
-        
-        // Update UI based on canOverwrite (Step 10 - handle flag changes)
-        updateSavePanelUI()
     }
 
     // Permission checking methods - Step 4: Only check READ_MEDIA_IMAGES for Android 13+
