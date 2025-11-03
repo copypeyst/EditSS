@@ -352,16 +352,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Photo picker logic - Step 4: Use MediaStore API for Android 10-12
+    // Photo picker logic - Proper implementation with single selection
     private fun openImagePicker() {
-        // Android 13+ Photo Picker API
+        // Android 13+ Photo Picker API - using proper ACTION_PICK for single image
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Use ACTION_PICK for Android 13+ Photo Picker (single selection enforced)
             val intent = Intent(Intent.ACTION_PICK)
             intent.type = "image/*"
-            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false) // Single image only
+            // Setting EXTRA_ALLOW_MULTIPLE to false ensures single selection
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
             startActivityForResult(intent, IMPORT_REQUEST_CODE)
         } else {
-            // Android 10-12: Use MediaStore API with ACTION_OPEN_DOCUMENT
+            // Android 10-12: Use MediaStore API with ACTION_OPEN_DOCUMENT (single selection)
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             intent.addCategory(Intent.CATEGORY_OPENABLE)
             intent.type = "image/*"
@@ -390,7 +392,16 @@ class MainActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         
         if (requestCode == IMPORT_REQUEST_CODE && resultCode == RESULT_OK) {
-            data?.data?.let { uri ->
+            // Safety check: Only process single image even if multiple selection is somehow allowed
+            val uri = data?.data
+            if (uri != null) {
+                // Check for multi-image selection safety
+                val clipData = data.clipData
+                if (clipData != null && clipData.itemCount > 1) {
+                    // If multiple images somehow selected, only use the first one
+                    Toast.makeText(this, "Multiple images not supported. Loading first image only.", Toast.LENGTH_SHORT).show()
+                }
+                
                 // Step 20: For Android 10-12, request persistable URI permission for MediaStore
                 if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
                     try {

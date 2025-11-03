@@ -36,7 +36,9 @@ Steps: (Only do 1 each time)
 ✓ 9. Define EDITED_INTERNAL to represent images created or saved by the app itself. Only show an Overwrite option if the image has a writable URI.
 ✓ 10. If canOverwrite becomes false due to permission loss or URI revocation, disable Overwrite in the UI and default to SaveCopy to preserve data integrity.
 ✓ 11. For Import, open the Android 13+ Photo Picker API. On older versions, use ACTION_OPEN_DOCUMENT with intent.addCategory(CATEGORY_OPENABLE) and type="image/*".
+    - **Single image selection enforced** (EXTRA_ALLOW_MULTIPLE = false)
 ✓ 12. Reject multi-image imports unless the app explicitly supports multiple ClipData items, to keep behavior predictable.
+    - **Current implementation**: Only first image loaded, rest rejected with toast
 13. For Camera capture, create a new writable URI in MediaStore.Images.Media.EXTERNAL_CONTENT_URI before launching the ACTION_IMAGE_CAPTURE intent.
 14. When decoding or loading large images (from import, camera, or disk), use BitmapFactory.Options.inSampleSize to downsample appropriately to the target display/working resolution to prevent out-of-memory errors.
 15. [REMOVED — merged into item 56]
