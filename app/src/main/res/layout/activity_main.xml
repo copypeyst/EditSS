@@ -40,7 +40,7 @@
         <ImageView
             android:id="@+id/button_import"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/importicon"
             android:contentDescription="Import"
@@ -51,7 +51,7 @@
         <ImageView
             android:id="@+id/button_camera"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/cameraicon"
             android:contentDescription="Camera"
@@ -62,7 +62,7 @@
         <ImageView
             android:id="@+id/button_undo"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/undoicon"
             android:contentDescription="Undo"
@@ -73,7 +73,7 @@
         <ImageView
             android:id="@+id/button_redo"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/redoicon"
             android:contentDescription="Redo"
@@ -84,7 +84,7 @@
         <ImageView
             android:id="@+id/button_share"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/shareicon"
             android:contentDescription="Share"
@@ -95,7 +95,7 @@
         <ImageView
             android:id="@+id/button_save"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/saveicon"
             android:contentDescription="Save"
@@ -358,10 +358,10 @@
             android:orientation="horizontal"
             android:gravity="center"
             android:visibility="gone">
-            <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="60dp" android:layout_weight="1" android:src="@drawable/cropfreeformicon" android:contentDescription="Freeform Crop" android:background="@drawable/button_background" android:scaleType="centerInside" android:clickable="true" android:focusable="true"/>
-            <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="60dp" android:layout_weight="1" android:src="@drawable/cropsquareicon" android:contentDescription="Square Crop" android:background="@drawable/button_background" android:scaleType="centerInside" android:clickable="true" android:focusable="true"/>
-            <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="60dp" android:layout_weight="1" android:src="@drawable/cropportraiticon" android:contentDescription="Portrait Crop" android:background="@drawable/button_background" android:scaleType="centerInside" android:clickable="true" android:focusable="true"/>
-            <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="60dp" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="Landscape Crop" android:background="@drawable/button_background" android:scaleType="centerInside" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="35dp" android:layout_weight="1" android:src="@drawable/cropfreeformicon" android:contentDescription="Freeform Crop" android:background="@drawable/button_background" android:scaleType="centerInside" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="35dp" android:layout_weight="1" android:src="@drawable/cropsquareicon" android:contentDescription="Square Crop" android:background="@drawable/button_background" android:scaleType="centerInside" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="35dp" android:layout_weight="1" android:src="@drawable/cropportraiticon" android:contentDescription="Portrait Crop" android:background="@drawable/button_background" android:scaleType="centerInside" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="35dp" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="Landscape Crop" android:background="@drawable/button_background" android:scaleType="centerInside" android:clickable="true" android:focusable="true"/>
         </LinearLayout>
 
         <!-- Adjust Options -->
