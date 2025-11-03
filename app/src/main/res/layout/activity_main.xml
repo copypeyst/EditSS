@@ -358,10 +358,18 @@
             android:orientation="horizontal"
             android:gravity="center"
             android:visibility="gone">
-            <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/cropfreeformicon" android:contentDescription="Freeform Crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:layout_marginEnd="5dp" android:padding="2dp" android:maxWidth="35dp" android:maxHeight="35dp" android:clickable="true" android:focusable="true"/>
-            <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/cropsquareicon" android:contentDescription="Square Crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:layout_marginEnd="5dp" android:padding="2dp" android:maxWidth="35dp" android:maxHeight="35dp" android:clickable="true" android:focusable="true"/>
-            <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/cropportraiticon" android:contentDescription="Portrait Crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:layout_marginEnd="5dp" android:padding="2dp" android:maxWidth="35dp" android:maxHeight="35dp" android:clickable="true" android:focusable="true"/>
-            <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="Landscape Crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:maxWidth="35dp" android:maxHeight="35dp" android:clickable="true" android:focusable="true"/>
+            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:background="@drawable/button_background" android:clickable="true" android:focusable="true">
+                <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="35dp" android:layout_height="35dp" android:layout_gravity="center" android:src="@drawable/cropfreeformicon" android:contentDescription="Freeform Crop" android:scaleType="fitCenter" android:padding="2dp"/>
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:background="@drawable/button_background" android:clickable="true" android:focusable="true">
+                <ImageView android:id="@+id/crop_mode_square" android:layout_width="35dp" android:layout_height="35dp" android:layout_gravity="center" android:src="@drawable/cropsquareicon" android:contentDescription="Square Crop" android:scaleType="fitCenter" android:padding="2dp"/>
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:background="@drawable/button_background" android:clickable="true" android:focusable="true">
+                <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="35dp" android:layout_height="35dp" android:layout_gravity="center" android:src="@drawable/cropportraiticon" android:contentDescription="Portrait Crop" android:scaleType="fitCenter" android:padding="2dp"/>
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:background="@drawable/button_background" android:clickable="true" android:focusable="true">
+                <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="35dp" android:layout_height="35dp" android:layout_gravity="center" android:src="@drawable/croplandscapeicon" android:contentDescription="Landscape Crop" android:scaleType="fitCenter" android:padding="2dp"/>
+            </FrameLayout>
         </LinearLayout>
 
         <!-- Adjust Options -->
