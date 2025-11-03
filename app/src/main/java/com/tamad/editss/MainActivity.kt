@@ -26,6 +26,20 @@ import android.net.Uri
 import android.content.DialogInterface
 import androidx.appcompat.app.AlertDialog
 
+// Step 8: Image origin tracking enum
+enum class ImageOrigin {
+    IMPORTED_READONLY,
+    IMPORTED_WRITABLE,
+    CAMERA_CAPTURED,
+    EDITED_INTERNAL
+}
+
+data class ImageInfo(
+    val uri: Uri,
+    val origin: ImageOrigin,
+    var canOverwrite: Boolean
+)
+
 class MainActivity : AppCompatActivity() {
 
     companion object {
@@ -45,6 +59,9 @@ class MainActivity : AppCompatActivity() {
     private var currentDrawMode: ImageView? = null
     private var currentCropMode: ImageView? = null
     private var currentSelectedColor: FrameLayout? = null
+    
+    // Step 8: Track current image information
+    private var currentImageInfo: ImageInfo? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -241,6 +258,15 @@ class MainActivity : AppCompatActivity() {
         
         // Handle incoming intents
         handleIntent(intent)
+        
+        // Step 6: Check if permissions were revoked while app was in background
+        checkPermissionRevocation()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Step 6: Check if permissions are revoked mid-session
+        checkPermissionRevocation()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -276,9 +302,31 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
+        // Step 8: Track image origin and set canOverwrite flag appropriately
+        val origin = when {
+            uri.toString().contains("media") && !uri.toString().contains("persisted") -> {
+                // Imported via MediaStore, may or may not be writable depending on permission
+                if (hasImagePermission()) ImageOrigin.IMPORTED_WRITABLE else ImageOrigin.IMPORTED_READONLY
+            }
+            uri.toString().contains("camera") -> ImageOrigin.CAMERA_CAPTURED
+            uri.toString().contains("editss") -> ImageOrigin.EDITED_INTERNAL
+            else -> ImageOrigin.IMPORTED_READONLY // Default to readonly for unknown sources
+        }
+        
+        val canOverwrite = when (origin) {
+            ImageOrigin.CAMERA_CAPTURED -> true
+            ImageOrigin.EDITED_INTERNAL -> true
+            ImageOrigin.IMPORTED_WRITABLE -> hasImagePermission()
+            ImageOrigin.IMPORTED_READONLY -> false
+        }
+        
+        currentImageInfo = ImageInfo(uri, origin, canOverwrite)
+        
         // TODO: Implement actual image loading logic
-        // This is a placeholder for the actual implementation
-        Toast.makeText(this, "Loading image from: $uri", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Loading ${origin.name} image: $uri", Toast.LENGTH_SHORT).show()
+        
+        // Update UI based on canOverwrite (Step 10 - handle flag changes)
+        updateSavePanelUI()
     }
 
     // Permission checking methods - Step 4: Only check READ_MEDIA_IMAGES for Android 13+
@@ -376,5 +424,94 @@ class MainActivity : AppCompatActivity() {
             }
             .setCancelable(false)
             .show()
+    }
+
+    // Step 6: Detect permission revocation mid-session and prompt user
+    private fun checkPermissionRevocation() {
+        val wasOverwriteAvailable = currentImageInfo?.canOverwrite ?: false
+        
+        // For Android 13+, check if READ_MEDIA_IMAGES was revoked
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (!hasImagePermission()) {
+                showPermissionRevokedDialog()
+                // Update canOverwrite flag if permission was revoked
+                currentImageInfo?.canOverwrite = false
+            }
+        }
+        // For Android 10-12, check URI permissions
+        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+            // Check if permission status changed for imported images
+            if (currentImageInfo?.origin == ImageOrigin.IMPORTED_WRITABLE && !hasImagePermission()) {
+                currentImageInfo?.canOverwrite = false
+            }
+        }
+        
+        // Update UI if canOverwrite flag changed
+        if (wasOverwriteAvailable && (currentImageInfo?.canOverwrite == false)) {
+            updateSavePanelUI()
+        }
+    }
+
+    private fun showPermissionRevokedDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Permission Revoked")
+            .setMessage("Permission has been revoked. Please reopen Settings to re-enable access.")
+            .setPositiveButton("Settings") { _, _ ->
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                val uri = Uri.fromParts("package", packageName, null)
+                intent.data = uri
+                startActivity(intent)
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    // Step 9 & 10: Update save panel UI based on image origin and canOverwrite flag
+    private fun updateSavePanelUI() {
+        val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
+        val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
+        
+        if (currentImageInfo == null) {
+            // No image loaded, show both buttons (default behavior)
+            buttonSaveCopy.visibility = View.VISIBLE
+            buttonOverwrite.visibility = View.VISIBLE
+            return
+        }
+        
+        val imageInfo = currentImageInfo!!
+        
+        // Always show SaveCopy
+        buttonSaveCopy.visibility = View.VISIBLE
+        
+        // Step 9: Define EDITED_INTERNAL behavior - only show Overwrite for writable images
+        when {
+            !imageInfo.canOverwrite -> {
+                // Hide Overwrite for IMPORTED_READONLY or when permission is lost
+                buttonOverwrite.visibility = View.GONE
+            }
+            imageInfo.origin == ImageOrigin.IMPORTED_READONLY -> {
+                // Hide Overwrite for IMPORTED_READONLY even if canOverwrite was somehow true
+                buttonOverwrite.visibility = View.GONE
+            }
+            imageInfo.origin == ImageOrigin.IMPORTED_WRITABLE && imageInfo.canOverwrite -> {
+                // Show both SaveCopy and Overwrite for writable imports
+                buttonOverwrite.visibility = View.VISIBLE
+            }
+            imageInfo.origin == ImageOrigin.CAMERA_CAPTURED && imageInfo.canOverwrite -> {
+                // Show both SaveCopy and Overwrite for camera captures
+                buttonOverwrite.visibility = View.VISIBLE
+            }
+            imageInfo.origin == ImageOrigin.EDITED_INTERNAL && imageInfo.canOverwrite -> {
+                // Step 9: Show Overwrite for EDITED_INTERNAL images (app-created)
+                buttonOverwrite.visibility = View.VISIBLE
+            }
+            else -> {
+                // Default: hide overwrite button
+                buttonOverwrite.visibility = View.GONE
+            }
+        }
     }
 }
