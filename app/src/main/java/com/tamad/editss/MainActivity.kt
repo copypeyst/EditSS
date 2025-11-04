@@ -30,15 +30,18 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.LinkedHashMap
-import android.graphics.BitmapFactory
 import android.graphics.Bitmap
 import android.os.Environment
 import android.content.ContentValues
 import kotlinx.coroutines.*
 import androidx.lifecycle.lifecycleScope
 import java.io.File
-import android.app.ActivityManager
-import android.os.Debug
+import coil.ImageLoader
+import coil.request.ImageRequest
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+import coil.decode.BitmapDecoder
+import coil.decode.ImageDecoderDecoder
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -54,63 +57,7 @@ data class ImageInfo(
     var canOverwrite: Boolean
 )
 
-// Step 16: LRU in-memory bitmap/thumbnail cache
-class BitmapLRUCache(maxSize: Int = 50) {
-    private val cache = object : LinkedHashMap<String, Bitmap>(maxSize, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?): Boolean {
-            return size > maxSize
-        }
-    }
-
-    /**
-     * Get bitmap from cache by URI string
-     */
-    fun get(key: String): Bitmap? {
-        return cache[key]
-    }
-
-    /**
-     * Put bitmap into cache with URI string as key
-     */
-    fun put(key: String, bitmap: Bitmap) {
-        // Recycle existing bitmap if present
-        cache[key]?.let { oldBitmap ->
-            if (!oldBitmap.isRecycled) {
-                oldBitmap.recycle()
-            }
-        }
-        cache[key] = bitmap
-    }
-
-    /**
-     * Generate cache key from URI and size
-     */
-    fun generateKey(uri: Uri, targetSize: Int): String {
-        return "${uri.toString()}_${targetSize}"
-    }
-
-    /**
-     * Clear all cached bitmaps and recycle them
-     */
-    fun clear() {
-        cache.values.forEach { bitmap ->
-            if (!bitmap.isRecycled) {
-                bitmap.recycle()
-            }
-        }
-        cache.clear()
-    }
-
-    /**
-     * Get current cache size in entries
-     */
-    fun size(): Int = cache.size
-
-    /**
-     * Check if key exists in cache
-     */
-    fun contains(key: String): Boolean = cache.containsKey(key)
-}
+// Coil handles all caching, memory management, and bitmap processing automatically
 
 class MainActivity : AppCompatActivity() {
 
@@ -143,27 +90,36 @@ class MainActivity : AppCompatActivity() {
     // Step 13: Store camera capture URI temporarily
     private var currentCameraUri: Uri? = null
     
-    // Step 16: LRU bitmap cache instance
-    private val bitmapCache = BitmapLRUCache(maxSize = 50)
-    
     // Fix: Add loading state to prevent crashes
     private var isImageLoading = false
     
-    // Step 17: Current loaded bitmap for proper recycling
+    // Step 17: Current loaded bitmap for proper recycling (Coil handles this automatically)
     private var currentBitmap: android.graphics.Bitmap? = null
     
     // Step 14: Target image size for display (to prevent OOM errors)
     private val TARGET_IMAGE_SIZE = 2048 // pixels
     
-    // Crash prevention: Memory and validation thresholds
-    private val MAX_BITMAP_SIZE = 64 * 1024 * 1024 // 64MB max bitmap size
-    private val MIN_MEMORY_THRESHOLD = 32 * 1024 * 1024 // 32MB available memory required
-    private val SUPPORTED_FORMATS = setOf("image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp")
-    private val SUPPORTED_EXTENSIONS = setOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
-    
-    // Crash prevention: Track loading state
+    // Coil-based image loading state
     private var isImageLoadAttempted = false
     private var lastImageLoadFailed = false
+    
+    // Coil image loader for efficient image handling
+    private val imageLoader by lazy {
+        ImageLoader.Builder(this)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.25)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir)
+                    .maxSizeBytes(50 * 1024 * 1024) // 50MB
+                    .build()
+            }
+            .respectCacheHeaders(false)
+            .build()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -412,15 +368,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Step 16 & 17: Clear and recycle bitmap cache to prevent memory leaks
-        bitmapCache.clear()
+        // Coil handles all memory management automatically
     }
 
     override fun onPause() {
         super.onPause()
-        // Step 16: Optional cache clearing to free memory when app goes to background
-        // Uncomment if memory pressure is an issue
-        // bitmapCache.clear()
+        // Coil handles memory management automatically
+        // No need for manual cache clearing
     }
 
     override fun onResume() {
@@ -507,9 +461,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Simple Coil-based image loading - replaces all complex crash prevention logic
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
-        // Crash Prevention: Comprehensive pre-loading validation
-        
         // Prevent loading while already loading
         if (isImageLoading) {
             Toast.makeText(this, "Image is still loading, please wait...", Toast.LENGTH_SHORT).show()
@@ -527,216 +480,67 @@ class MainActivity : AppCompatActivity() {
         lastImageLoadFailed = false
         
         try {
-            // Crash Prevention 1: Memory availability check
-            if (!isMemoryAvailable()) {
-                Toast.makeText(this, "Insufficient memory. Please close other apps and try again.", Toast.LENGTH_LONG).show()
-                isImageLoading = false
-                return
-            }
-            
-            // Crash Prevention 3: URI access validation
-            if (!validateUriAccess(uri)) {
-                Toast.makeText(this, "Cannot access image. Permission may have been revoked.", Toast.LENGTH_LONG).show()
-                isImageLoading = false
-                return
-            }
-            
-            // Crash Prevention 4: Format validation
-            if (!isImageFormatSupported(uri)) {
-                Toast.makeText(this, "Unsupported image format. Please select a JPEG, PNG, or WEBP file.", Toast.LENGTH_LONG).show()
-                isImageLoading = false
-                return
-            }
-            
-            // Step 17: Recycle current bitmap before loading new one
+            // Recycle current bitmap
             recycleCurrentBitmap()
             
-            // Step 18: Show loading indicator on UI thread while image loads in background
-            runOnUiThread {
-                Toast.makeText(this, "Loading image...", Toast.LENGTH_SHORT).show()
-            }
+            // Show loading indicator
+            Toast.makeText(this, "Loading image...", Toast.LENGTH_SHORT).show()
             
-            // Crash Prevention 1: Memory-aware target size calculation
-            val safeTargetSize = calculateSafeTargetSize()
-            
-            // Crash Prevention 5: Ensure canvas is ready before attempting to display
-            if (!isCanvasReady()) {
-                // Wait for canvas to be ready
-                canvasImageView.post {
-                    loadBitmapWithDownsamplingSafe(uri, safeTargetSize) { result ->
-                        handleImageLoadResult(result, uri, isEdit)
-                    }
-                }
-            } else {
-                loadBitmapWithDownsamplingSafe(uri, safeTargetSize) { result ->
-                    handleImageLoadResult(result, uri, isEdit)
-                }
-            }
-            
-        } catch (e: Exception) {
-            lastImageLoadFailed = true
-            Toast.makeText(this, "Image loading error: ${e.message}", Toast.LENGTH_SHORT).show()
-            isImageLoading = false
-        }
-    }
-    
-    // Safe image loading with comprehensive error handling
-    private fun loadBitmapWithDownsamplingSafe(uri: Uri, targetSize: Int, callback: (Result<Bitmap>?) -> Unit) {
-        lifecycleScope.launch {
-            try {
-                // Step 16: Check cache first
-                val cacheKey = bitmapCache.generateKey(uri, targetSize)
-                val cachedBitmap = bitmapCache.get(cacheKey)
-                if (cachedBitmap != null) {
-                    callback(Result.success(cachedBitmap))
-                    return@launch
-                }
-                
-                // Step 18: Load bitmap with crash prevention
-                val decodedBitmap = withContext(Dispatchers.IO) {
-                    decodeBitmapFromUriSafe(uri, targetSize)
-                }
-                
-                if (decodedBitmap != null) {
-                    // Crash Prevention 2: Process bitmap safely without premature mutability
-                    val safeBitmap = processBitmapSafely(decodedBitmap)
-                    if (safeBitmap != null) {
-                        // Step 16: Add to cache
-                        bitmapCache.put(cacheKey, safeBitmap)
-                        callback(Result.success(safeBitmap))
-                    } else {
-                        callback(Result.failure(Exception("Failed to process bitmap safely")))
-                    }
-                } else {
-                    callback(Result.failure(Exception("Failed to decode bitmap")))
-                }
-                
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Bitmap loading error: ${e.message}", Toast.LENGTH_SHORT).show()
-                    callback(Result.failure(e))
-                }
-            }
-        }
-    }
-    
-    // Safe bitmap decoding with comprehensive error handling
-    private suspend fun decodeBitmapFromUriSafe(uri: Uri, targetSize: Int): Bitmap? {
-        return withContext(Dispatchers.IO) {
-            try {
-                // First, get image dimensions without loading the full bitmap
-                val options = BitmapFactory.Options().apply {
-                    inJustDecodeBounds = true
-                }
-                
-                contentResolver.openInputStream(uri)?.use { stream ->
-                    BitmapFactory.decodeStream(stream, null, options)
-                }
-                
-                if (options.outWidth <= 0 || options.outHeight <= 0) {
-                    return@withContext null
-                }
-                
-                // Calculate safe sample size to prevent OOM
-                var sampleSize = 1
-                val maxSize = maxOf(options.outWidth, options.outHeight)
-                
-                // Aggressive downsampling for safety
-                while (maxSize / sampleSize > targetSize) {
-                    sampleSize *= 2
-                    // Prevent excessive downsampling
-                    if (sampleSize > 32) break
-                }
-                
-                // Load bitmap with calculated inSampleSize
-                val options2 = BitmapFactory.Options().apply {
-                    inSampleSize = sampleSize
-                    inPreferredConfig = Bitmap.Config.RGB_565
-                    inDither = true
-                    inMutable = false // Don't force mutability immediately
-                }
-                
-                // Re-open stream for actual decoding
-                val finalBitmap = contentResolver.openInputStream(uri)?.use { stream ->
-                    BitmapFactory.decodeStream(stream, null, options2)
-                }
-                
-                // Check if bitmap is too large for memory
-                if (finalBitmap != null && finalBitmap.byteCount > MAX_BITMAP_SIZE) {
-                    finalBitmap.recycle()
-                    return@withContext null
-                }
-                
-                return@withContext finalBitmap
-                
-            } catch (e: OutOfMemoryError) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Image too large for device memory. Please try a smaller image.", Toast.LENGTH_LONG).show()
-                }
-                null
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Image decoding error: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-                null
-            }
-        }
-    }
-    
-    // Safe image load result handling
-    private fun handleImageLoadResult(result: Result<Bitmap>?, uri: Uri, isEdit: Boolean) {
-        try {
-            if (result?.isSuccess == true) {
-                val downsampledBitmap = result.getOrNull()
-                if (downsampledBitmap != null) {
-                    // Step 8: Track image origin and set canOverwrite flag appropriately
-                    val origin = determineImageOrigin(uri)
-                    val canOverwrite = determineCanOverwrite(origin)
-                    
-                    currentImageInfo = ImageInfo(uri, origin, canOverwrite)
-                    
-                    // Step 17: Store current bitmap for proper recycling
-                    currentBitmap = downsampledBitmap
-                    
-                    // Step 15: Display loaded bitmap on Canvas ImageView with safety checks
+            // Create Coil image request
+            val request = ImageRequest.Builder(this)
+                .data(uri)
+                .target { drawable ->
+                    // Success callback
                     runOnUiThread {
                         try {
-                            if (isCanvasReady()) {
-                                canvasImageView.setImageBitmap(downsampledBitmap)
-                                canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
-                                canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                                
-                                Toast.makeText(this, "Loaded ${origin.name} image successfully", Toast.LENGTH_SHORT).show()
-                                
-                                // Update UI based on canOverwrite
-                                updateSavePanelUI()
-                                
-                                // Auto-detect and set the original image format
-                                detectAndSetImageFormat(uri)
-                                
-                                lastImageLoadFailed = false
-                            } else {
-                                // Canvas not ready, try again
-                                canvasImageView.post {
-                                    handleImageLoadResult(result, uri, isEdit)
-                                }
-                            }
+                            // Step 8: Track image origin and set canOverwrite flag appropriately
+                            val origin = determineImageOrigin(uri)
+                            val canOverwrite = determineCanOverwrite(origin)
+                            
+                            currentImageInfo = ImageInfo(uri, origin, canOverwrite)
+                            
+                            // Display the loaded image
+                            canvasImageView.setImageDrawable(drawable)
+                            canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
+                            canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            
+                            Toast.makeText(this, "Loaded ${origin.name} image successfully", Toast.LENGTH_SHORT).show()
+                            
+                            // Update UI based on canOverwrite
+                            updateSavePanelUI()
+                            
+                            // Auto-detect and set the original image format
+                            detectAndSetImageFormat(uri)
+                            
+                            lastImageLoadFailed = false
                         } catch (e: Exception) {
-                            Toast.makeText(this, "Error displaying image: ${e.message}", Toast.LENGTH_SHORT).show()
-                            lastImageLoadFailed = true
+                            handleImageLoadFailure("Error displaying image: ${e.message}")
+                        } finally {
+                            isImageLoading = false
                         }
                     }
-                } else {
-                    // Bitmap is null
-                    handleImageLoadFailure("Failed to decode image")
                 }
-            } else {
-                // Result failed
-                handleImageLoadFailure(result?.exceptionOrNull()?.message ?: "Unknown error")
-            }
+                .error(R.drawable.ic_launcher_background) // Use existing drawable as error placeholder
+                .listener(
+                    onStart = {
+                        // Loading started
+                    },
+                    onSuccess = { _, _ ->
+                        // Loading successful
+                    },
+                    onError = { _, result ->
+                        // Loading failed
+                        handleImageLoadFailure(result.throwable?.message ?: "Unknown error")
+                        isImageLoading = false
+                    }
+                )
+                .build()
+            
+            // Execute the request with Coil
+            imageLoader.enqueue(request)
+            
         } catch (e: Exception) {
-            handleImageLoadFailure(e.message ?: "Unknown error")
-        } finally {
+            handleImageLoadFailure("Image loading error: ${e.message}")
             isImageLoading = false
         }
     }
@@ -777,100 +581,7 @@ class MainActivity : AppCompatActivity() {
         // recycleCurrentBitmap()
     }
 
-    // Step 14: Implement proper image downsampling using BitmapFactory.Options.inSampleSize
-    // Step 16: Integrated with LRU cache for performance optimization
-    // Step 18: Background thread offloading with coroutines for heavy image operations
-    private fun loadBitmapWithDownsampling(uri: Uri, targetSize: Int, callback: (Bitmap?) -> Unit) {
-        // Step 16: Check cache first
-        val cacheKey = bitmapCache.generateKey(uri, targetSize)
-        val cachedBitmap = bitmapCache.get(cacheKey)
-        if (cachedBitmap != null) {
-            // Cache hit - return cached bitmap immediately (no blocking)
-            callback(cachedBitmap)
-            return
-        }
-
-        // Step 18: Use lifecycleScope for proper coroutine management (no UI blocking)
-        lifecycleScope.launch {
-            try {
-                // Step 18: Offload heavy bitmap decoding to background thread
-                val decodedBitmap = withContext(Dispatchers.IO) {
-                    decodeBitmapFromUri(uri, targetSize)
-                }
-                
-                if (decodedBitmap != null) {
-                    // Step 16: Add to cache for future use
-                    bitmapCache.put(cacheKey, decodedBitmap)
-                    callback(decodedBitmap)
-                } else {
-                    callback(null)
-                }
-                
-            } catch (e: Exception) {
-                // Step 18: Ensure UI updates happen on main thread
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Bitmap decoding error: ${e.message}", Toast.LENGTH_SHORT).show()
-                    callback(null)
-                }
-            }
-        }
-    }
-
-    /**
-     * Step 16: Helper method to decode bitmap from URI with downsampling
-     * Step 18: Made suspend function for coroutine execution
-     * Step 19: Stream closure and file descriptor leak prevention
-     * Step 2C: Fixed bitmap decoding - simplified approach to prevent blur
-     */
-    private suspend fun decodeBitmapFromUri(uri: Uri, targetSize: Int): android.graphics.Bitmap? {
-        return withContext(Dispatchers.IO) {
-            try {
-                // First, get image dimensions without loading the full bitmap
-                val options = BitmapFactory.Options().apply {
-                    inJustDecodeBounds = true
-                }
-                
-                contentResolver.openInputStream(uri)?.use { stream ->
-                    BitmapFactory.decodeStream(stream, null, options)
-                }
-                
-                if (options.outWidth <= 0 || options.outHeight <= 0) {
-                    return@withContext null
-                }
-                
-                // Simple calculation: ensure we don't downsample too aggressively
-                var sampleSize = 1
-                val maxSize = maxOf(options.outWidth, options.outHeight)
-                
-                // Only downsample if image is significantly larger than target
-                while (maxSize / sampleSize > targetSize * 2) {
-                    sampleSize *= 2
-                }
-                
-                // Load bitmap with calculated inSampleSize - simplified approach
-                val options2 = BitmapFactory.Options().apply {
-                    inSampleSize = sampleSize
-                    // Use RGB_565 instead of ARGB_8888 to reduce memory and potential blur
-                    inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
-                    inDither = true // Enable dithering for better quality
-                    inMutable = false
-                }
-                
-                // Re-open stream for actual decoding
-                val finalBitmap = contentResolver.openInputStream(uri)?.use { stream ->
-                    BitmapFactory.decodeStream(stream, null, options2)
-                }
-                
-                return@withContext finalBitmap
-                
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Bitmap decoding error: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-                null
-            }
-        }
-    }
+    // All bitmap loading, caching, downsampling, and memory management is now handled automatically by Coil
     
     // Helper method to clean up private camera files
     private fun cleanupCameraFile(uri: Uri) {
@@ -894,113 +605,6 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             // Ignore cleanup errors
-        }
-    }
-    
-    // Crash Prevention 1: Memory availability check
-    private fun isMemoryAvailable(): Boolean {
-        return try {
-            val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-            val memoryInfo = ActivityManager.MemoryInfo()
-            activityManager.getMemoryInfo(memoryInfo)
-            
-            // Check if we have enough available memory
-            memoryInfo.availMem >= MIN_MEMORY_THRESHOLD && !memoryInfo.lowMemory
-        } catch (e: Exception) {
-            // If we can't check memory, assume it's available
-            true
-        }
-    }
-    
-    // Crash Prevention 4: Image format validation
-    private fun isImageFormatSupported(uri: Uri): Boolean {
-        return try {
-            // Check MIME type first
-            val mimeType = contentResolver.getType(uri)
-            if (mimeType != null && mimeType in SUPPORTED_FORMATS) {
-                true
-            } else {
-                // Fallback to file extension check
-                val fileName = getDisplayNameFromUri(uri)?.lowercase() ?: ""
-                SUPPORTED_EXTENSIONS.any { fileName.endsWith(it) }
-            }
-        } catch (e: Exception) {
-            // If we can't determine the format, assume it's supported
-            true
-        }
-    }
-    
-    // Crash Prevention 1: Memory-aware target size calculation
-    private fun calculateSafeTargetSize(): Int {
-        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        val memoryInfo = ActivityManager.MemoryInfo()
-        activityManager.getMemoryInfo(memoryInfo)
-        
-        var targetSize = TARGET_IMAGE_SIZE
-        
-        // Reduce target size based on available memory
-        when {
-            memoryInfo.availMem < 64 * 1024 * 1024 -> { // Less than 64MB
-                targetSize = 1024
-            }
-            memoryInfo.availMem < 128 * 1024 * 1024 -> { // Less than 128MB
-                targetSize = 1536
-            }
-            memoryInfo.availMem < 256 * 1024 * 1024 -> { // Less than 256MB
-                targetSize = 1792
-            }
-        }
-        
-        return targetSize
-    }
-    
-    // Crash Prevention 2: Safe bitmap processing without premature mutability enforcement
-    private fun processBitmapSafely(bitmap: Bitmap): Bitmap? {
-        return try {
-            // Only make mutable if we're actually going to modify it
-            // Don't enforce mutability immediately on import
-            if (bitmap.isMutable) {
-                bitmap
-            } else {
-                // Only create a mutable copy if we need to modify it
-                // For display-only use cases, use as-is to save memory
-                bitmap
-            }
-        } catch (e: OutOfMemoryError) {
-            // Handle OOM gracefully
-            null
-        } catch (e: Exception) {
-            // Handle other processing errors
-            null
-        }
-    }
-    
-    // Crash Prevention 5: Canvas safety checks
-    private fun isCanvasReady(): Boolean {
-        return try {
-            canvasImageView != null && canvasImageView.width > 0 && canvasImageView.height > 0
-        } catch (e: Exception) {
-            false
-        }
-    }
-    
-    // Crash Prevention 3: URI access validation
-    private fun validateUriAccess(uri: Uri): Boolean {
-        return try {
-            // Test if we can actually read from this URI
-            val inputStream = contentResolver.openInputStream(uri)
-            if (inputStream != null) {
-                inputStream.close()
-                true
-            } else {
-                false
-            }
-        } catch (e: SecurityException) {
-            // URI access revoked or denied
-            false
-        } catch (e: Exception) {
-            // Other access issues
-            false
         }
     }
     
