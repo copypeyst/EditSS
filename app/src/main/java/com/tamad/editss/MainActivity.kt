@@ -960,7 +960,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // FINAL, CORRECTED VERSION
+    // FINAL, CORRECTED VERSION - This one avoids deletion and uses MediaStore update instead.
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, "No image to overwrite", Toast.LENGTH_SHORT).show()
@@ -974,6 +974,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // Step 1: Get the bitmap to save (same as before)
                 val request = ImageRequest.Builder(this@MainActivity)
                     .data(imageInfo.uri)
                     .allowHardware(false)
@@ -986,70 +987,38 @@ class MainActivity : AppCompatActivity() {
                 val isFormatChanging = originalMimeType != selectedSaveFormat
 
                 if (isFormatChanging) {
-                    // --- FORMAT IS CHANGING: Save a new copy, then handle deletion of the old one. ---
-                    val values = ContentValues().apply {
-                        put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
-                        put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
-                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
-                        put(MediaStore.Images.Media.IS_PENDING, 1)
-                    }
-                    val newUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                        ?: throw Exception("Failed to create new image entry.")
+                    // --- FORMAT IS CHANGING: Overwrite content AND update MediaStore record ---
                     
-                    contentResolver.openOutputStream(newUri)?.use { outputStream ->
+                    // Overwrite the content of the original URI with the new image data
+                    contentResolver.openOutputStream(imageInfo.uri, "w")?.use { outputStream ->
                         compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
                     }
-                    values.clear()
-                    values.put(MediaStore.Images.Media.IS_PENDING, 0)
-                    contentResolver.update(newUri, values, null, null)
 
-                    // --- DELETION LOGIC ---
-                    try {
-                        // First, try to delete the file directly. This works for files our app created.
-                        if (contentResolver.delete(imageInfo.uri, null, null) > 0) {
-                            // Success! The file was deleted directly.
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(this@MainActivity, "Original file replaced successfully.", Toast.LENGTH_SHORT).show()
-                                savePanel.visibility = View.GONE
-                                scrim.visibility = View.GONE
-                            }
-                            // Update the app's current image to the new one.
-                            currentImageInfo = imageInfo.copy(uri = newUri)
-                        } else {
-                            // If delete returns 0, it might be a file we don't have permission for.
-                            // This can happen on some devices. We'll treat it as needing the dialog.
-                            throw SecurityException("Direct deletion failed, requires user confirmation.")
-                        }
-                    } catch (e: SecurityException) {
-                        // This catch block is crucial. It triggers if we don't have permission to delete directly.
-                        // Now we ask the user for permission using the official dialog.
-                        pendingOverwriteUri = newUri
-
-                        val uriToDelete = getMediaStoreUriWithId(imageInfo.uri)
-                            ?: throw Exception("Could not find original image to delete.")
-                        val urisToDelete = listOf(uriToDelete)
-
-                        val pendingIntent = MediaStore.createDeleteRequest(contentResolver, urisToDelete)
-                        val intentSenderRequest = androidx.activity.result.IntentSenderRequest.Builder(pendingIntent.intentSender).build()
-                        
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, "Saved as new format. Confirm deletion of original.", Toast.LENGTH_LONG).show()
-                            savePanel.visibility = View.GONE
-                            scrim.visibility = View.GONE
-                            deleteRequestLauncher.launch(intentSenderRequest)
-                        }
+                    // Now, create a ContentValues object to update the file's metadata in the MediaStore
+                    val values = ContentValues().apply {
+                        // Put the new filename with the correct extension
+                        put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
+                        // Put the new MIME type so the system knows it's a different format
+                        put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
                     }
+
+                    // Update the MediaStore record for the original URI with the new values
+                    contentResolver.update(imageInfo.uri, values, null, null)
+
                 } else {
                     // --- FORMAT IS THE SAME: Simple overwrite is fine. ---
-                    contentResolver.openOutputStream(imageInfo.uri)?.use { outputStream ->
+                    contentResolver.openOutputStream(imageInfo.uri, "w")?.use { outputStream ->
                         compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
                     }
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
-                        savePanel.visibility = View.GONE
-                        scrim.visibility = View.GONE
-                    }
                 }
+
+                // This message now applies to both scenarios
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
+                    savePanel.visibility = View.GONE
+                    scrim.visibility = View.GONE
+                }
+
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, "Overwrite failed: ${e.message}", Toast.LENGTH_SHORT).show()
