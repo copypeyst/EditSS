@@ -7,6 +7,7 @@ import android.content.ClipData
 import android.content.pm.PackageManager
 import android.os.Build
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
@@ -26,6 +27,7 @@ import android.net.Uri
 import android.content.DialogInterface
 import androidx.appcompat.app.AlertDialog
 import android.provider.MediaStore
+import android.content.ActivityNotFoundException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
