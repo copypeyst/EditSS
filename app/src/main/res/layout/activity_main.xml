@@ -529,7 +529,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text=""
-            android:textColor="@android:color/darker_gray"
+            android:textColor="#FFFFA500"
             android:textSize="10sp"
             android:gravity="center"
             android:visibility="gone"
