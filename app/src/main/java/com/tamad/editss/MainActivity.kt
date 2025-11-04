@@ -928,43 +928,94 @@ class MainActivity : AppCompatActivity() {
     }
     
     // Updated function to overwrite the image using Coil to fetch the bitmap reliably.
+    // Updated "Overwrite" function that handles format changes safely.
     private fun overwriteCurrentImage() {
-        // Ensure there is an image to overwrite and that we are allowed to.
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, "No image to overwrite", Toast.LENGTH_SHORT).show()
             return
         }
 
-        if (imageInfo.canOverwrite) {
-            lifecycleScope.launch {
-                try {
-                    // Step 1: Ask Coil for the Bitmap directly, just like in saveImageAsCopy.
-                    val request = ImageRequest.Builder(this@MainActivity)
-                        .data(imageInfo.uri)
-                        .allowHardware(false) // Important for saving
-                        .build()
-                    
-                    val result = imageLoader.execute(request).drawable
-                    val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+        if (!imageInfo.canOverwrite) {
+            Toast.makeText(this, "Cannot overwrite this image", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-                    if (bitmapToSave != null) {
-                        // Step 2: Proceed with the existing overwrite logic.
-                        contentResolver.openOutputStream(imageInfo.uri)?.use { outputStream ->
-                            compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
-                        }
-                        
-                        Toast.makeText(this@MainActivity, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
-                        savePanel.visibility = View.GONE
-                        scrim.visibility = View.GONE
-                    } else {
-                        Toast.makeText(this@MainActivity, "No image to overwrite", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch(Dispatchers.IO) { // Use IO dispatcher for file operations
+            try {
+                // Step 1: Get the bitmap from the current image URI using Coil.
+                val request = ImageRequest.Builder(this@MainActivity)
+                    .data(imageInfo.uri)
+                    .allowHardware(false) // Use software bitmaps for saving.
+                    .build()
+                val result = imageLoader.execute(request).drawable
+                val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+
+                if (bitmapToSave == null) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Could not get image to overwrite", Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) {
+                    return@launch
+                }
+
+                // Step 2: Determine if the format is actually changing.
+                val originalMimeType = contentResolver.getType(imageInfo.uri)
+                val isFormatChanging = originalMimeType != selectedSaveFormat
+
+                if (isFormatChanging) {
+                    // --- SAFE "SAVE AS COPY AND REPLACE" LOGIC ---
+                    // Create a new image entry in MediaStore.
+                    val values = ContentValues().apply {
+                        put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename()) // New name with new extension
+                        put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
+                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                        put(MediaStore.Images.Media.IS_PENDING, 1)
+                    }
+
+                    val newUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                        ?: throw Exception("Failed to create new image entry.")
+
+                    // Save bitmap to the new URI.
+                    contentResolver.openOutputStream(newUri)?.use { outputStream ->
+                        compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                    }
+
+                    // Finalize the new image.
+                    values.clear()
+                    values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                    contentResolver.update(newUri, values, null, null)
+
+                    // If saving the new image was successful, delete the old one.
+                    try {
+                        contentResolver.delete(imageInfo.uri, null, null)
+                    } catch (e: Exception) {
+                        // Log or ignore if the old file can't be deleted; the new one is already saved.
+                    }
+                    
+                    // Invalidate Coil's cache for the old URI to prevent showing a stale image.
+                    imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
+
+                    // Update the app's current image info to the new URI.
+                    currentImageInfo = imageInfo.copy(uri = newUri)
+
+                } else {
+                    // --- ORIGINAL OVERWRITE LOGIC (NO FORMAT CHANGE) ---
+                    // If the format is the same, we can just overwrite the content.
+                    contentResolver.openOutputStream(imageInfo.uri)?.use { outputStream ->
+                        compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
+                    savePanel.visibility = View.GONE
+                    scrim.visibility = View.GONE
+                }
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, "Overwrite failed: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
-        } else {
-            Toast.makeText(this, "Cannot overwrite this image", Toast.LENGTH_SHORT).show()
         }
     }
     
