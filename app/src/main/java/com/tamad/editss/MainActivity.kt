@@ -961,7 +961,6 @@ class MainActivity : AppCompatActivity() {
     }
     
     // --- START: REPLACED FUNCTION ---
-    // FINAL VERSION: Handles format changes by creating a new file and asking the user to delete the original.
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, "No image to overwrite", Toast.LENGTH_SHORT).show()
@@ -975,24 +974,18 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Step 1: Get the bitmap from the current image URI using Coil.
                 val request = ImageRequest.Builder(this@MainActivity)
                     .data(imageInfo.uri)
                     .allowHardware(false)
                     .build()
                 val result = imageLoader.execute(request).drawable
                 val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                    ?: throw Exception("Could not get image to overwrite")
 
-                if (bitmapToSave == null) {
-                    throw Exception("Could not get image to overwrite")
-                }
-
-                // Step 2: Determine if the format is actually changing.
                 val originalMimeType = contentResolver.getType(imageInfo.uri)
                 val isFormatChanging = originalMimeType != selectedSaveFormat
 
                 if (isFormatChanging) {
-                    // --- FORMAT IS CHANGING: Save a new copy, then request deletion of the old one. ---
                     val values = ContentValues().apply {
                         put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
                         put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
@@ -1009,11 +1002,13 @@ class MainActivity : AppCompatActivity() {
                     values.put(MediaStore.Images.Media.IS_PENDING, 0)
                     contentResolver.update(newUri, values, null, null)
 
-                    // Store the new URI temporarily so the launcher callback can use it.
                     pendingOverwriteUri = newUri
 
-                    // Now, create and launch the official Android delete request dialog.
-                    val urisToDelete = listOf(imageInfo.uri)
+                    // This is the line that gets the correct, specific URI for the delete request
+                    val uriToDelete = getMediaStoreUriWithId(imageInfo.uri)
+                        ?: throw Exception("Could not find original image to delete.")
+                    val urisToDelete = listOf(uriToDelete)
+
                     val pendingIntent = MediaStore.createDeleteRequest(contentResolver, urisToDelete)
                     val request = androidx.activity.result.IntentSenderRequest.Builder(pendingIntent.intentSender).build()
                     
@@ -1023,9 +1018,7 @@ class MainActivity : AppCompatActivity() {
                         scrim.visibility = View.GONE
                         deleteRequestLauncher.launch(request)
                     }
-
                 } else {
-                    // --- FORMAT IS THE SAME: Simple overwrite is fine. ---
                     contentResolver.openOutputStream(imageInfo.uri)?.use { outputStream ->
                         compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
                     }
@@ -1252,4 +1245,37 @@ class MainActivity : AppCompatActivity() {
             null
         }
     }
+
+    // --- START: ADDED FOR OVERWRITE FIX ---
+    // Helper function to convert a generic file URI to a specific MediaStore URI with an ID
+    private fun getMediaStoreUriWithId(uri: Uri): Uri? {
+        // We only need to do this for URIs that are not already in the correct format
+        if (uri.authority != "media") {
+            try {
+                // Query the generic URI to find its internal MediaStore ID
+                contentResolver.query(
+                    uri,
+                    arrayOf(MediaStore.Images.Media._ID),
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val idColumn = cursor.getColumnIndex(MediaStore.Images.Media._ID)
+                        if (idColumn != -1) {
+                           val id = cursor.getLong(idColumn)
+                            // Once we have the ID, create the correct, permanent MediaStore URI
+                            return android.content.ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // If the lookup fails for any reason, we can't get the specific URI
+                return null
+            }
+        }
+        // If the URI was already a MediaStore URI, just return it
+        return uri
+    }
+    // --- END: ADDED FOR OVERWRITE FIX ---
 }
