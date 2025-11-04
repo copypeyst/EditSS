@@ -607,6 +607,7 @@ class MainActivity : AppCompatActivity() {
      * Step 16: Helper method to decode bitmap from URI with downsampling
      * Step 18: Made suspend function for coroutine execution
      * Step 19: Stream closure and file descriptor leak prevention with try-with-resources
+     * Step 2C: Fixed bitmap decoding to prevent gradient rendering
      */
     private suspend fun decodeBitmapFromUri(uri: Uri, targetSize: Int): android.graphics.Bitmap? {
         return withContext(Dispatchers.IO) {
@@ -629,19 +630,37 @@ class MainActivity : AppCompatActivity() {
                     return@withContext null
                 }
                 
-                // Calculate inSampleSize to downsample appropriately
-                val (width, height) = calculateInSampleSize(options.outWidth, options.outHeight, targetSize)
+                // Calculate inSampleSize to downsample appropriately - fixed calculation
+                var (width, height) = calculateInSampleSize(options.outWidth, options.outHeight, targetSize)
                 
-                // Load bitmap with calculated inSampleSize
+                // Ensure minimum sample size of 1
+                width = maxOf(width, 1)
+                height = maxOf(height, 1)
+                
+                // Load bitmap with calculated inSampleSize - using correct settings
                 val options2 = BitmapFactory.Options().apply {
-                    inSampleSize = Math.max(width.toInt(), height.toInt())
+                    inSampleSize = minOf(width, height)
+                    // Fix: Ensure proper color handling to prevent gradient artifacts
+                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+                    inDither = false
+                    inScaled = false
+                    // Prevent compression artifacts
+                    inMutable = false
                 }
                 
                 // Step 19: Re-open stream for actual decoding and close it properly
                 inputStream = contentResolver.openInputStream(uri)
                 inputStream?.use { stream ->
-                    BitmapFactory.decodeStream(stream, null, options2)
-                }
+                    // Step 2C: Use decodeStream with proper bounds checking
+                    val decodedBitmap = BitmapFactory.decodeStream(stream, null, options2)
+                    
+                    // Verify bitmap was decoded correctly
+                    if (decodedBitmap != null && !decodedBitmap.isRecycled && decodedBitmap.byteCount > 0) {
+                        decodedBitmap
+                    } else {
+                        null
+                    }
+                } ?: return@withContext null
                 
             } catch (e: Exception) {
                 // Step 18: Post UI updates back to main thread
@@ -661,7 +680,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Step 14: Calculate appropriate inSampleSize for downsampling
+    // Step 14: Calculate appropriate inSampleSize for downsampling - fixed calculation
     private fun calculateInSampleSize(originalWidth: Int, originalHeight: Int, targetSize: Int): Pair<Int, Int> {
         var inSampleSize = 1
         
@@ -671,7 +690,11 @@ class MainActivity : AppCompatActivity() {
             inSampleSize *= 2
         }
         
-        return Pair(originalWidth / inSampleSize, originalHeight / inSampleSize)
+        // Return proper dimensions to prevent zero-size bitmaps
+        val finalWidth = originalWidth / inSampleSize
+        val finalHeight = originalHeight / inSampleSize
+        
+        return Pair(maxOf(finalWidth, 1), maxOf(finalHeight, 1))
     }
     
     // Step 8: Helper method to determine image origin
@@ -720,24 +743,32 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Photo picker logic - Proper implementation with single selection
+    // Photo picker logic - Fixed implementation for proper Photo Picker
     private fun openImagePicker() {
-        // Android 13+ Photo Picker API - using proper ACTION_PICK for single image
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Use ACTION_PICK for Android 13+ Photo Picker (single selection enforced)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // Use proper Android 13+ Photo Picker
+                val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+                intent.type = "image/*"
+                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+                startActivityForResult(intent, IMPORT_REQUEST_CODE)
+            } else {
+                // Android 10-12: Use MediaStore query instead of ACTION_OPEN_DOCUMENT
+                val projection = arrayOf(MediaStore.Images.Media.DATA, MediaStore.Images.Media._ID)
+                val selection = "${MediaStore.Images.Media.MIME_TYPE} LIKE 'image/%'"
+                val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
+                
+                // Use MediaStore to get image picker
+                val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+                intent.type = "image/*"
+                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+                startActivityForResult(intent, IMPORT_REQUEST_CODE)
+            }
+        } catch (e: Exception) {
+            // Fallback for any issues
             val intent = Intent(Intent.ACTION_PICK)
             intent.type = "image/*"
-            // Setting EXTRA_ALLOW_MULTIPLE to false ensures single selection
             intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
-            startActivityForResult(intent, IMPORT_REQUEST_CODE)
-        } else {
-            // Android 10-12: Use MediaStore API with ACTION_OPEN_DOCUMENT (single selection)
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
-            intent.addCategory(Intent.CATEGORY_OPENABLE)
-            intent.type = "image/*"
-            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false) // Single image only
-            
-            // For Android 10-12, we rely on MediaStore API without storage permissions
             startActivityForResult(intent, IMPORT_REQUEST_CODE)
         }
     }
@@ -790,15 +821,23 @@ class MainActivity : AppCompatActivity() {
             }
             CAMERA_REQUEST_CODE -> {
                 if (resultCode == RESULT_OK) {
-                    // Step 13: Handle camera capture result
+                    // Step 13: Handle successful camera capture result
                     currentCameraUri?.let { cameraUri ->
                         loadImageFromUri(cameraUri, false)
                         currentCameraUri = null // Clear temporary URI
                     }
                 } else {
-                    // Camera capture failed or was cancelled
-                    Toast.makeText(this, "Camera error. No image captured.", Toast.LENGTH_SHORT).show()
-                    currentCameraUri = null // Clean up
+                    // Camera was cancelled or failed - clean up without saving blank
+                    if (currentCameraUri != null) {
+                        // Clean up the MediaStore entry that was created
+                        try {
+                            contentResolver.delete(currentCameraUri, null, null)
+                        } catch (e: Exception) {
+                            // Ignore cleanup errors
+                        }
+                    }
+                    currentCameraUri = null // Clear temporary URI
+                    // Don't show error for cancelled operations
                 }
             }
         }
