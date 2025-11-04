@@ -7,7 +7,6 @@ import android.content.ClipData
 import android.content.pm.PackageManager
 import android.os.Build
 import android.Manifest
-import android.content.ActivityNotFoundException
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
