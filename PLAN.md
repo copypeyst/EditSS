@@ -2,6 +2,7 @@ Notes:
 - This project is a modified implementation of BaseMax/AndroidAutoBuildAPK. It automates CI for a native Android Gradle project. Do not modify the core workflow logic.
 - Use Model Context Protocol from .kilocode to stay updated with updated info.
 - preview.html is a visualizer for the user to visualize how the app looks like as close as possible and is meant to be coded manually.
+- If plan in conflict with existing project, prioritize project.
 
 Edit SS
 
