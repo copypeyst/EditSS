@@ -438,23 +438,55 @@
             app:layout_constraintEnd_toEndOf="parent"
             android:layout_marginTop="16dp">
 
-            <Button
-                android:id="@+id/button_save_copy"
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Save Copy"
-                android:layout_marginEnd="8dp"
-                android:backgroundTint="?attr/colorSecondary"
-                android:textColor="?attr/colorOnSecondary"/>
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginEnd="8dp">
 
-            <Button
-                android:id="@+id/button_overwrite"
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/saveasicon"
+                    android:contentDescription="Save As"
+                    android:layout_marginBottom="4dp"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <Button
+                    android:id="@+id/button_save_copy"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Save Copy"
+                    android:backgroundTint="?attr/colorSecondary"
+                    android:textColor="?attr/colorOnSecondary"/>
+            </LinearLayout>
+
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Overwrite"
-                android:layout_marginStart="8dp"
-                android:backgroundTint="?attr/colorSecondary"
-                android:textColor="?attr/colorOnSecondary"/>
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginStart="8dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/warningicon"
+                    android:contentDescription="Warning"
+                    android:layout_marginBottom="4dp"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <Button
+                    android:id="@+id/button_overwrite"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Overwrite"
+                    android:backgroundTint="?attr/colorSecondary"
+                    android:textColor="?attr/colorOnSecondary"/>
+            </LinearLayout>
         </LinearLayout>
 
         <RadioGroup
