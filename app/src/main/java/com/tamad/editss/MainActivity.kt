@@ -960,7 +960,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // --- START: REPLACED FUNCTION ---
+    // FINAL, CORRECTED VERSION
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, "No image to overwrite", Toast.LENGTH_SHORT).show()
@@ -986,6 +986,7 @@ class MainActivity : AppCompatActivity() {
                 val isFormatChanging = originalMimeType != selectedSaveFormat
 
                 if (isFormatChanging) {
+                    // --- FORMAT IS CHANGING: Save a new copy, then handle deletion of the old one. ---
                     val values = ContentValues().apply {
                         put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
                         put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
@@ -1002,23 +1003,44 @@ class MainActivity : AppCompatActivity() {
                     values.put(MediaStore.Images.Media.IS_PENDING, 0)
                     contentResolver.update(newUri, values, null, null)
 
-                    pendingOverwriteUri = newUri
+                    // --- DELETION LOGIC ---
+                    try {
+                        // First, try to delete the file directly. This works for files our app created.
+                        if (contentResolver.delete(imageInfo.uri, null, null) > 0) {
+                            // Success! The file was deleted directly.
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@MainActivity, "Original file replaced successfully.", Toast.LENGTH_SHORT).show()
+                                savePanel.visibility = View.GONE
+                                scrim.visibility = View.GONE
+                            }
+                            // Update the app's current image to the new one.
+                            currentImageInfo = imageInfo.copy(uri = newUri)
+                        } else {
+                            // If delete returns 0, it might be a file we don't have permission for.
+                            // This can happen on some devices. We'll treat it as needing the dialog.
+                            throw SecurityException("Direct deletion failed, requires user confirmation.")
+                        }
+                    } catch (e: SecurityException) {
+                        // This catch block is crucial. It triggers if we don't have permission to delete directly.
+                        // Now we ask the user for permission using the official dialog.
+                        pendingOverwriteUri = newUri
 
-                    // This is the line that gets the correct, specific URI for the delete request
-                    val uriToDelete = getMediaStoreUriWithId(imageInfo.uri)
-                        ?: throw Exception("Could not find original image to delete.")
-                    val urisToDelete = listOf(uriToDelete)
+                        val uriToDelete = getMediaStoreUriWithId(imageInfo.uri)
+                            ?: throw Exception("Could not find original image to delete.")
+                        val urisToDelete = listOf(uriToDelete)
 
-                    val pendingIntent = MediaStore.createDeleteRequest(contentResolver, urisToDelete)
-                    val request = androidx.activity.result.IntentSenderRequest.Builder(pendingIntent.intentSender).build()
-                    
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, "Saved as new format. Confirm deletion of original.", Toast.LENGTH_LONG).show()
-                        savePanel.visibility = View.GONE
-                        scrim.visibility = View.GONE
-                        deleteRequestLauncher.launch(request)
+                        val pendingIntent = MediaStore.createDeleteRequest(contentResolver, urisToDelete)
+                        val intentSenderRequest = androidx.activity.result.IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+                        
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Saved as new format. Confirm deletion of original.", Toast.LENGTH_LONG).show()
+                            savePanel.visibility = View.GONE
+                            scrim.visibility = View.GONE
+                            deleteRequestLauncher.launch(intentSenderRequest)
+                        }
                     }
                 } else {
+                    // --- FORMAT IS THE SAME: Simple overwrite is fine. ---
                     contentResolver.openOutputStream(imageInfo.uri)?.use { outputStream ->
                         compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
                     }
@@ -1035,7 +1057,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-    // --- END: REPLACED FUNCTION ---
     
     // Step 23: Timestamp-based file naming with collision avoidance
     private fun generateUniqueFilename(): String {
