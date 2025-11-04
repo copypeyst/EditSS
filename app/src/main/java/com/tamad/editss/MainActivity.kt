@@ -155,15 +155,19 @@ class MainActivity : AppCompatActivity() {
     // Step 14: Target image size for display (to prevent OOM errors)
     private val TARGET_IMAGE_SIZE = 2048 // pixels
     
-    // Crash prevention: Memory and validation thresholds
-    private val MAX_BITMAP_SIZE = 64 * 1024 * 1024 // 64MB max bitmap size
-    private val MIN_MEMORY_THRESHOLD = 32 * 1024 * 1024 // 32MB available memory required
+    // Crash prevention: Memory and validation thresholds - more conservative
+    private val MAX_BITMAP_SIZE = 32 * 1024 * 1024 // 32MB max bitmap size (reduced from 64MB)
+    private val MIN_MEMORY_THRESHOLD = 64 * 1024 * 1024 // 64MB available memory required (increased)
     private val SUPPORTED_FORMATS = setOf("image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp")
     private val SUPPORTED_EXTENSIONS = setOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
     
     // Crash prevention: Track loading state
     private var isImageLoadAttempted = false
     private var lastImageLoadFailed = false
+    
+    // Additional safety: Track recent load attempts to prevent rapid successive calls
+    private var lastLoadTime = 0L
+    private val LOAD_COOLDOWN = 1000L // 1 second cooldown between load attempts
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -508,7 +512,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
-        // Crash Prevention: Comprehensive pre-loading validation
+        // Crash Prevention: Comprehensive pre-loading validation - enhanced
         
         // Prevent loading while already loading
         if (isImageLoading) {
@@ -516,9 +520,17 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
-        // Prevent rapid successive attempts after failure
+        // Prevent rapid successive attempts with cooldown
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastLoadTime < LOAD_COOLDOWN) {
+            Toast.makeText(this, "Please wait before selecting another image", Toast.LENGTH_SHORT).show()
+            return
+        }
+        lastLoadTime = currentTime
+        
+        // Prevent rapid successive attempts after failure with longer cooldown
         if (isImageLoadAttempted && lastImageLoadFailed) {
-            Toast.makeText(this, "Previous load failed. Please try a different image.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Previous load failed. Please wait a moment before trying again.", Toast.LENGTH_LONG).show()
             return
         }
         
@@ -534,9 +546,9 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             
-            // Crash Prevention 3: URI access validation
+            // Crash Prevention 3: URI access validation - simplified
             if (!validateUriAccess(uri)) {
-                Toast.makeText(this, "Cannot access image. Permission may have been revoked.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Cannot access image. Please try selecting it again.", Toast.LENGTH_LONG).show()
                 isImageLoading = false
                 return
             }
@@ -561,12 +573,12 @@ class MainActivity : AppCompatActivity() {
             
             // Crash Prevention 5: Ensure canvas is ready before attempting to display
             if (!isCanvasReady()) {
-                // Wait for canvas to be ready
-                canvasImageView.post {
+                // Wait for canvas to be ready with timeout
+                canvasImageView.postDelayed({
                     loadBitmapWithDownsamplingSafe(uri, safeTargetSize) { result ->
                         handleImageLoadResult(result, uri, isEdit)
                     }
-                }
+                }, 100) // Small delay to ensure canvas is ready
             } else {
                 loadBitmapWithDownsamplingSafe(uri, safeTargetSize) { result ->
                     handleImageLoadResult(result, uri, isEdit)
@@ -620,7 +632,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Safe bitmap decoding with comprehensive error handling
+    // Safe bitmap decoding with comprehensive error handling - more robust
     private suspend fun decodeBitmapFromUriSafe(uri: Uri, targetSize: Int): Bitmap? {
         return withContext(Dispatchers.IO) {
             try {
@@ -637,23 +649,25 @@ class MainActivity : AppCompatActivity() {
                     return@withContext null
                 }
                 
-                // Calculate safe sample size to prevent OOM
+                // Calculate safe sample size to prevent OOM - more conservative
                 var sampleSize = 1
                 val maxSize = maxOf(options.outWidth, options.outHeight)
                 
-                // Aggressive downsampling for safety
-                while (maxSize / sampleSize > targetSize) {
+                // More conservative downsampling to prevent crashes
+                while (maxSize / sampleSize > targetSize * 1.5) { // Buffer factor
                     sampleSize *= 2
-                    // Prevent excessive downsampling
-                    if (sampleSize > 32) break
+                    // Prevent excessive downsampling but allow more aggressive reduction
+                    if (sampleSize > 64) break
                 }
                 
-                // Load bitmap with calculated inSampleSize
+                // Load bitmap with calculated inSampleSize - more conservative settings
                 val options2 = BitmapFactory.Options().apply {
                     inSampleSize = sampleSize
-                    inPreferredConfig = Bitmap.Config.RGB_565
+                    inPreferredConfig = Bitmap.Config.RGB_565 // More memory efficient
                     inDither = true
                     inMutable = false // Don't force mutability immediately
+                    inPurgeable = true // Allow Android to purge if needed
+                    inInputShareable = true
                 }
                 
                 // Re-open stream for actual decoding
@@ -661,8 +675,8 @@ class MainActivity : AppCompatActivity() {
                     BitmapFactory.decodeStream(stream, null, options2)
                 }
                 
-                // Check if bitmap is too large for memory
-                if (finalBitmap != null && finalBitmap.byteCount > MAX_BITMAP_SIZE) {
+                // Check if bitmap is too large for memory - more conservative check
+                if (finalBitmap != null && finalBitmap.byteCount > MAX_BITMAP_SIZE / 2) { // Half the max size
                     finalBitmap.recycle()
                     return@withContext null
                 }
@@ -683,12 +697,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Safe image load result handling
+    // Safe image load result handling - enhanced with additional safety checks
     private fun handleImageLoadResult(result: Result<Bitmap>?, uri: Uri, isEdit: Boolean) {
         try {
             if (result?.isSuccess == true) {
                 val downsampledBitmap = result.getOrNull()
-                if (downsampledBitmap != null) {
+                if (downsampledBitmap != null && !downsampledBitmap.isRecycled) {
+                    // Additional safety check: Verify bitmap dimensions are reasonable
+                    if (downsampledBitmap.width <= 0 || downsampledBitmap.height <= 0 || 
+                        downsampledBitmap.width > 10000 || downsampledBitmap.height > 10000) {
+                        handleImageLoadFailure("Invalid image dimensions")
+                        return
+                    }
+                    
                     // Step 8: Track image origin and set canOverwrite flag appropriately
                     val origin = determineImageOrigin(uri)
                     val canOverwrite = determineCanOverwrite(origin)
@@ -701,7 +722,7 @@ class MainActivity : AppCompatActivity() {
                     // Step 15: Display loaded bitmap on Canvas ImageView with safety checks
                     runOnUiThread {
                         try {
-                            if (isCanvasReady()) {
+                            if (isCanvasReady() && canvasImageView != null) {
                                 canvasImageView.setImageBitmap(downsampledBitmap)
                                 canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
                                 canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -716,10 +737,21 @@ class MainActivity : AppCompatActivity() {
                                 
                                 lastImageLoadFailed = false
                             } else {
-                                // Canvas not ready, try again
-                                canvasImageView.post {
-                                    handleImageLoadResult(result, uri, isEdit)
-                                }
+                                // Canvas not ready, try again with timeout
+                                canvasImageView.postDelayed({
+                                    if (isCanvasReady() && canvasImageView != null) {
+                                        canvasImageView.setImageBitmap(downsampledBitmap)
+                                        canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
+                                        canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                        
+                                        Toast.makeText(this, "Image loaded successfully", Toast.LENGTH_SHORT).show()
+                                        updateSavePanelUI()
+                                        detectAndSetImageFormat(uri)
+                                        lastImageLoadFailed = false
+                                    } else {
+                                        handleImageLoadFailure("Failed to display image")
+                                    }
+                                }, 200)
                             }
                         } catch (e: Exception) {
                             Toast.makeText(this, "Error displaying image: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -727,7 +759,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 } else {
-                    // Bitmap is null
+                    // Bitmap is null or recycled
                     handleImageLoadFailure("Failed to decode image")
                 }
             } else {
@@ -897,18 +929,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Crash Prevention 1: Memory availability check
+    // Crash Prevention 1: Memory availability check - more conservative
     private fun isMemoryAvailable(): Boolean {
         return try {
             val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
             val memoryInfo = ActivityManager.MemoryInfo()
             activityManager.getMemoryInfo(memoryInfo)
             
-            // Check if we have enough available memory
-            memoryInfo.availMem >= MIN_MEMORY_THRESHOLD && !memoryInfo.lowMemory
+            // More conservative memory check - require at least 64MB available
+            val requiredMemory = 64 * 1024 * 1024L // 64MB
+            memoryInfo.availMem >= requiredMemory && !memoryInfo.lowMemory
         } catch (e: Exception) {
-            // If we can't check memory, assume it's available
-            true
+            // If we can't check memory, be more conservative
+            false
         }
     }
     
@@ -930,28 +963,35 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Crash Prevention 1: Memory-aware target size calculation
+    // Crash Prevention 1: Memory-aware target size calculation - more conservative
     private fun calculateSafeTargetSize(): Int {
-        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        val memoryInfo = ActivityManager.MemoryInfo()
-        activityManager.getMemoryInfo(memoryInfo)
-        
-        var targetSize = TARGET_IMAGE_SIZE
-        
-        // Reduce target size based on available memory
-        when {
-            memoryInfo.availMem < 64 * 1024 * 1024 -> { // Less than 64MB
-                targetSize = 1024
+        return try {
+            val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+            val memoryInfo = ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo)
+            
+            // More conservative downsampling to prevent crashes
+            when {
+                memoryInfo.availMem < 64 * 1024 * 1024 -> { // Less than 64MB
+                    512  // Very small images
+                }
+                memoryInfo.availMem < 128 * 1024 * 1024 -> { // Less than 128MB
+                    1024 // Small images
+                }
+                memoryInfo.availMem < 256 * 1024 * 1024 -> { // Less than 256MB
+                    1536 // Medium images
+                }
+                memoryInfo.availMem < 512 * 1024 * 1024 -> { // Less than 512MB
+                    2048 // Large images
+                }
+                else -> {
+                    TARGET_IMAGE_SIZE // Maximum size
+                }
             }
-            memoryInfo.availMem < 128 * 1024 * 1024 -> { // Less than 128MB
-                targetSize = 1536
-            }
-            memoryInfo.availMem < 256 * 1024 * 1024 -> { // Less than 256MB
-                targetSize = 1792
-            }
+        } catch (e: Exception) {
+            // If we can't check memory, use a safe default
+            1024
         }
-        
-        return targetSize
     }
     
     // Crash Prevention 2: Safe bitmap processing without premature mutability enforcement
@@ -984,22 +1024,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Crash Prevention 3: URI access validation
+    // Crash Prevention 3: URI access validation - simplified and safer
     private fun validateUriAccess(uri: Uri): Boolean {
         return try {
-            // Test if we can actually read from this URI
-            val inputStream = contentResolver.openInputStream(uri)
-            if (inputStream != null) {
-                inputStream.close()
-                true
-            } else {
-                false
+            // Only check basic URI scheme and authority, don't actually open stream
+            // This prevents potential crashes from trying to access URIs that might be revoked
+            when {
+                uri.scheme == null || uri.scheme != "content" -> false
+                uri.authority == null -> false
+                // For Android 10+, check if we have the necessary permissions
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasImagePermission() -> false
+                else -> true
             }
-        } catch (e: SecurityException) {
-            // URI access revoked or denied
-            false
         } catch (e: Exception) {
-            // Other access issues
+            // If we can't even check the URI, assume it's not accessible
             false
         }
     }
@@ -1055,10 +1093,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Photo picker logic - Simplified and reliable implementation
+    // Photo picker logic - Enhanced with better error handling and safety checks
     private fun openImagePicker() {
         try {
-            // Simplified approach: Use ACTION_OPEN_DOCUMENT with better error handling
+            // Check if we have the necessary permissions first
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasImagePermission()) {
+                requestImagePermission()
+                return
+            }
+            
+            // Enhanced approach: Use ACTION_OPEN_DOCUMENT with comprehensive error handling
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             intent.addCategory(Intent.CATEGORY_OPENABLE)
             intent.type = "image/*"
@@ -1068,7 +1112,24 @@ class MainActivity : AppCompatActivity() {
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
             
-            startActivityForResult(intent, IMPORT_REQUEST_CODE)
+            // Add additional safety flags for Android 10+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                intent.addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+            }
+            
+            try {
+                startActivityForResult(intent, IMPORT_REQUEST_CODE)
+            } catch (e: ActivityNotFoundException) {
+                // Fallback to gallery if document picker is not available
+                try {
+                    val galleryIntent = Intent(Intent.ACTION_GET_CONTENT)
+                    galleryIntent.addCategory(Intent.CATEGORY_OPENABLE)
+                    galleryIntent.type = "image/*"
+                    startActivityForResult(galleryIntent, IMPORT_REQUEST_CODE)
+                } catch (e2: Exception) {
+                    Toast.makeText(this, "No image picker available on this device", Toast.LENGTH_LONG).show()
+                }
+            }
         } catch (e: Exception) {
             Toast.makeText(this, "Could not open photo picker: ${e.message}", Toast.LENGTH_LONG).show()
         }
@@ -1097,27 +1158,43 @@ class MainActivity : AppCompatActivity() {
                     // Safety check: Only process single image even if multiple selection is somehow allowed
                     val uri = data?.data
                     if (uri != null) {
-                        // Check for multi-image selection safety
-                        val clipData = data.clipData
-                        if (clipData != null && clipData.itemCount > 1) {
-                            // If multiple images somehow selected, only use the first one
-                            Toast.makeText(this, "Multiple images not supported. Loading first image only.", Toast.LENGTH_SHORT).show()
-                        }
-                        
-                        // Step 20: For Android 10-12, request persistable URI permission for MediaStore
-                        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
-                            try {
-                                contentResolver.takePersistableUriPermission(
-                                    uri,
-                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                )
-                            } catch (e: SecurityException) {
-                                // Handle case where permission can't be persisted
-                                Toast.makeText(this, "Could not persist access to image", Toast.LENGTH_SHORT).show()
+                        try {
+                            // Check for multi-image selection safety
+                            val clipData = data.clipData
+                            if (clipData != null && clipData.itemCount > 1) {
+                                // If multiple images somehow selected, only use the first one
+                                Toast.makeText(this, "Multiple images not supported. Loading first image only.", Toast.LENGTH_SHORT).show()
                             }
+                            
+                            // Step 20: For Android 10-12, request persistable URI permission for MediaStore
+                            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+                                try {
+                                    contentResolver.takePersistableUriPermission(
+                                        uri,
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    )
+                                } catch (e: SecurityException) {
+                                    // Handle case where permission can't be persisted
+                                    Toast.makeText(this, "Could not persist access to image", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            
+                            // Add a small delay to prevent crashes from rapid successive calls
+                            uri.postDelayed({
+                                loadImageFromUri(uri, false)
+                            }, 100)
+                            
+                        } catch (e: Exception) {
+                            Toast.makeText(this, "Error processing selected image: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
-                        loadImageFromUri(uri, false)
+                    } else {
+                        Toast.makeText(this, "No image selected", Toast.LENGTH_SHORT).show()
                     }
+                } else if (resultCode == RESULT_CANCELED) {
+                    // User cancelled the selection - don't show error
+                } else {
+                    // Some other error occurred
+                    Toast.makeText(this, "Failed to select image", Toast.LENGTH_SHORT).show()
                 }
             }
             CAMERA_REQUEST_CODE -> {
@@ -1149,6 +1226,19 @@ class MainActivity : AppCompatActivity() {
                     // Don't show error for cancelled operations
                 }
             }
+        }
+    }
+    
+    // Extension function to add delay to URI operations
+    private fun Uri.postDelayed(action: () -> Unit, delayMillis: Long) {
+        try {
+            val context = this@MainActivity
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                action()
+            }, delayMillis)
+        } catch (e: Exception) {
+            // If we can't post delayed, run immediately
+            action()
         }
     }
 
