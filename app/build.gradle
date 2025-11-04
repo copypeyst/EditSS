@@ -54,6 +54,9 @@ dependencies {
     implementation libs.androidx.activity
     implementation libs.androidx.lifecycle.livedata.ktx
     implementation libs.androidx.lifecycle.viewmodel.ktx
+    implementation libs.coil
+    implementation libs.coil.gif
+    implementation libs.coil.svg
 
     testImplementation libs.junit
     androidTestImplementation libs.androidx.junit
