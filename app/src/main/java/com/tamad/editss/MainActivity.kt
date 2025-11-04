@@ -36,6 +36,7 @@ import android.os.Environment
 import android.content.ContentValues
 import kotlinx.coroutines.*
 import androidx.lifecycle.lifecycleScope
+import java.io.File
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -448,36 +449,46 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Step 13: Camera capture with writable MediaStore URI - Improved implementation
+    // New camera capture flow: Private file storage with user confirmation
     private fun captureImageFromCamera() {
         try {
-            // Create ContentValues for MediaStore - simplified approach
-            val contentValues = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "Camera_${System.currentTimeMillis()}.jpg")
-                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/EditSS")
+            // Create private file in app's external files directory
+            val imageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+            if (imageDir == null) {
+                Toast.makeText(this, "Cannot access storage", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // Ensure directory exists
+            imageDir.mkdirs()
+            
+            // Create private file
+            val fileName = "camera_temp_${System.currentTimeMillis()}.jpg"
+            val privateFile = File(imageDir, fileName)
+            
+            if (!privateFile.exists()) {
+                if (!privateFile.createNewFile()) {
+                    Toast.makeText(this, "Failed to create temp file", Toast.LENGTH_SHORT).show()
+                    return
                 }
             }
             
-            // Create writable URI in MediaStore
-            val insertUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+            // Launch camera with private file URI
+            val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            val photoURI = androidx.core.content.FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                privateFile
+            )
             
-            if (insertUri != null) {
-                // Launch camera with the writable URI
-                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-                intent.putExtra(MediaStore.EXTRA_OUTPUT, insertUri)
-                
-                // Add flags for better compatibility
-                intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                
-                // Store the capture URI temporarily for handling result
-                currentCameraUri = insertUri
-                
-                startActivityForResult(intent, CAMERA_REQUEST_CODE)
-            } else {
-                Toast.makeText(this, "Camera error. Could not create image entry.", Toast.LENGTH_SHORT).show()
-            }
+            intent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            
+            // Store the private file for handling result
+            currentCameraUri = photoURI
+            
+            // Start camera activity
+            startActivityForResult(intent, CAMERA_REQUEST_CODE)
             
         } catch (e: Exception) {
             Toast.makeText(this, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -664,14 +675,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    // Helper method to clean up private camera files
+    private fun cleanupCameraFile(uri: Uri) {
+        try {
+            // Get the actual file path from the FileProvider URI
+            val path = uri.path
+            if (path != null && path.contains("camera_temp_")) {
+                // This is our private file, delete it
+                val file = File(path)
+                if (file.exists()) {
+                    file.delete()
+                }
+            } else {
+                // For FileProvider URIs, we can't directly access the file path
+                // Just release the URI permission
+                try {
+                    contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } catch (e: Exception) {
+                    // Ignore cleanup errors
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore cleanup errors
+        }
+    }
+    
     // Step 8: Helper method to determine image origin
     private fun determineImageOrigin(uri: Uri): ImageOrigin {
         return when {
+            // Check if this is a FileProvider URI (our private camera files)
+            uri.authority == packageName -> {
+                // This is our private file (camera temp or app-created)
+                ImageOrigin.EDITED_INTERNAL
+            }
             uri.toString().contains("media") && !uri.toString().contains("persisted") -> {
                 // Imported via MediaStore, may or may not be writable depending on permission
                 if (hasImagePermission()) ImageOrigin.IMPORTED_WRITABLE else ImageOrigin.IMPORTED_READONLY
             }
-            uri.toString().contains("camera") -> ImageOrigin.CAMERA_CAPTURED
+            uri.toString().contains("camera") -> ImageOrigin.CAMERA_CAPTURED // Legacy support
             uri.toString().contains("editss") -> ImageOrigin.EDITED_INTERNAL
             else -> ImageOrigin.IMPORTED_READONLY // Default to readonly for unknown sources
         }
@@ -777,29 +818,30 @@ class MainActivity : AppCompatActivity() {
             }
             CAMERA_REQUEST_CODE -> {
                 if (resultCode == RESULT_OK) {
-                    // Step 13: Handle successful camera capture result
-                    // Fix: Store in local variable to avoid smart cast issues
+                    // Handle successful camera capture result
                     val cameraUri = currentCameraUri
                     if (cameraUri != null) {
                         // Use post to delay loading slightly to prevent crashes
                         canvasImageView.post {
-                            loadImageFromUri(cameraUri, false)
+                            try {
+                                // This is a private file from camera, so treat as EDITED_INTERNAL
+                                loadImageFromUri(cameraUri, false)
+                            } catch (e: Exception) {
+                                // Better error handling for crashes
+                                Toast.makeText(this, "Error loading camera image: ${e.message}", Toast.LENGTH_SHORT).show()
+                                // Clean up the private file if loading fails
+                                cleanupCameraFile(cameraUri)
+                            }
                         }
-                        currentCameraUri = null // Clear temporary URI
+                        currentCameraUri = null
                     }
                 } else {
-                    // Camera was cancelled or failed - clean up without saving blank
-                    // Fix: Store in local variable to avoid smart cast issues
+                    // Camera was cancelled or failed - clean up private file
                     val cameraUri = currentCameraUri
                     if (cameraUri != null) {
-                        // Clean up the MediaStore entry that was created
-                        try {
-                            contentResolver.delete(cameraUri, null, null)
-                        } catch (e: Exception) {
-                            // Ignore cleanup errors
-                        }
+                        cleanupCameraFile(cameraUri)
                     }
-                    currentCameraUri = null // Clear temporary URI
+                    currentCameraUri = null
                     // Don't show error for cancelled operations
                 }
             }
