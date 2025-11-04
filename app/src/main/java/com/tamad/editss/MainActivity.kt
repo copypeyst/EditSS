@@ -118,6 +118,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var rootLayout: FrameLayout
+    private lateinit var canvasImageView: ImageView
     private lateinit var savePanel: View
     private lateinit var toolOptionsLayout: LinearLayout
     private lateinit var drawOptionsLayout: LinearLayout
@@ -154,6 +155,7 @@ class MainActivity : AppCompatActivity() {
 
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
+        canvasImageView = findViewById(R.id.canvas)
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val buttonImport: ImageView = findViewById(R.id.button_import)
         val buttonCamera: ImageView = findViewById(R.id.button_camera)
@@ -515,12 +517,24 @@ class MainActivity : AppCompatActivity() {
                     // Step 17: Store current bitmap for proper recycling
                     currentBitmap = downsampledBitmap
                     
-                    Toast.makeText(this, "Loaded ${origin.name} image asynchronously", Toast.LENGTH_SHORT).show()
-                    
-                    // Update UI based on canOverwrite (Step 10 - handle flag changes)
-                    updateSavePanelUI()
+                    // Step 15: Display loaded bitmap on Canvas ImageView
+                    runOnUiThread {
+                        canvasImageView.setImageBitmap(downsampledBitmap)
+                        canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER) // Center image properly
+                        canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT) // Remove black background
+                        
+                        Toast.makeText(this, "Loaded ${origin.name} image asynchronously", Toast.LENGTH_SHORT).show()
+                        
+                        // Update UI based on canOverwrite (Step 10 - handle flag changes)
+                        updateSavePanelUI()
+                    }
                 } else {
-                    Toast.makeText(this, "Couldn't load image. Please try again.", Toast.LENGTH_SHORT).show()
+                    // Step 15: Clear canvas on failed load
+                    runOnUiThread {
+                        canvasImageView.setImageBitmap(null)
+                        canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                        Toast.makeText(this, "Couldn't load image. Please try again.", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
             
