@@ -76,6 +76,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cropOptionsLayout: LinearLayout
     private lateinit var adjustOptionsLayout: LinearLayout
     private lateinit var scrim: View
+    private lateinit var transparencyWarningText: TextView
 
     private var currentActiveTool: ImageView? = null
     private var currentDrawMode: ImageView? = null
@@ -87,6 +88,9 @@ class MainActivity : AppCompatActivity() {
     
     // Step 23: Track selected save format for proper naming
     private var selectedSaveFormat: String = "image/jpeg" // Default to JPEG
+    
+    // Track if current image has transparency
+    private var currentImageHasTransparency = false
     
     // Step 13: Store camera capture URI temporarily
     private var currentCameraUri: Uri? = null
@@ -136,6 +140,7 @@ class MainActivity : AppCompatActivity() {
         cropOptionsLayout = findViewById(R.id.crop_options)
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         scrim = findViewById(R.id.scrim)
+        transparencyWarningText = findViewById(R.id.transparency_warning_text)
 
         // Save Panel Logic
         buttonSave.setOnClickListener {
@@ -247,16 +252,18 @@ class MainActivity : AppCompatActivity() {
         
         radioJPG.setOnClickListener {
             selectedSaveFormat = "image/jpeg"
-            // Step 24: Check for transparency warning if needed
-            checkTransparencyWarning()
+            // Update transparency warning based on actual image content
+            updateTransparencyWarning()
         }
         radioPNG.setOnClickListener {
             selectedSaveFormat = "image/png"
+            // PNG supports transparency, so hide warning
+            updateTransparencyWarning()
         }
         radioWEBP.setOnClickListener {
             selectedSaveFormat = "image/webp"
-            // Step 24: Check for transparency warning if needed
-            checkTransparencyWarning()
+            // Update transparency warning based on actual image content
+            updateTransparencyWarning()
         }
 
         // Initialize Draw Options
@@ -503,6 +510,13 @@ class MainActivity : AppCompatActivity() {
                             
                             // Auto-detect and set the original image format
                             detectAndSetImageFormat(uri)
+                            
+                            // Detect transparency for warning system
+                            val bitmap = getCanvasBitmap()
+                            if (bitmap != null) {
+                                currentImageHasTransparency = detectImageTransparency(bitmap)
+                                updateTransparencyWarning()
+                            }
                             
                             lastImageLoadFailed = false
                         } catch (e: Exception) {
@@ -944,22 +958,59 @@ class MainActivity : AppCompatActivity() {
         return "IMG_${timestamp}_${randomSuffix}$extension"
     }
     
-    // Step 24 & 25: Transparency warning for JPEG/WEBP
-    private fun checkTransparencyWarning() {
-        if (selectedSaveFormat == "image/jpeg") {
-            // JPEG doesn't support transparency - show warning if needed
-            AlertDialog.Builder(this)
-                .setTitle("Transparency Warning")
-                .setMessage("JPEG format does not support transparency. Areas with transparency will be filled with black.")
-                .setPositiveButton("Continue") { dialog, _ ->
-                    dialog.dismiss()
+    // Step 24 & 25: Update transparency warning based on actual image content
+    private fun updateTransparencyWarning() {
+        if (currentImageHasTransparency) {
+            when {
+                selectedSaveFormat == "image/jpeg" -> {
+                    // JPEG doesn't support transparency
+                    transparencyWarningText.text = "JPG doesn't support transparency"
+                    transparencyWarningText.visibility = View.VISIBLE
                 }
-                .setNegativeButton("Switch to PNG") { _, _ ->
-                    selectedSaveFormat = "image/png"
-                    updateFormatSelectionUI()
+                selectedSaveFormat == "image/webp" && isLosslessWebP() -> {
+                    // Lossless WEBP supports transparency, so hide warning
+                    transparencyWarningText.visibility = View.GONE
                 }
-                .show()
+                else -> {
+                    // PNG and lossless WEBP support transparency, hide warning
+                    transparencyWarningText.visibility = View.GONE
+                }
+            }
+        } else {
+            // No transparency detected, hide warning
+            transparencyWarningText.visibility = View.GONE
         }
+    }
+    
+    // Helper to determine if we should use lossless WEBP
+    private fun isLosslessWebP(): Boolean {
+        return selectedSaveFormat == "image/webp" && currentImageHasTransparency
+    }
+    
+    // Step 25: Detect if the current image has transparency
+    private fun detectImageTransparency(bitmap: Bitmap): Boolean {
+        try {
+            // Sample a few pixels to detect transparency
+            val width = bitmap.width
+            val height = bitmap.height
+            val pixels = IntArray(minOf(100, width * height)) // Sample up to 100 pixels
+            
+            // Sample pixels from different parts of the image
+            for (i in pixels.indices) {
+                val x = (i * width / pixels.size) % width
+                val y = (i * height / pixels.size) / width
+                val pixel = bitmap.getPixel(x, y)
+                
+                // Check if pixel is fully transparent (alpha = 0)
+                if (android.graphics.Color.alpha(pixel) < 255) {
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            // If transparency detection fails, assume no transparency for safety
+            return false
+        }
+        return false
     }
     
     // Helper method to update format selection UI
@@ -1021,19 +1072,24 @@ class MainActivity : AppCompatActivity() {
     // Helper to get the current canvas bitmap for saving
     private fun getCanvasBitmap(): Bitmap? {
         return try {
-            // For Coil images, we need to convert the drawable back to a bitmap
             val drawable = canvasImageView.drawable
             if (drawable != null) {
-                // Since we can't directly get bitmap from drawable without creating one,
-                // we'll create a bitmap from the current canvas state
-                val bitmap = Bitmap.createBitmap(
-                    canvasImageView.width.coerceAtLeast(1),
-                    canvasImageView.height.coerceAtLeast(1),
-                    Bitmap.Config.ARGB_8888
-                )
-                val canvas = android.graphics.Canvas(bitmap)
-                canvasImageView.draw(canvas)
-                bitmap
+                // Get the intrinsic dimensions of the actual image
+                val imageWidth = drawable.intrinsicWidth
+                val imageHeight = drawable.intrinsicHeight
+                
+                if (imageWidth > 0 && imageHeight > 0) {
+                    // Create bitmap with actual image dimensions
+                    val bitmap = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    
+                    // Set the drawable bounds to the full bitmap area
+                    drawable.setBounds(0, 0, imageWidth, imageHeight)
+                    
+                    // Draw the content
+                    drawable.draw(canvas)
+                    bitmap
+                } else null
             } else null
         } catch (e: Exception) {
             null
