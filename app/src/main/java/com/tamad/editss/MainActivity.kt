@@ -143,6 +143,9 @@ class MainActivity : AppCompatActivity() {
     // Step 16: LRU bitmap cache instance
     private val bitmapCache = BitmapLRUCache(maxSize = 50)
     
+    // Fix: Add loading state to prevent crashes
+    private var isImageLoading = false
+    
     // Step 17: Current loaded bitmap for proper recycling
     private var currentBitmap: android.graphics.Bitmap? = null
     
@@ -482,49 +485,66 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
+        // Fix: Prevent loading while already loading (prevents crashes)
+        if (isImageLoading) {
+            Toast.makeText(this, "Image is still loading, please wait...", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        isImageLoading = true
+        
         try {
             // Step 17: Recycle current bitmap before loading new one
             recycleCurrentBitmap()
             
             // Step 18: Show loading indicator on UI thread while image loads in background
-            Toast.makeText(this, "Loading image...", Toast.LENGTH_SHORT).show()
+            runOnUiThread {
+                Toast.makeText(this, "Loading image...", Toast.LENGTH_SHORT).show()
+            }
             
             // Step 14 & 18: Load image with proper downsampling and background processing
             loadBitmapWithDownsampling(uri, TARGET_IMAGE_SIZE) { downsampledBitmap ->
                 // Step 18: This callback runs on main thread
-                if (downsampledBitmap != null) {
-                    // Step 8: Track image origin and set canOverwrite flag appropriately
-                    val origin = determineImageOrigin(uri)
-                    val canOverwrite = determineCanOverwrite(origin)
-                    
-                    currentImageInfo = ImageInfo(uri, origin, canOverwrite)
-                    
-                    // Step 17: Store current bitmap for proper recycling
-                    currentBitmap = downsampledBitmap
-                    
-                    // Step 15: Display loaded bitmap on Canvas ImageView
-                    runOnUiThread {
+                try {
+                    if (downsampledBitmap != null) {
+                        // Step 8: Track image origin and set canOverwrite flag appropriately
+                        val origin = determineImageOrigin(uri)
+                        val canOverwrite = determineCanOverwrite(origin)
+                        
+                        currentImageInfo = ImageInfo(uri, origin, canOverwrite)
+                        
+                        // Step 17: Store current bitmap for proper recycling
+                        currentBitmap = downsampledBitmap
+                        
+                        // Step 15: Display loaded bitmap on Canvas ImageView
                         canvasImageView.setImageBitmap(downsampledBitmap)
                         canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER) // Center image properly
                         canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT) // Remove black background
                         
-                        Toast.makeText(this, "Loaded ${origin.name} image asynchronously", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Loaded ${origin.name} image successfully", Toast.LENGTH_SHORT).show()
                         
                         // Update UI based on canOverwrite (Step 10 - handle flag changes)
                         updateSavePanelUI()
-                    }
-                } else {
-                    // Step 15: Clear canvas on failed load
-                    runOnUiThread {
+                        
+                        // Auto-detect and set the original image format
+                        detectAndSetImageFormat(uri)
+                    } else {
+                        // Step 15: Clear canvas on failed load
                         canvasImageView.setImageBitmap(null)
                         canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                         Toast.makeText(this, "Couldn't load image. Please try again.", Toast.LENGTH_SHORT).show()
                     }
+                } catch (e: Exception) {
+                    // Fix: Prevent UI crashes with better error handling
+                    Toast.makeText(this, "Error displaying image: ${e.message}", Toast.LENGTH_SHORT).show()
+                } finally {
+                    isImageLoading = false
                 }
             }
             
         } catch (e: Exception) {
             Toast.makeText(this, "Image loading error: ${e.message}", Toast.LENGTH_SHORT).show()
+            isImageLoading = false
         }
     }
 
@@ -761,7 +781,10 @@ class MainActivity : AppCompatActivity() {
                     // Fix: Store in local variable to avoid smart cast issues
                     val cameraUri = currentCameraUri
                     if (cameraUri != null) {
-                        loadImageFromUri(cameraUri, false)
+                        // Use post to delay loading slightly to prevent crashes
+                        canvasImageView.post {
+                            loadImageFromUri(cameraUri, false)
+                        }
                         currentCameraUri = null // Clear temporary URI
                     }
                 } else {
@@ -1130,6 +1153,64 @@ class MainActivity : AppCompatActivity() {
             "image/jpeg" -> radioJPG.isChecked = true
             "image/png" -> radioPNG.isChecked = true
             "image/webp" -> radioWEBP.isChecked = true
+        }
+    }
+    
+    // Auto-detect image format and preselect it
+    private fun detectAndSetImageFormat(uri: Uri) {
+        try {
+            // Try to get MIME type from MediaStore first
+            val mimeType = contentResolver.getType(uri)
+            
+            var detectedFormat = when {
+                mimeType == "image/jpeg" -> "image/jpeg"
+                mimeType == "image/png" -> "image/png"
+                mimeType == "image/webp" -> "image/webp"
+                // Fallback: detect from file extension in display name
+                else -> {
+                    val displayName = getDisplayNameFromUri(uri) ?: ""
+                    when {
+                        displayName.lowercase().endsWith(".jpg") || displayName.lowercase().endsWith(".jpeg") -> "image/jpeg"
+                        displayName.lowercase().endsWith(".png") -> "image/png"
+                        displayName.lowercase().endsWith(".webp") -> "image/webp"
+                        else -> "image/jpeg" // Default fallback
+                    }
+                }
+            }
+            
+            // Update selected format and UI
+            selectedSaveFormat = detectedFormat
+            updateFormatSelectionUI()
+            
+            // Show a subtle hint about the detected format
+            val formatName = when (detectedFormat) {
+                "image/jpeg" -> "JPEG"
+                "image/png" -> "PNG"
+                "image/webp" -> "WEBP"
+                else -> "Unknown"
+            }
+            
+            Toast.makeText(this, "Detected format: $formatName", Toast.LENGTH_SHORT).show()
+            
+        } catch (e: Exception) {
+            // If detection fails, keep current default
+            selectedSaveFormat = "image/jpeg"
+            updateFormatSelectionUI()
+        }
+    }
+    
+    // Helper to get display name from URI
+    private fun getDisplayNameFromUri(uri: Uri): String? {
+        return try {
+            val projection = arrayOf(android.provider.MediaStore.Images.Media.DISPLAY_NAME)
+            contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                val columnIndex = cursor.getColumnIndex(android.provider.MediaStore.Images.Media.DISPLAY_NAME)
+                if (cursor.moveToFirst() && columnIndex != -1) {
+                    cursor.getString(columnIndex)
+                } else null
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 }
