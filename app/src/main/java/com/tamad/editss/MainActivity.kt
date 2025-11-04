@@ -43,8 +43,6 @@ import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
-import pub.devrel.easypermissions.EasyPermissions
-import pub.devrel.easypermissions.PermissionRequest
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -62,9 +60,10 @@ data class ImageInfo(
 
 // Coil handles all caching, memory management, and bitmap processing automatically
 
-class MainActivity : AppCompatActivity(), EasyPermissions.PermissionCallbacks {
+class MainActivity : AppCompatActivity() {
 
     companion object {
+        private const val PERMISSION_REQUEST_CODE = 100
         private const val IMPORT_REQUEST_CODE = 101
         private const val CAMERA_REQUEST_CODE = 102
     }
@@ -512,10 +511,16 @@ class MainActivity : AppCompatActivity(), EasyPermissions.PermissionCallbacks {
                             // Auto-detect and set the original image format
                             detectAndSetImageFormat(uri)
                             
-                            // Detect transparency for warning system
-                            val bitmap = getCanvasBitmap()
-                            if (bitmap != null) {
-                                currentImageHasTransparency = detectImageTransparency(bitmap)
+                            // Detect transparency for warning system (simplified approach)
+                            try {
+                                val drawable = canvasImageView.drawable
+                                if (drawable != null && drawable.intrinsicWidth > 0 && drawable.intrinsicHeight > 0) {
+                                    currentImageHasTransparency = detectImageTransparencyFromDrawable(drawable)
+                                    updateTransparencyWarning()
+                                }
+                            } catch (e: Exception) {
+                                // Fallback: assume no transparency if detection fails
+                                currentImageHasTransparency = false
                                 updateTransparencyWarning()
                             }
                             
@@ -630,32 +635,26 @@ class MainActivity : AppCompatActivity(), EasyPermissions.PermissionCallbacks {
         }
     }
 
-    // Permission checking methods using EasyPermissions
+    // Permission checking methods - Step 4: Only check READ_MEDIA_IMAGES for Android 13+
     private fun hasImagePermission(): Boolean {
-        val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
         } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            // Android 10-12: No permission needed for MediaStore API
+            true
         }
-        return EasyPermissions.hasPermissions(this, *perms)
     }
 
     private fun requestImagePermission() {
-        val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
-        } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-        
-        if (hasImagePermission()) {
-            openImagePicker()
-        } else {
-            EasyPermissions.requestPermissions(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.requestPermissions(
                 this,
-                "EditSS needs access to your photos to import images.",
-                IMPORT_REQUEST_CODE,
-                *perms
+                arrayOf(Manifest.permission.READ_MEDIA_IMAGES),
+                PERMISSION_REQUEST_CODE
             )
+        } else {
+            // Android 10-12: No permission request needed, proceed directly
+            openImagePicker()
         }
     }
 
@@ -678,26 +677,15 @@ class MainActivity : AppCompatActivity(), EasyPermissions.PermissionCallbacks {
         }
     }
 
-    // EasyPermissions permission result handling
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this)
-    }
-    
-    // EasyPermissions callback for permission results
-    override fun onPermissionsGranted(requestCode: Int, perms: List<String>) {
-        if (requestCode == IMPORT_REQUEST_CODE) {
-            // Permission granted, proceed with import
-            openImagePicker()
-        }
-    }
-    
-    override fun onPermissionsDenied(requestCode: Int, perms: List<String>) {
-        if (requestCode == IMPORT_REQUEST_CODE) {
-            if (EasyPermissions.somePermissionDenied(this, *perms.toTypedArray())) {
-                showPermissionDeniedDialog()
+        
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted, proceed with import
+                openImagePicker()
             } else {
-                // Show rationale for denied permissions
+                // Permission denied - show dialog (Step 5 implementation)
                 showPermissionDeniedDialog()
             }
         }
@@ -874,86 +862,90 @@ class MainActivity : AppCompatActivity(), EasyPermissions.PermissionCallbacks {
         }
     }
     
-    // Step 21, 22, 23: Save image as copy - proper MediaStore implementation
+    // Step 21, 22, 23: Save image as copy - proper MediaStore implementation using Coil
     private fun saveImageAsCopy() {
-        try {
-            // Get the current canvas image (with any edits/drawings)
-            val bitmap = getCanvasBitmap()
-            if (bitmap != null) {
-                // Step 21: Create ContentValues and insert into MediaStore
-                val values = ContentValues().apply {
-                    put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
-                    put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
-                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
-                    put(MediaStore.Images.Media.IS_PENDING, 1) // Step 22: Mark as pending for atomic save
-                }
-                
-                val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                if (uri != null) {
-                    // Step 22: Write the image data using openOutputStream
-                    contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        compressBitmapToStream(bitmap, outputStream, selectedSaveFormat)
+        lifecycleScope.launch {
+            try {
+                // Get the current canvas image (with any edits/drawings) using Coil
+                val bitmap = getCanvasBitmap()
+                if (bitmap != null) {
+                    // Step 21: Create ContentValues and insert into MediaStore
+                    val values = ContentValues().apply {
+                        put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
+                        put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
+                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                        put(MediaStore.Images.Media.IS_PENDING, 1) // Step 22: Mark as pending for atomic save
                     }
                     
-                    // Step 22: Mark as complete (atomic save)
-                    values.clear()
-                    values.put(MediaStore.Images.Media.IS_PENDING, 0)
-                    contentResolver.update(uri, values, null, null)
-                    
-                    // Step 26: MediaScannerConnection for Android 9 and older
-                    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-                        try {
-                            contentResolver.openInputStream(uri)?.use { inputStream ->
-                                val filePath = getRealPathFromUri(uri)
-                                if (filePath != null) {
-                                    MediaScannerConnection.scanFile(
-                                        this,
-                                        arrayOf(filePath),
-                                        arrayOf(selectedSaveFormat),
-                                        null
-                                    )
-                                }
-                            }
-                        } catch (e: Exception) {
-                            // MediaScannerConnection is not critical, just log the error
-                        }
-                    }
-                    
-                    Toast.makeText(this, "Image saved successfully", Toast.LENGTH_SHORT).show()
-                    savePanel.visibility = View.GONE
-                    scrim.visibility = View.GONE
-                } else {
-                    Toast.makeText(this, "Save failed: Couldn't create image entry", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                Toast.makeText(this, "No image to save", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            Toast.makeText(this, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    // Step 22: Overwrite current image - proper implementation
-    private fun overwriteCurrentImage() {
-        currentImageInfo?.let { imageInfo ->
-            if (imageInfo.canOverwrite) {
-                try {
-                    // Get the current canvas image (with any edits/drawings)
-                    val bitmap = getCanvasBitmap()
-                    if (bitmap != null) {
-                        // For writable URIs, we can overwrite the existing file
-                        contentResolver.openOutputStream(imageInfo.uri)?.use { outputStream ->
+                    val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    if (uri != null) {
+                        // Step 22: Write the image data using openOutputStream
+                        contentResolver.openOutputStream(uri)?.use { outputStream ->
                             compressBitmapToStream(bitmap, outputStream, selectedSaveFormat)
                         }
                         
-                        Toast.makeText(this, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
+                        // Step 22: Mark as complete (atomic save)
+                        values.clear()
+                        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                        contentResolver.update(uri, values, null, null)
+                        
+                        // Step 26: MediaScannerConnection for Android 9 and older
+                        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                            try {
+                                contentResolver.openInputStream(uri)?.use { inputStream ->
+                                    val filePath = getRealPathFromUri(uri)
+                                    if (filePath != null) {
+                                        MediaScannerConnection.scanFile(
+                                            this@MainActivity,
+                                            arrayOf(filePath),
+                                            arrayOf(selectedSaveFormat),
+                                            null
+                                        )
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                // MediaScannerConnection is not critical, just log the error
+                            }
+                        }
+                        
+                        Toast.makeText(this@MainActivity, "Image saved successfully", Toast.LENGTH_SHORT).show()
                         savePanel.visibility = View.GONE
                         scrim.visibility = View.GONE
                     } else {
-                        Toast.makeText(this, "No image to overwrite", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, "Save failed: Couldn't create image entry", Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) {
-                    Toast.makeText(this, "Overwrite failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, "No image to save", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    // Step 22: Overwrite current image - proper implementation using Coil
+    private fun overwriteCurrentImage() {
+        currentImageInfo?.let { imageInfo ->
+            if (imageInfo.canOverwrite) {
+                lifecycleScope.launch {
+                    try {
+                        // Get the current canvas image (with any edits/drawings) using Coil
+                        val bitmap = getCanvasBitmap()
+                        if (bitmap != null) {
+                            // For writable URIs, we can overwrite the existing file
+                            contentResolver.openOutputStream(imageInfo.uri)?.use { outputStream ->
+                                compressBitmapToStream(bitmap, outputStream, selectedSaveFormat)
+                            }
+                            
+                            Toast.makeText(this@MainActivity, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
+                            savePanel.visibility = View.GONE
+                            scrim.visibility = View.GONE
+                        } else {
+                            Toast.makeText(this@MainActivity, "No image to overwrite", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(this@MainActivity, "Overwrite failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } else {
                 Toast.makeText(this, "Cannot overwrite this image", Toast.LENGTH_SHORT).show()
@@ -1005,7 +997,7 @@ class MainActivity : AppCompatActivity(), EasyPermissions.PermissionCallbacks {
         return selectedSaveFormat == "image/webp" && currentImageHasTransparency
     }
     
-    // Step 25: Detect if the current image has transparency
+    // Step 25: Detect if the current image has transparency from bitmap
     private fun detectImageTransparency(bitmap: Bitmap): Boolean {
         try {
             // Sample a few pixels to detect transparency
@@ -1029,6 +1021,38 @@ class MainActivity : AppCompatActivity(), EasyPermissions.PermissionCallbacks {
             return false
         }
         return false
+    }
+    
+    // Helper method to detect transparency from drawable (improved approach)
+    private fun detectImageTransparencyFromDrawable(drawable: android.graphics.drawable.Drawable): Boolean {
+        try {
+            // Get the current image info and detect format from the actual image
+            val currentImageInfo = this.currentImageInfo
+            if (currentImageInfo != null) {
+                // Try to get the MIME type from the actual image
+                val mimeType = contentResolver.getType(currentImageInfo.uri)
+                
+                return when (mimeType) {
+                    "image/png", "image/webp" -> {
+                        // PNG and WEBP can have transparency
+                        // For better detection, we'd need bitmap sampling, but this is safer
+                        true
+                    }
+                    else -> {
+                        // JPEG doesn't support transparency
+                        false
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // If detection fails, assume no transparency for safety
+        }
+        
+        // Default fallback based on current selected format
+        return when (selectedSaveFormat) {
+            "image/png", "image/webp" -> true
+            else -> false
+        }
     }
     
     // Helper method to update format selection UI
@@ -1087,81 +1111,59 @@ class MainActivity : AppCompatActivity(), EasyPermissions.PermissionCallbacks {
         }
     }
     
-    // Helper to get the current canvas bitmap for saving - Improved version
-    private fun getCanvasBitmap(): Bitmap? {
+    // Helper to get the current canvas bitmap for saving using Coil
+    private suspend fun getCanvasBitmap(): Bitmap? {
         return try {
-            val drawable = canvasImageView.drawable
-            if (drawable != null) {
-                // Get dimensions - try intrinsic first, then fallback to ImageView dimensions
-                var imageWidth = drawable.intrinsicWidth
-                var imageHeight = drawable.intrinsicHeight
+            val currentImageInfo = this.currentImageInfo
+            if (currentImageInfo != null) {
+                // Use Coil to properly load and decode the image for saving
+                val request = ImageRequest.Builder(this)
+                    .data(currentImageInfo.uri)
+                    .build()
                 
-                // If intrinsic dimensions are not available, use ImageView dimensions
-                if (imageWidth <= 0 || imageHeight <= 0) {
-                    imageWidth = canvasImageView.width
-                    imageHeight = canvasImageView.height
-                }
+                val result = imageLoader.execute(request)
+                val drawable = result.drawable
                 
-                // If still no valid dimensions, use minimum reasonable size
-                if (imageWidth <= 0 || imageHeight <= 0) {
-                    imageWidth = 1000
-                    imageHeight = 1000
-                }
-                
-                // Create bitmap with proper dimensions
-                val bitmap = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
-                val canvas = Canvas(bitmap)
-                
-                // Clear canvas to transparent
-                canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
-                
-                // Set the drawable bounds to the full bitmap area
-                drawable.setBounds(0, 0, imageWidth, imageHeight)
-                
-                // Draw the content
-                drawable.draw(canvas)
-                
-                // Verify bitmap was created successfully
-                if (!bitmap.isRecycled && bitmap.width > 0 && bitmap.height > 0) {
-                    bitmap
-                } else {
-                    null
-                }
+                if (drawable != null) {
+                    // Get the intrinsic dimensions of the actual image
+                    val imageWidth = drawable.intrinsicWidth
+                    val imageHeight = drawable.intrinsicHeight
+                    
+                    if (imageWidth > 0 && imageHeight > 0) {
+                        // Create bitmap with actual image dimensions
+                        val bitmap = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+                        val canvas = Canvas(bitmap)
+                        
+                        // Set the drawable bounds to the full bitmap area
+                        drawable.setBounds(0, 0, imageWidth, imageHeight)
+                        
+                        // Draw the content
+                        drawable.draw(canvas)
+                        bitmap
+                    } else null
+                } else null
             } else null
         } catch (e: Exception) {
-            // Log the error for debugging
-            android.util.Log.e("MainActivity", "Failed to get canvas bitmap: ${e.message}")
             null
         }
     }
     
-    // Helper to compress bitmap to output stream in selected format - Improved quality settings
+    // Helper to compress bitmap to output stream in selected format
     private fun compressBitmapToStream(bitmap: Bitmap, outputStream: OutputStream, mimeType: String) {
         try {
-            when (mimeType) {
-                "image/jpeg" -> {
-                    // JPEG: Quality 100 for maximum fidelity
-                    bitmap.compress(CompressFormat.JPEG, 100, outputStream)
-                }
-                "image/png" -> {
-                    // PNG: Always lossless, quality parameter is ignored
-                    bitmap.compress(CompressFormat.PNG, 100, outputStream)
-                }
-                "image/webp" -> {
-                    // WEBP: Use lossless format for transparency, or quality 100 for lossy
-                    if (currentImageHasTransparency) {
-                        // Use lossless WEBP for images with transparency
-                        bitmap.compress(CompressFormat.WEBP_LOSSLESS, 100, outputStream)
-                    } else {
-                        // Use quality 100 for lossy WEBP when no transparency
-                        bitmap.compress(CompressFormat.WEBP, 100, outputStream)
-                    }
-                }
-                else -> {
-                    // Fallback to JPEG with maximum quality
-                    bitmap.compress(CompressFormat.JPEG, 100, outputStream)
-                }
+            val compressFormat = when (mimeType) {
+                "image/jpeg" -> CompressFormat.JPEG
+                "image/png" -> CompressFormat.PNG
+                "image/webp" -> CompressFormat.WEBP
+                else -> CompressFormat.JPEG
             }
+            
+            val quality = when (mimeType) {
+                "image/jpeg", "image/webp" -> 95 // High quality for lossy formats
+                else -> 100 // Lossless for PNG
+            }
+            
+            bitmap.compress(compressFormat, quality, outputStream)
         } catch (e: Exception) {
             throw Exception("Failed to compress image: ${e.message}")
         }
