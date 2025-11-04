@@ -43,6 +43,8 @@ import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import pub.devrel.easypermissions.EasyPermissions
+import pub.devrel.easypermissions.PermissionRequest
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -60,10 +62,9 @@ data class ImageInfo(
 
 // Coil handles all caching, memory management, and bitmap processing automatically
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), EasyPermissions.PermissionCallbacks {
 
     companion object {
-        private const val PERMISSION_REQUEST_CODE = 100
         private const val IMPORT_REQUEST_CODE = 101
         private const val CAMERA_REQUEST_CODE = 102
     }
@@ -629,26 +630,32 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Permission checking methods - Step 4: Only check READ_MEDIA_IMAGES for Android 13+
+    // Permission checking methods using EasyPermissions
     private fun hasImagePermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+        val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
         } else {
-            // Android 10-12: No permission needed for MediaStore API
-            true
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
+        return EasyPermissions.hasPermissions(this, *perms)
     }
 
     private fun requestImagePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.READ_MEDIA_IMAGES),
-                PERMISSION_REQUEST_CODE
-            )
+        val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
         } else {
-            // Android 10-12: No permission request needed, proceed directly
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        
+        if (hasImagePermission()) {
             openImagePicker()
+        } else {
+            EasyPermissions.requestPermissions(
+                this,
+                "EditSS needs access to your photos to import images.",
+                IMPORT_REQUEST_CODE,
+                *perms
+            )
         }
     }
 
@@ -671,15 +678,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // EasyPermissions permission result handling
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission granted, proceed with import
-                openImagePicker()
+        EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this)
+    }
+    
+    // EasyPermissions callback for permission results
+    override fun onPermissionsGranted(requestCode: Int, perms: List<String>) {
+        if (requestCode == IMPORT_REQUEST_CODE) {
+            // Permission granted, proceed with import
+            openImagePicker()
+        }
+    }
+    
+    override fun onPermissionsDenied(requestCode: Int, perms: List<String>) {
+        if (requestCode == IMPORT_REQUEST_CODE) {
+            if (EasyPermissions.somePermissionDenied(this, *perms.toTypedArray())) {
+                showPermissionDeniedDialog()
             } else {
-                // Permission denied - show dialog (Step 5 implementation)
+                // Show rationale for denied permissions
                 showPermissionDeniedDialog()
             }
         }
@@ -1069,49 +1087,81 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Helper to get the current canvas bitmap for saving
+    // Helper to get the current canvas bitmap for saving - Improved version
     private fun getCanvasBitmap(): Bitmap? {
         return try {
             val drawable = canvasImageView.drawable
             if (drawable != null) {
-                // Get the intrinsic dimensions of the actual image
-                val imageWidth = drawable.intrinsicWidth
-                val imageHeight = drawable.intrinsicHeight
+                // Get dimensions - try intrinsic first, then fallback to ImageView dimensions
+                var imageWidth = drawable.intrinsicWidth
+                var imageHeight = drawable.intrinsicHeight
                 
-                if (imageWidth > 0 && imageHeight > 0) {
-                    // Create bitmap with actual image dimensions
-                    val bitmap = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
-                    val canvas = Canvas(bitmap)
-                    
-                    // Set the drawable bounds to the full bitmap area
-                    drawable.setBounds(0, 0, imageWidth, imageHeight)
-                    
-                    // Draw the content
-                    drawable.draw(canvas)
+                // If intrinsic dimensions are not available, use ImageView dimensions
+                if (imageWidth <= 0 || imageHeight <= 0) {
+                    imageWidth = canvasImageView.width
+                    imageHeight = canvasImageView.height
+                }
+                
+                // If still no valid dimensions, use minimum reasonable size
+                if (imageWidth <= 0 || imageHeight <= 0) {
+                    imageWidth = 1000
+                    imageHeight = 1000
+                }
+                
+                // Create bitmap with proper dimensions
+                val bitmap = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                
+                // Clear canvas to transparent
+                canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
+                
+                // Set the drawable bounds to the full bitmap area
+                drawable.setBounds(0, 0, imageWidth, imageHeight)
+                
+                // Draw the content
+                drawable.draw(canvas)
+                
+                // Verify bitmap was created successfully
+                if (!bitmap.isRecycled && bitmap.width > 0 && bitmap.height > 0) {
                     bitmap
-                } else null
+                } else {
+                    null
+                }
             } else null
         } catch (e: Exception) {
+            // Log the error for debugging
+            android.util.Log.e("MainActivity", "Failed to get canvas bitmap: ${e.message}")
             null
         }
     }
     
-    // Helper to compress bitmap to output stream in selected format
+    // Helper to compress bitmap to output stream in selected format - Improved quality settings
     private fun compressBitmapToStream(bitmap: Bitmap, outputStream: OutputStream, mimeType: String) {
         try {
-            val compressFormat = when (mimeType) {
-                "image/jpeg" -> CompressFormat.JPEG
-                "image/png" -> CompressFormat.PNG
-                "image/webp" -> CompressFormat.WEBP
-                else -> CompressFormat.JPEG
+            when (mimeType) {
+                "image/jpeg" -> {
+                    // JPEG: Quality 100 for maximum fidelity
+                    bitmap.compress(CompressFormat.JPEG, 100, outputStream)
+                }
+                "image/png" -> {
+                    // PNG: Always lossless, quality parameter is ignored
+                    bitmap.compress(CompressFormat.PNG, 100, outputStream)
+                }
+                "image/webp" -> {
+                    // WEBP: Use lossless format for transparency, or quality 100 for lossy
+                    if (currentImageHasTransparency) {
+                        // Use lossless WEBP for images with transparency
+                        bitmap.compress(CompressFormat.WEBP_LOSSLESS, 100, outputStream)
+                    } else {
+                        // Use quality 100 for lossy WEBP when no transparency
+                        bitmap.compress(CompressFormat.WEBP, 100, outputStream)
+                    }
+                }
+                else -> {
+                    // Fallback to JPEG with maximum quality
+                    bitmap.compress(CompressFormat.JPEG, 100, outputStream)
+                }
             }
-            
-            val quality = when (mimeType) {
-                "image/jpeg", "image/webp" -> 95 // High quality for lossy formats
-                else -> 100 // Lossless for PNG
-            }
-            
-            bitmap.compress(compressFormat, quality, outputStream)
         } catch (e: Exception) {
             throw Exception("Failed to compress image: ${e.message}")
         }
