@@ -1,3 +1,35 @@
+## Major Coil Integration & UI Enhancements (Phase 3)
+
+### Coil-Based Image Loading System
+*   **MainActivity.kt:** Replaced complex crash-prone bitmap management with Coil library for robust image loading.
+*   **Image Loading:** Implemented `loadImageFromUri()` using `ImageRequest` with proper error handling and lifecycle management.
+*   **Memory Management:** Leveraged Coil's built-in memory and disk caching with 25% memory cache and 50MB disk cache.
+*   **Loading States:** Added loading state tracking with `isImageLoading`, `isImageLoadAttempted`, and `lastImageLoadFailed` variables.
+*   **Error Handling:** Comprehensive error handling with `handleImageLoadFailure()` and user feedback via toast messages.
+*   **Performance:** Coil automatically handles downsampling, threading, and resource management.
+
+### UI Enhancements & Visual Improvements
+*   **Save Panel Icons:** Added visual icons above save buttons - saveasicon for "Save Copy" and warningicon for "Overwrite".
+*   **Transparency Warning Display:** Implemented bright orange warning text (#FFFFA500) below format selection for better visibility.
+*   **Format Auto-Detection:** Images automatically detect and preselect their original format (JPEG/PNG/WEBP) on load.
+*   **Format Selection UI:** Real-time format selection with proper MIME type tracking and user feedback.
+
+### Advanced Save Workflow Integration
+*   **Coil-Based Save Logic:** Updated `getCanvasBitmap()` to use `imageLoader.execute(request)` for proper image extraction.
+*   **Async Processing:** Converted save functions to use `lifecycleScope.launch` with suspend functions for proper coroutine handling.
+*   **Transparency Detection:** Implemented format-based transparency detection for PNG and WEBP images.
+*   **Enhanced Error Handling:** Improved save error handling with proper resource management and user feedback.
+
+### MediaStore & Compatibility Improvements
+*   **MediaScannerConnection Integration:** Added support for Android 9 and older for gallery visibility using `MediaScannerConnection.scanFile()`.
+*   **Atomic Save Operations:** Maintained IS_PENDING flag workflow for reliable save operations.
+*   **Format-Specific Handling:** Proper MIME type handling for JPEG, PNG, and WEBP with appropriate compression settings.
+
+### Code Architecture Refactoring
+*   **Import Cleanup:** Removed all unused imports, fields, and methods from previous bitmap management system.
+*   **Coroutine Integration:** Proper lifecycle-aware coroutine usage with `lifecycleScope` for all async operations.
+*   **Resource Management:** Simplified resource management leveraging Coil's automatic cleanup.
+
 ## UI Implementation & Refinement (Phase 1)
 
 *   **Layout:** `activity_main.xml` structure (Google Ad Banner, ActionBar, Canvas, Tools, ToolOptions, Save Panel) + responsiveness.
