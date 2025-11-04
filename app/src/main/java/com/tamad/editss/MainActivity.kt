@@ -1111,36 +1111,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Helper to get the current canvas bitmap for saving using Coil
+    // Helper to get the current canvas bitmap for saving using current ImageView
     private suspend fun getCanvasBitmap(): Bitmap? {
         return try {
-            val currentImageInfo = this.currentImageInfo
-            if (currentImageInfo != null) {
-                // Use Coil to properly load and decode the image for saving
-                val request = ImageRequest.Builder(this)
-                    .data(currentImageInfo.uri)
-                    .build()
+            // Get the current drawable from the ImageView (which contains any edits)
+            val drawable = canvasImageView.drawable
+            
+            if (drawable != null) {
+                // Get the intrinsic dimensions of the actual image
+                val imageWidth = drawable.intrinsicWidth
+                val imageHeight = drawable.intrinsicHeight
                 
-                val result = imageLoader.execute(request)
-                val drawable = result.drawable
-                
-                if (drawable != null) {
-                    // Get the intrinsic dimensions of the actual image
-                    val imageWidth = drawable.intrinsicWidth
-                    val imageHeight = drawable.intrinsicHeight
+                if (imageWidth > 0 && imageHeight > 0) {
+                    // Create bitmap with actual image dimensions
+                    val bitmap = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
                     
-                    if (imageWidth > 0 && imageHeight > 0) {
-                        // Create bitmap with actual image dimensions
-                        val bitmap = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
-                        val canvas = Canvas(bitmap)
-                        
-                        // Set the drawable bounds to the full bitmap area
-                        drawable.setBounds(0, 0, imageWidth, imageHeight)
-                        
-                        // Draw the content
-                        drawable.draw(canvas)
-                        bitmap
-                    } else null
+                    // Set the drawable bounds to the full bitmap area
+                    drawable.setBounds(0, 0, imageWidth, imageHeight)
+                    
+                    // Draw the content
+                    drawable.draw(canvas)
+                    bitmap
                 } else null
             } else null
         } catch (e: Exception) {
