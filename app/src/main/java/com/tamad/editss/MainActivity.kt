@@ -445,35 +445,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Step 13: Camera capture with writable MediaStore URI
-    // Step 19: Stream closure and file descriptor leak prevention
+    // Step 13: Camera capture with writable MediaStore URI - Improved implementation
     private fun captureImageFromCamera() {
-        var outputStream: java.io.OutputStream? = null
         try {
-            // Create timestamp-based filename as per plan step 23 (preparation)
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val fileName = "IMG_$timestamp"
-            
-            // Create ContentValues for MediaStore
-            val contentValues = android.content.ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures") // Standard Pictures directory
+            // Create ContentValues for MediaStore - simplified approach
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "Camera_${System.currentTimeMillis()}.jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/EditSS")
+                }
             }
             
             // Create writable URI in MediaStore
-            val contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            val insertUri = contentResolver.insert(contentUri, contentValues)
+            val insertUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
             
             if (insertUri != null) {
-                // Step 19: Open output stream with proper resource management to test URI validity
-                outputStream = contentResolver.openOutputStream(insertUri)
-                outputStream?.close() // Close immediately after checking if stream creation succeeded
-                
                 // Launch camera with the writable URI
                 val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
                 intent.putExtra(MediaStore.EXTRA_OUTPUT, insertUri)
-                intent.putExtra("android.intent.extra.finishAfterCapture", true)
+                
+                // Add flags for better compatibility
+                intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 
                 // Store the capture URI temporarily for handling result
                 currentCameraUri = insertUri
@@ -485,14 +478,6 @@ class MainActivity : AppCompatActivity() {
             
         } catch (e: Exception) {
             Toast.makeText(this, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
-        } finally {
-            // Step 19: Ensure OutputStream is always closed to prevent file descriptor leaks
-            try {
-                outputStream?.close()
-            } catch (e: Exception) {
-                // Log but don't crash on close failure
-                e.printStackTrace()
-            }
         }
     }
 
@@ -606,23 +591,18 @@ class MainActivity : AppCompatActivity() {
     /**
      * Step 16: Helper method to decode bitmap from URI with downsampling
      * Step 18: Made suspend function for coroutine execution
-     * Step 19: Stream closure and file descriptor leak prevention with try-with-resources
-     * Step 2C: Fixed bitmap decoding to prevent gradient rendering
+     * Step 19: Stream closure and file descriptor leak prevention
+     * Step 2C: Fixed bitmap decoding - simplified approach to prevent blur
      */
     private suspend fun decodeBitmapFromUri(uri: Uri, targetSize: Int): android.graphics.Bitmap? {
         return withContext(Dispatchers.IO) {
-            var inputStream: java.io.InputStream? = null
             try {
-                // Step 19: Open input stream with explicit resource management
-                inputStream = contentResolver.openInputStream(uri) ?: return@withContext null
-                
                 // First, get image dimensions without loading the full bitmap
                 val options = BitmapFactory.Options().apply {
                     inJustDecodeBounds = true
                 }
                 
-                // Step 19: Use try-with-resources for proper stream closure
-                inputStream.use { stream ->
+                contentResolver.openInputStream(uri)?.use { stream ->
                     BitmapFactory.decodeStream(stream, null, options)
                 }
                 
@@ -630,71 +610,38 @@ class MainActivity : AppCompatActivity() {
                     return@withContext null
                 }
                 
-                // Calculate inSampleSize to downsample appropriately - fixed calculation
-                var (width, height) = calculateInSampleSize(options.outWidth, options.outHeight, targetSize)
+                // Simple calculation: ensure we don't downsample too aggressively
+                var sampleSize = 1
+                val maxSize = maxOf(options.outWidth, options.outHeight)
                 
-                // Ensure minimum sample size of 1
-                width = maxOf(width, 1)
-                height = maxOf(height, 1)
+                // Only downsample if image is significantly larger than target
+                while (maxSize / sampleSize > targetSize * 2) {
+                    sampleSize *= 2
+                }
                 
-                // Load bitmap with calculated inSampleSize - using correct settings
+                // Load bitmap with calculated inSampleSize - simplified approach
                 val options2 = BitmapFactory.Options().apply {
-                    inSampleSize = minOf(width, height)
-                    // Fix: Ensure proper color handling to prevent gradient artifacts
-                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
-                    inDither = false
-                    inScaled = false
-                    // Prevent compression artifacts
+                    inSampleSize = sampleSize
+                    // Use RGB_565 instead of ARGB_8888 to reduce memory and potential blur
+                    inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                    inDither = true // Enable dithering for better quality
                     inMutable = false
                 }
                 
-                // Step 19: Re-open stream for actual decoding and close it properly
-                inputStream = contentResolver.openInputStream(uri)
-                inputStream?.use { stream ->
-                    // Step 2C: Use decodeStream with proper bounds checking
-                    val decodedBitmap = BitmapFactory.decodeStream(stream, null, options2)
-                    
-                    // Verify bitmap was decoded correctly
-                    if (decodedBitmap != null && !decodedBitmap.isRecycled && decodedBitmap.byteCount > 0) {
-                        decodedBitmap
-                    } else {
-                        null
-                    }
-                } ?: return@withContext null
+                // Re-open stream for actual decoding
+                val finalBitmap = contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream, null, options2)
+                }
+                
+                return@withContext finalBitmap
                 
             } catch (e: Exception) {
-                // Step 18: Post UI updates back to main thread
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, "Bitmap decoding error: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
                 null
-            } finally {
-                // Step 19: Ensure InputStream is always closed to prevent file descriptor leaks
-                try {
-                    inputStream?.close()
-                } catch (e: Exception) {
-                    // Log but don't crash on close failure
-                    e.printStackTrace()
-                }
             }
         }
-    }
-    
-    // Step 14: Calculate appropriate inSampleSize for downsampling - fixed calculation
-    private fun calculateInSampleSize(originalWidth: Int, originalHeight: Int, targetSize: Int): Pair<Int, Int> {
-        var inSampleSize = 1
-        
-        // Calculate the largest inSampleSize value that is a power of 2 and keeps both
-        // width and height larger than the target size
-        while ((originalWidth / inSampleSize) > targetSize || (originalHeight / inSampleSize) > targetSize) {
-            inSampleSize *= 2
-        }
-        
-        // Return proper dimensions to prevent zero-size bitmaps
-        val finalWidth = originalWidth / inSampleSize
-        val finalHeight = originalHeight / inSampleSize
-        
-        return Pair(maxOf(finalWidth, 1), maxOf(finalHeight, 1))
     }
     
     // Step 8: Helper method to determine image origin
@@ -743,33 +690,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Photo picker logic - Fixed implementation for proper Photo Picker
+    // Photo picker logic - Simplified and reliable implementation
     private fun openImagePicker() {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                // Use proper Android 13+ Photo Picker
-                val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-                intent.type = "image/*"
-                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
-                startActivityForResult(intent, IMPORT_REQUEST_CODE)
-            } else {
-                // Android 10-12: Use MediaStore query instead of ACTION_OPEN_DOCUMENT
-                val projection = arrayOf(MediaStore.Images.Media.DATA, MediaStore.Images.Media._ID)
-                val selection = "${MediaStore.Images.Media.MIME_TYPE} LIKE 'image/%'"
-                val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
-                
-                // Use MediaStore to get image picker
-                val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-                intent.type = "image/*"
-                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
-                startActivityForResult(intent, IMPORT_REQUEST_CODE)
-            }
-        } catch (e: Exception) {
-            // Fallback for any issues
-            val intent = Intent(Intent.ACTION_PICK)
+            // Simplified approach: Use ACTION_OPEN_DOCUMENT with better error handling
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
             intent.type = "image/*"
             intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+            
+            // Add safety flags
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            
             startActivityForResult(intent, IMPORT_REQUEST_CODE)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not open photo picker: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
