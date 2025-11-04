@@ -30,11 +30,15 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import android.graphics.Bitmap
+import android.graphics.Bitmap.CompressFormat
+import android.graphics.Canvas
 import android.os.Environment
 import android.content.ContentValues
+import android.media.MediaScannerConnection
 import kotlinx.coroutines.*
 import androidx.lifecycle.lifecycleScope
 import java.io.File
+import java.io.OutputStream
 import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.disk.DiskCache
@@ -838,64 +842,83 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Step 21, 22, 23: Save image as copy - simplified for Coil
+    // Step 21, 22, 23: Save image as copy - proper MediaStore implementation
     private fun saveImageAsCopy() {
-        currentImageInfo?.let { imageInfo ->
-            try {
-                // Get the current drawable from the ImageView
-                val drawable = canvasImageView.drawable
-                if (drawable != null) {
-                    // Use a simplified approach: copy the original file
-                    contentResolver.openInputStream(imageInfo.uri)?.use { inputStream ->
-                        val imageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-                        if (imageDir != null) {
-                            imageDir.mkdirs()
-                            val filename = generateUniqueFilename()
-                            val outputFile = File(imageDir, filename)
-                            
-                            outputFile.outputStream().use { outputStream ->
-                                inputStream.copyTo(outputStream)
+        try {
+            // Get the current canvas image (with any edits/drawings)
+            val bitmap = getCanvasBitmap()
+            if (bitmap != null) {
+                // Step 21: Create ContentValues and insert into MediaStore
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
+                    put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
+                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                    put(MediaStore.Images.Media.IS_PENDING, 1) // Step 22: Mark as pending for atomic save
+                }
+                
+                val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                if (uri != null) {
+                    // Step 22: Write the image data using openOutputStream
+                    contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        compressBitmapToStream(bitmap, outputStream, selectedSaveFormat)
+                    }
+                    
+                    // Step 22: Mark as complete (atomic save)
+                    values.clear()
+                    values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                    contentResolver.update(uri, values, null, null)
+                    
+                    // Step 26: MediaScannerConnection for Android 9 and older
+                    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                        try {
+                            contentResolver.openInputStream(uri)?.use { inputStream ->
+                                val filePath = getRealPathFromUri(uri)
+                                if (filePath != null) {
+                                    MediaScannerConnection.scanFile(
+                                        this,
+                                        arrayOf(filePath),
+                                        arrayOf(selectedSaveFormat),
+                                        null
+                                    )
+                                }
                             }
-                            
-                            Toast.makeText(this, "Image saved successfully", Toast.LENGTH_SHORT).show()
-                            savePanel.visibility = View.GONE
-                            scrim.visibility = View.GONE
-                        } else {
-                            Toast.makeText(this, "Cannot access storage", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            // MediaScannerConnection is not critical, just log the error
                         }
                     }
+                    
+                    Toast.makeText(this, "Image saved successfully", Toast.LENGTH_SHORT).show()
+                    savePanel.visibility = View.GONE
+                    scrim.visibility = View.GONE
                 } else {
-                    Toast.makeText(this, "No image to save", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Save failed: Couldn't create image entry", Toast.LENGTH_SHORT).show()
                 }
-            } catch (e: Exception) {
-                Toast.makeText(this, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "No image to save", Toast.LENGTH_SHORT).show()
             }
-        } ?: run {
-            Toast.makeText(this, "No image to save", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     
-    // Step 22: Overwrite current image - simplified
+    // Step 22: Overwrite current image - proper implementation
     private fun overwriteCurrentImage() {
         currentImageInfo?.let { imageInfo ->
             if (imageInfo.canOverwrite) {
                 try {
-                    // For writable images, we can overwrite by updating the file
-                    contentResolver.openInputStream(imageInfo.uri)?.use { inputStream ->
-                        val imageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-                        if (imageDir != null) {
-                            imageDir.mkdirs()
-                            val tempFile = File(imageDir, "temp_overwrite.jpg")
-                            
-                            tempFile.outputStream().use { outputStream ->
-                                inputStream.copyTo(outputStream)
-                            }
-                            
-                            // For now, just show success (actual overwrite would need more complex logic)
-                            Toast.makeText(this, "Overwrite feature coming soon", Toast.LENGTH_SHORT).show()
-                            savePanel.visibility = View.GONE
-                            scrim.visibility = View.GONE
+                    // Get the current canvas image (with any edits/drawings)
+                    val bitmap = getCanvasBitmap()
+                    if (bitmap != null) {
+                        // For writable URIs, we can overwrite the existing file
+                        contentResolver.openOutputStream(imageInfo.uri)?.use { outputStream ->
+                            compressBitmapToStream(bitmap, outputStream, selectedSaveFormat)
                         }
+                        
+                        Toast.makeText(this, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
+                        savePanel.visibility = View.GONE
+                        scrim.visibility = View.GONE
+                    } else {
+                        Toast.makeText(this, "No image to overwrite", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
                     Toast.makeText(this, "Overwrite failed: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -995,12 +1018,70 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    // Helper to get the current canvas bitmap for saving
+    private fun getCanvasBitmap(): Bitmap? {
+        return try {
+            // For Coil images, we need to convert the drawable back to a bitmap
+            val drawable = canvasImageView.drawable
+            if (drawable != null) {
+                // Since we can't directly get bitmap from drawable without creating one,
+                // we'll create a bitmap from the current canvas state
+                val bitmap = Bitmap.createBitmap(
+                    canvasImageView.width.coerceAtLeast(1),
+                    canvasImageView.height.coerceAtLeast(1),
+                    Bitmap.Config.ARGB_8888
+                )
+                val canvas = android.graphics.Canvas(bitmap)
+                canvasImageView.draw(canvas)
+                bitmap
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    // Helper to compress bitmap to output stream in selected format
+    private fun compressBitmapToStream(bitmap: Bitmap, outputStream: OutputStream, mimeType: String) {
+        try {
+            val compressFormat = when (mimeType) {
+                "image/jpeg" -> CompressFormat.JPEG
+                "image/png" -> CompressFormat.PNG
+                "image/webp" -> CompressFormat.WEBP
+                else -> CompressFormat.JPEG
+            }
+            
+            val quality = when (mimeType) {
+                "image/jpeg", "image/webp" -> 95 // High quality for lossy formats
+                else -> 100 // Lossless for PNG
+            }
+            
+            bitmap.compress(compressFormat, quality, outputStream)
+        } catch (e: Exception) {
+            throw Exception("Failed to compress image: ${e.message}")
+        }
+    }
+
     // Helper to get display name from URI
     private fun getDisplayNameFromUri(uri: Uri): String? {
         return try {
             val projection = arrayOf(android.provider.MediaStore.Images.Media.DISPLAY_NAME)
             contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
                 val columnIndex = cursor.getColumnIndex(android.provider.MediaStore.Images.Media.DISPLAY_NAME)
+                if (cursor.moveToFirst() && columnIndex != -1) {
+                    cursor.getString(columnIndex)
+                } else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    // Helper to get real file path from content URI for MediaScannerConnection
+    private fun getRealPathFromUri(uri: Uri): String? {
+        return try {
+            val projection = arrayOf(android.provider.MediaStore.Images.Media.DATA)
+            contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                val columnIndex = cursor.getColumnIndex(android.provider.MediaStore.Images.Media.DATA)
                 if (cursor.moveToFirst() && columnIndex != -1) {
                     cursor.getString(columnIndex)
                 } else null
