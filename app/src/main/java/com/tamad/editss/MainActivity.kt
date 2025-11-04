@@ -822,16 +822,20 @@ class MainActivity : AppCompatActivity() {
             CAMERA_REQUEST_CODE -> {
                 if (resultCode == RESULT_OK) {
                     // Step 13: Handle successful camera capture result
-                    currentCameraUri?.let { cameraUri ->
+                    // Fix: Store in local variable to avoid smart cast issues
+                    val cameraUri = currentCameraUri
+                    if (cameraUri != null) {
                         loadImageFromUri(cameraUri, false)
                         currentCameraUri = null // Clear temporary URI
                     }
                 } else {
                     // Camera was cancelled or failed - clean up without saving blank
-                    if (currentCameraUri != null) {
+                    // Fix: Store in local variable to avoid smart cast issues
+                    val cameraUri = currentCameraUri
+                    if (cameraUri != null) {
                         // Clean up the MediaStore entry that was created
                         try {
-                            contentResolver.delete(currentCameraUri, null, null)
+                            contentResolver.delete(cameraUri, null, null)
                         } catch (e: Exception) {
                             // Ignore cleanup errors
                         }
