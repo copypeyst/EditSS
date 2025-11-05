@@ -18,6 +18,13 @@ data class DrawingState(
     val opacity: Int = 252 // Default to position 100 on slider (matches ((100 - 1) * 2.55))
 )
 
+// Shared adjust settings state
+data class AdjustState(
+    val brightness: Float = 0f,   // -100 to +100
+    val contrast: Float = 0f,     // -100 to +100
+    val saturation: Float = 0f    // -100 to +100
+)
+
 class EditViewModel : ViewModel() {
 
     private val _undoStack = MutableStateFlow<List<EditAction>>(emptyList())
@@ -29,6 +36,10 @@ class EditViewModel : ViewModel() {
     // Shared drawing state for Draw/Circle/Square tools
     private val _drawingState = MutableStateFlow(DrawingState())
     val drawingState: StateFlow<DrawingState> = _drawingState.asStateFlow()
+    
+    // Shared adjust state for Adjust tool
+    private val _adjustState = MutableStateFlow(AdjustState())
+    val adjustState: StateFlow<AdjustState> = _adjustState.asStateFlow()
 
     fun pushAction(action: EditAction) {
         _undoStack.value = _undoStack.value + action
@@ -64,5 +75,22 @@ class EditViewModel : ViewModel() {
 
     fun updateDrawingOpacity(opacity: Int) {
         _drawingState.value = _drawingState.value.copy(opacity = opacity)
+    }
+    
+    // Adjust state management for Adjust tool
+    fun updateAdjustBrightness(brightness: Float) {
+        _adjustState.value = _adjustState.value.copy(brightness = brightness)
+    }
+    
+    fun updateAdjustContrast(contrast: Float) {
+        _adjustState.value = _adjustState.value.copy(contrast = contrast)
+    }
+    
+    fun updateAdjustSaturation(saturation: Float) {
+        _adjustState.value = _adjustState.value.copy(saturation = saturation)
+    }
+    
+    fun resetAdjustments() {
+        _adjustState.value = AdjustState()
     }
 }
