@@ -42,6 +42,7 @@ import coil.memory.MemoryCache
 import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
+import com.tamad.editss.DrawMode
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -352,16 +353,19 @@ class MainActivity : AppCompatActivity() {
             currentDrawMode?.isSelected = false
             drawModePen.isSelected = true
             currentDrawMode = drawModePen
+            drawingView.setDrawMode(DrawMode.PEN)
         }
         drawModeCircle.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModeCircle.isSelected = true
             currentDrawMode = drawModeCircle
+            drawingView.setDrawMode(DrawMode.CIRCLE)
         }
         drawModeSquare.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModeSquare.isSelected = true
             currentDrawMode = drawModeSquare
+            drawingView.setDrawMode(DrawMode.SQUARE)
         }
         
         // Initialize slider listeners for shared drawing state
@@ -379,7 +383,8 @@ class MainActivity : AppCompatActivity() {
         drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    val opacity = progress + 1 // Convert to 1-101 range as Int
+                    // Convert progress (1-101) to opacity (0-255) for proper alpha mapping
+                    val opacity = ((progress - 1) * 2.55).toInt().coerceIn(0, 255)
                     editViewModel.updateDrawingOpacity(opacity)
                 }
             }
@@ -463,6 +468,7 @@ class MainActivity : AppCompatActivity() {
         // Set default selections
         drawModePen.isSelected = true
         currentDrawMode = drawModePen
+        drawingView.setDrawMode(DrawMode.PEN) // Initialize the drawing canvas with pen mode
 
         cropModeFreeform.isSelected = true
         currentCropMode = cropModeFreeform
