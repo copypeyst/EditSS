@@ -43,6 +43,7 @@ import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
+import com.tamad.editss.CropMode
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -115,6 +116,8 @@ class MainActivity : AppCompatActivity() {
     
     // Drawing-related UI elements
     private lateinit var drawingView: DrawingView
+    private lateinit var cropView: CropView
+    private lateinit var adjustView: AdjustView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
@@ -227,6 +230,10 @@ class MainActivity : AppCompatActivity() {
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
         drawingView.setupDrawingState(editViewModel)
+        
+        // Initialize CropView and AdjustView
+        cropView = findViewById(R.id.crop_view)
+        adjustView = findViewById(R.id.adjust_view)
 
         // Initialize sliders with default values (25% size, 100% opacity)
         val defaultSize = 25 // 25% of slider range
@@ -276,6 +283,8 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Show drawing view
+            cropView.visibility = View.GONE // Hide crop view
+            adjustView.visibility = View.GONE // Hide adjust view
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
@@ -287,6 +296,8 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.GONE // Hide drawing view
+            cropView.visibility = View.VISIBLE // Show crop view
+            adjustView.visibility = View.GONE // Hide adjust view
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
@@ -298,6 +309,8 @@ class MainActivity : AppCompatActivity() {
             cropOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.GONE // Hide drawing view
+            cropView.visibility = View.GONE // Hide crop view
+            adjustView.visibility = View.VISIBLE // Show adjust view
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
@@ -411,21 +424,25 @@ class MainActivity : AppCompatActivity() {
             currentCropMode?.isSelected = false
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
+            cropView.setCropMode(CropMode.FREEFORM) // Connect to CropView
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
+            cropView.setCropMode(CropMode.SQUARE) // Connect to CropView
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
+            cropView.setCropMode(CropMode.PORTRAIT) // Connect to CropView
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
+            cropView.setCropMode(CropMode.LANDSCAPE) // Connect to CropView
         }
 
         // Initialize Adjust Options (no logic yet)
@@ -481,6 +498,7 @@ class MainActivity : AppCompatActivity() {
 
         cropModeFreeform.isSelected = true
         currentCropMode = cropModeFreeform
+        cropView.setCropMode(CropMode.FREEFORM) // Initialize CropView with default mode
 
         colorRedContainer.performClick()
 
@@ -751,6 +769,11 @@ class MainActivity : AppCompatActivity() {
                             canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
                             canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                             
+                            // Sync the image to CropView as well
+                            cropView.getImageView().setImageDrawable(drawable)
+                            cropView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
+                            cropView.getImageView().setBackgroundColor(android.graphics.Color.TRANSPARENT)
+
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
                             
                             // Update UI based on canOverwrite
@@ -1421,4 +1444,50 @@ class MainActivity : AppCompatActivity() {
         return uri
     }
     // --- END: ADDED FOR OVERWRITE FIX ---
+    
+    // Item 8 & 9: Apply brightness, contrast, and saturation adjustments using ColorFilter APIs
+    private fun applyAdjustments(brightness: Int, contrast: Int, saturation: Int) {
+        try {
+            // Convert slider values (0-100) to adjustment factors
+            val brightnessFactor = (brightness - 50) / 50f // Range: -1.0 to 1.0
+            val contrastFactor = contrast / 50f // Range: 0.0 to 2.0
+            val saturationFactor = saturation / 50f // Range: 0.0 to 2.0
+            
+            // Create color matrix for adjustments
+            val colorMatrix = android.graphics.ColorMatrix()
+            
+            // Apply brightness (additive adjustment)
+            colorMatrix.postTranslate(brightnessFactor * 255, brightnessFactor * 255, brightnessFactor * 255)
+            
+            // Apply contrast (multiplicative adjustment around 128)
+            val contrastMatrix = android.graphics.ColorMatrix()
+            contrastMatrix.setScale(contrastFactor, contrastFactor, contrastFactor, 1f)
+            colorMatrix.postConcat(contrastMatrix)
+            
+            // Apply saturation (color intensity)
+            val saturationMatrix = android.graphics.ColorMatrix()
+            saturationMatrix.setSaturation(saturationFactor)
+            colorMatrix.postConcat(saturationMatrix)
+            
+            // Apply the color matrix filter to the canvas image
+            val drawable = canvasImageView.drawable
+            if (drawable != null) {
+                val paint = android.graphics.Paint()
+                paint.colorFilter = android.graphics.ColorMatrixColorFilter(colorMatrix)
+                
+                // Create a temporary bitmap to apply the filter
+                val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                if (bitmap != null) {
+                    val filteredBitmap = bitmap.copy(bitmap.config, true)
+                    val canvas = android.graphics.Canvas(filteredBitmap)
+                    canvas.drawBitmap(bitmap, 0f, 0f, paint)
+                    
+                    // Update the canvas with the filtered bitmap
+                    canvasImageView.setImageBitmap(filteredBitmap)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error applying adjustments: ${e.message}")
+        }
+    }
 }
