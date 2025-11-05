@@ -57,9 +57,9 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
         private var dragHandle = 0 // 0=none, 1-4=edges(top,right,bottom,left), 5-8=corners, 9=center
         private var lastX = 0f
         private var lastY = 0f
-        private val handleSize = 50f
-        private val edgeThickness = 30f
-        private val centerSize = 40f
+        private val handleSize = 60f
+        private val edgeThickness = 40f
+        private val centerSize = 80f
 
         init {
             // Main marquee border
@@ -68,16 +68,17 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
             paint.color = Color.WHITE
             paint.strokeWidth = 3f
 
-            // Corner handles
+            // Corner handles (more transparent)
             cornerPaint.isAntiAlias = true
             cornerPaint.style = Paint.Style.FILL
             cornerPaint.color = Color.WHITE
+            cornerPaint.alpha = 140
 
-            // Edge handles
+            // Edge handles (more transparent)
             edgePaint.isAntiAlias = true
             edgePaint.style = Paint.Style.FILL
             edgePaint.color = Color.WHITE
-            edgePaint.alpha = 180
+            edgePaint.alpha = 100
 
             // Grid lines
             gridPaint.isAntiAlias = true
@@ -109,7 +110,7 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
                     RectF(left, top, left + size, top + size)
                 }
                 CropMode.PORTRAIT -> {
-                    val aspectRatio = 16f / 9f // Height:Width = 16:9 for portrait
+                    val aspectRatio = 9f / 16f // Width:Height = 9:16 for portrait
                     val height = effectiveHeight * 0.8f
                     val width = height * aspectRatio
                     val left = (effectiveWidth - width) / 2
@@ -232,7 +233,11 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
             val centerY = (cropRect.top + cropRect.bottom) / 2
             val size = centerSize / 2
             
-            canvas.drawRect(centerX - size, centerY - size, centerX + size, centerY + size, cornerPaint)
+            // Make center handle more transparent
+            val centerPaint = Paint(cornerPaint)
+            centerPaint.alpha = 120
+            
+            canvas.drawRect(centerX - size, centerY - size, centerX + size, centerY + size, centerPaint)
         }
         
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -303,17 +308,11 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
             val viewWidth = width.toFloat()
             val viewHeight = height.toFloat()
             
-            // Ensure rectangle stays within view bounds
-            newRect.left = Math.max(0f, Math.min(newRect.left, viewWidth))
-            newRect.top = Math.max(0f, Math.min(newRect.top, viewHeight))
-            newRect.right = Math.max(0f, Math.min(newRect.right, viewWidth))
-            newRect.bottom = Math.max(0f, Math.min(newRect.bottom, viewHeight))
-            
-            // Apply aspect ratio constraints based on mode
+            // First apply aspect ratio constraints based on mode
             when (currentCropMode) {
                 CropMode.SQUARE -> {
                     // 1:1 aspect ratio
-                    val size = Math.max(newRect.width(), newRect.height())
+                    val size = Math.min(newRect.width(), newRect.height())
                     val centerX = (newRect.left + newRect.right) / 2
                     val centerY = (newRect.top + newRect.bottom) / 2
                     newRect.left = centerX - size / 2
@@ -322,7 +321,7 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
                     newRect.bottom = centerY + size / 2
                 }
                 CropMode.PORTRAIT -> {
-                    // 16:9 aspect ratio (width:height)
+                    // 9:16 aspect ratio (width:height)
                     val width = newRect.width()
                     val height = width * (16f / 9f)
                     val centerY = (newRect.top + newRect.bottom) / 2
@@ -339,6 +338,49 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
                 }
                 else -> { /* FREEFORM - no constraints */ }
             }
+            
+            // Then ensure rectangle stays within view bounds
+            newRect.left = Math.max(0f, Math.min(newRect.left, viewWidth))
+            newRect.top = Math.max(0f, Math.min(newRect.top, viewHeight))
+            newRect.right = Math.max(0f, Math.min(newRect.right, viewWidth))
+            newRect.bottom = Math.max(0f, Math.min(newRect.bottom, viewHeight))
+            
+            // Apply aspect ratio constraints again after boundary clamping
+            when (currentCropMode) {
+                CropMode.SQUARE -> {
+                    // 1:1 aspect ratio
+                    val size = Math.min(newRect.width(), newRect.height())
+                    val centerX = (newRect.left + newRect.right) / 2
+                    val centerY = (newRect.top + newRect.bottom) / 2
+                    newRect.left = centerX - size / 2
+                    newRect.right = centerX + size / 2
+                    newRect.top = centerY - size / 2
+                    newRect.bottom = centerY + size / 2
+                }
+                CropMode.PORTRAIT -> {
+                    // 9:16 aspect ratio (width:height)
+                    val width = newRect.width()
+                    val height = width * (16f / 9f)
+                    val centerY = (newRect.top + newRect.bottom) / 2
+                    newRect.top = centerY - height / 2
+                    newRect.bottom = centerY + height / 2
+                }
+                CropMode.LANDSCAPE -> {
+                    // 16:9 aspect ratio (width:height)
+                    val height = newRect.height()
+                    val width = height * (16f / 9f)
+                    val centerX = (newRect.left + newRect.right) / 2
+                    newRect.left = centerX - width / 2
+                    newRect.right = centerX + width / 2
+                }
+                else -> { /* FREEFORM - no constraints */ }
+            }
+            
+            // Final boundary check
+            newRect.left = Math.max(0f, Math.min(newRect.left, viewWidth))
+            newRect.top = Math.max(0f, Math.min(newRect.top, viewHeight))
+            newRect.right = Math.max(0f, Math.min(newRect.right, viewWidth))
+            newRect.bottom = Math.max(0f, Math.min(newRect.bottom, viewHeight))
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
