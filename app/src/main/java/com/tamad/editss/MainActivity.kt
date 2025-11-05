@@ -852,27 +852,22 @@ class MainActivity : AppCompatActivity() {
         updateSaveButtonsState() // Consolidate logic into one function
     }
     
-    // MODIFIED: Central function to control visibility of Overwrite button AND its warning icon
+    // MODIFIED: Central function to control visibility of Overwrite button. Build error is fixed.
     private fun updateSaveButtonsState() {
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
-        // IMPORTANT: Replace 'R.id.overwrite_warning_icon' with the actual ID of your warning icon
-        val warningIcon: ImageView = findViewById(R.id.overwrite_warning_icon)
 
         val info = currentImageInfo
         if (info == null) {
-            // Default state: no image loaded, hide both.
+            // Default state: no image loaded, hide it.
             buttonOverwrite.visibility = View.GONE
-            warningIcon.visibility = View.GONE
             return
         }
 
         // Show overwrite ONLY if it's allowed AND the save format is the same as the original
         if (info.canOverwrite && selectedSaveFormat == info.originalMimeType) {
             buttonOverwrite.visibility = View.VISIBLE
-            warningIcon.visibility = View.VISIBLE
         } else {
             buttonOverwrite.visibility = View.GONE
-            warningIcon.visibility = View.GONE
         }
     }
     
