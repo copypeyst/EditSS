@@ -789,6 +789,27 @@ class MainActivity : AppCompatActivity() {
     // Step 9 & 10: Update save panel UI based on image origin and canOverwrite flag
     private fun updateSavePanelUI() {
         updateSaveButtonsState() // Consolidate logic into one function
+        updateSaveButtonText() // Update button text based on image origin
+    }
+    
+    // Update save button text based on image origin (camera vs import)
+    private fun updateSaveButtonText() {
+        val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
+        
+        val info = currentImageInfo
+        if (info == null) {
+            // Default to "Save Copy" when no image loaded
+            buttonSaveCopy.text = getString(R.string.save_copy)
+            return
+        }
+
+        // For camera images, change button text to "Save" instead of "Save Copy"
+        if (info.origin == ImageOrigin.CAMERA_CAPTURED) {
+            buttonSaveCopy.text = getString(R.string.save)
+        } else {
+            // For imported images, keep the original "Save Copy" text
+            buttonSaveCopy.text = getString(R.string.save_copy)
+        }
     }
     
     // MODIFIED: Central function to control visibility of Overwrite button and warning icon.
@@ -839,15 +860,16 @@ class MainActivity : AppCompatActivity() {
                 val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
 
                 if (bitmapToSave != null) {
-                    // MODIFIED: Generate a user-friendly, unique copy name
-                    val originalDisplayName = if (imageInfo.origin == ImageOrigin.CAMERA_CAPTURED) {
-                        // For camera images, use proper naming format like IMG_20241105_130359.jpg (no "- Copy" suffix)
+                    // Generate filename based on image origin
+                    val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
+                    val uniqueDisplayName = if (imageInfo.origin == ImageOrigin.CAMERA_CAPTURED) {
+                        // For camera images, use proper naming format without "- Copy" suffix
                         generateUniqueCameraName()
                     } else {
-                        getDisplayNameFromUri(imageInfo.uri) ?: "Image"
+                        // For imported images, use copy naming logic
+                        val originalDisplayName = getDisplayNameFromUri(imageInfo.uri) ?: "Image"
+                        generateUniqueCopyName(originalDisplayName, picturesDirectory)
                     }
-                    val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
-                    val uniqueDisplayName = generateUniqueCopyName(originalDisplayName, picturesDirectory)
 
                     // MODIFIED: Save to dedicated app folder "EditSS"
                     val values = ContentValues().apply {
