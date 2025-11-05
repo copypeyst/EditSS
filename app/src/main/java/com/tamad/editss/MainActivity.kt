@@ -43,6 +43,7 @@ import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import java.util.regex.Pattern
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -851,22 +852,27 @@ class MainActivity : AppCompatActivity() {
         updateSaveButtonsState() // Consolidate logic into one function
     }
     
-    // NEW: Central function to control the visibility of the Overwrite button
+    // MODIFIED: Central function to control visibility of Overwrite button AND its warning icon
     private fun updateSaveButtonsState() {
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
+        // IMPORTANT: Replace 'R.id.overwrite_warning_icon' with the actual ID of your warning icon
+        val warningIcon: ImageView = findViewById(R.id.overwrite_warning_icon)
 
         val info = currentImageInfo
         if (info == null) {
-            // Default state: no image loaded, hide it.
+            // Default state: no image loaded, hide both.
             buttonOverwrite.visibility = View.GONE
+            warningIcon.visibility = View.GONE
             return
         }
 
         // Show overwrite ONLY if it's allowed AND the save format is the same as the original
         if (info.canOverwrite && selectedSaveFormat == info.originalMimeType) {
             buttonOverwrite.visibility = View.VISIBLE
+            warningIcon.visibility = View.VISIBLE
         } else {
             buttonOverwrite.visibility = View.GONE
+            warningIcon.visibility = View.GONE
         }
     }
     
@@ -890,7 +896,7 @@ class MainActivity : AppCompatActivity() {
 
                 if (bitmapToSave != null) {
                     // MODIFIED: Generate a user-friendly, unique copy name
-                    val originalDisplayName = getDisplayNameFromUri(imageInfo.uri) ?: "Image.jpg"
+                    val originalDisplayName = getDisplayNameFromUri(imageInfo.uri) ?: "Image"
                     val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
                     val uniqueDisplayName = generateUniqueCopyName(originalDisplayName, picturesDirectory)
 
@@ -996,7 +1002,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Step 23: Timestamp-based file naming with collision avoidance
+    // This function is no longer used for copy naming, but is kept as a fallback if needed.
     private fun generateUniqueFilename(): String {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val randomSuffix = (Math.random() * 1000).toInt()
@@ -1009,7 +1015,7 @@ class MainActivity : AppCompatActivity() {
         return "IMG_${timestamp}_${randomSuffix}$extension"
     }
 
-    // NEW: Generates user-friendly copy names like "Image - Copy (2).jpg"
+    // NEW: Robust function to generate Windows-style copy names.
     private fun generateUniqueCopyName(originalDisplayName: String, directory: String): String {
         val newExtension = when (selectedSaveFormat) {
             "image/jpeg" -> ".jpg"
@@ -1018,20 +1024,30 @@ class MainActivity : AppCompatActivity() {
             else -> ".jpg"
         }
 
-        val dotIndex = originalDisplayName.lastIndexOf('.')
-        val name = if (dotIndex > 0) originalDisplayName.substring(0, dotIndex) else originalDisplayName
+        // 1. Get the name without the original extension
+        val nameWithoutExt = originalDisplayName.substringBeforeLast('.')
 
-        // First guess: "Image - Copy.jpg"
-        var newName = "$name - Copy$newExtension"
+        // 2. Find the true base name by stripping any existing " - Copy" or " - Copy (n)" suffixes
+        // This regex finds " - Copy" optionally followed by " (n)" at the end of the string.
+        val copyPattern = Pattern.compile("\\s-\\sCopy(\\s\\(\\d+\\))?$")
+        val matcher = copyPattern.matcher(nameWithoutExt)
+        val baseName = if (matcher.find()) {
+            nameWithoutExt.substring(0, matcher.start())
+        } else {
+            nameWithoutExt
+        }
+
+        // 3. Check for "baseName - Copy.ext"
+        var newName = "$baseName - Copy$newExtension"
         var file = File(directory, newName)
         if (!file.exists()) {
             return newName
         }
 
-        // If that exists, start incrementing: "Image - Copy (2).jpg"
+        // 4. If it exists, start incrementing with "baseName - Copy (n).ext"
         var counter = 2
         while (true) {
-            newName = "$name - Copy ($counter)$newExtension"
+            newName = "$baseName - Copy ($counter)$newExtension"
             file = File(directory, newName)
             if (!file.exists()) {
                 return newName
