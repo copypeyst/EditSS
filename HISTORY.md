@@ -1,3 +1,30 @@
+## Critical Save Functionality Fix (Phase 3.1)
+
+### Core Save System Overhaul
+*   **MainActivity.kt:** **FIXED CRITICAL SAVE BUG** - Completely rewrote save functions to properly use Coil's API instead of broken `getCanvasBitmap()` method.
+*   **Root Cause:** The previous implementation used `imageLoader.execute(request)` incorrectly, which always returned null, causing "No image to save" errors.
+*   **Solution:** Implemented proper Coil integration using `ImageRequest.Builder().allowHardware(false).execute()` for reliable bitmap extraction.
+*   **Save Functions:** Both `saveImageAsCopy()` and `overwriteCurrentImage()` completely rewritten with proper Coil API usage.
+*   **Bitmap Extraction:** Added reliable bitmap extraction from Coil using `imageLoader.execute(request).drawable` and proper type casting.
+*   **Memory Management:** Hardware acceleration disabled for save operations to ensure software bitmap extraction.
+
+### Enhanced MediaStore Integration
+*   **URI Handling:** Added `getMediaStoreUriWithId()` helper function for converting generic URIs to specific MediaStore URIs with IDs.
+*   **Overwrite Logic:** Implemented proper MediaStore update operations when format changes occur during overwrite.
+*   **Atomic Operations:** Maintained IS_PENDING flag workflow for both save operations with proper error handling.
+*   **Format Preservation:** Enhanced format detection and preservation during save operations.
+
+### Advanced ActivityResultLauncher Integration
+*   **Delete Request Handler:** Added `deleteRequestLauncher` for handling user confirmation of delete operations.
+*   **Cache Management:** Implemented Coil cache invalidation when updating image references to prevent stale image display.
+*   **Pending URI Management:** Added `pendingOverwriteUri` temporary storage for handling new file URIs during user confirmation.
+
+### Comprehensive Error Handling & Recovery
+*   **Save Failure Recovery:** Enhanced error handling with proper cleanup and user feedback for all save operations.
+*   **Bitmap Extraction Validation:** Added proper null checking and exception handling for bitmap extraction failures.
+*   **UI State Management:** Improved UI state management with proper coroutine context switching (IO/Main).
+*   **Resource Management:** Enhanced stream handling with proper try-with-resources usage and cleanup.
+
 ## Major Coil Integration & UI Enhancements (Phase 3)
 
 ### Coil-Based Image Loading System
@@ -13,12 +40,6 @@
 *   **Transparency Warning Display:** Implemented bright orange warning text (#FFFFA500) below format selection for better visibility.
 *   **Format Auto-Detection:** Images automatically detect and preselect their original format (JPEG/PNG/WEBP) on load.
 *   **Format Selection UI:** Real-time format selection with proper MIME type tracking and user feedback.
-
-### Advanced Save Workflow Integration
-*   **Coil-Based Save Logic:** Updated `getCanvasBitmap()` to use `imageLoader.execute(request)` for proper image extraction.
-*   **Async Processing:** Converted save functions to use `lifecycleScope.launch` with suspend functions for proper coroutine handling.
-*   **Transparency Detection:** Implemented format-based transparency detection for PNG and WEBP images.
-*   **Enhanced Error Handling:** Improved save error handling with proper resource management and user feedback.
 
 ### MediaStore & Compatibility Improvements
 *   **MediaScannerConnection Integration:** Added support for Android 9 and older for gallery visibility using `MediaScannerConnection.scanFile()`.
