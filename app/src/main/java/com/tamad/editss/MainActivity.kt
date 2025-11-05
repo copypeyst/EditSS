@@ -2,6 +2,7 @@ package com.tamad.editss
 
 import androidx.activity.result.contract.ActivityResultContracts
 import android.util.Log
+import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
 import android.content.ClipData
