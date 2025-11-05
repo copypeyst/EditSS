@@ -13,3 +13,29 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Project documentation and auxiliary files
+PLAN.md
+heirarchy.md
+LICENSE
+preview.html
+GitHubActions.md
+
+# Development tools and utilities
+.kilocode/
+platform-tools/
+
+# Development and debugging artifacts
+screenshots/
+HISTORY.md
+
+# Temporary files and logs
+*.log
+*.tmp
+*.swp
+*~
+.DS_Store
+
+# Android specific
+*.apk
+*.aab
