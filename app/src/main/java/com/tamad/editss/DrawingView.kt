@@ -82,7 +82,7 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
                     viewModel.drawingState.collect { drawingState ->
                         paint.color = drawingState.color
                         paint.strokeWidth = drawingState.size
-                        paint.alpha = drawingState.opacity.toFloat()
+                        paint.alpha = drawingState.opacity
                         invalidate() // Redraw when state changes
                     }
                 }
