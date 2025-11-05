@@ -7,4 +7,18 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <color name="ad_banner_background">#FF222222</color>
+    <color name="tool_options_background">#FF333333</color>
+    <color name="scrim_background">#80000000</color>
+    <color name="canvas_background">#FF000000</color>
+
+    <color name="color_red">#FFFF0000</color>
+    <color name="color_green">#FF00FF00</color>
+    <color name="color_blue">#FF0000FF</color>
+    <color name="color_yellow">#FFFFFF00</color>
+    <color name="color_orange">#FFFFA500</color>
+    <color name="color_pink">#FFFFC0CB</color>
+    
+    <color name="transparency_warning">#FFFFA500</color>
 </resources>

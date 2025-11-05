@@ -17,7 +17,7 @@
         android:id="@+id/ad_banner"
         android:layout_width="0dp"
         android:layout_height="50dp"
-        android:background="#FF222222"
+        android:background="@color/ad_banner_background"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
@@ -43,7 +43,7 @@
             android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/importicon"
-            android:contentDescription="Import"
+            android:contentDescription="@string/import_image"
             android:background="@drawable/ripple_effect"
             android:clickable="true"
             android:focusable="true" />
@@ -54,7 +54,7 @@
             android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/cameraicon"
-            android:contentDescription="Camera"
+            android:contentDescription="@string/camera"
             android:background="@drawable/ripple_effect"
             android:clickable="true"
             android:focusable="true" />
@@ -65,7 +65,7 @@
             android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/undoicon"
-            android:contentDescription="Undo"
+            android:contentDescription="@string/undo"
             android:background="@drawable/ripple_effect"
             android:clickable="true"
             android:focusable="true" />
@@ -76,7 +76,7 @@
             android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/redoicon"
-            android:contentDescription="Redo"
+            android:contentDescription="@string/redo"
             android:background="@drawable/ripple_effect"
             android:clickable="true"
             android:focusable="true" />
@@ -87,7 +87,7 @@
             android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/shareicon"
-            android:contentDescription="Share"
+            android:contentDescription="@string/share"
             android:background="@drawable/ripple_effect"
             android:clickable="true"
             android:focusable="true" />
@@ -98,7 +98,7 @@
             android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/saveicon"
-            android:contentDescription="Save"
+            android:contentDescription="@string/save"
             android:background="@drawable/ripple_effect"
             android:clickable="true"
             android:focusable="true" />
@@ -123,7 +123,7 @@
             android:layout_weight="1"
             android:layout_marginEnd="5dp"
             android:src="@drawable/drawicon"
-            android:contentDescription="Draw"
+            android:contentDescription="@string/draw"
             android:background="@drawable/button_background"
             android:clickable="true"
             android:focusable="true" />
@@ -135,7 +135,7 @@
             android:layout_weight="1"
             android:layout_marginEnd="5dp"
             android:src="@drawable/cropicon"
-            android:contentDescription="Crop"
+            android:contentDescription="@string/crop"
             android:background="@drawable/button_background"
             android:clickable="true"
             android:focusable="true" />
@@ -146,7 +146,7 @@
             android:layout_height="30dp"
             android:layout_weight="1"
             android:src="@drawable/adjusticon"
-            android:contentDescription="Adjust"
+            android:contentDescription="@string/adjust"
             android:background="@drawable/button_background"
             android:clickable="true"
             android:focusable="true" />
@@ -159,7 +159,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="4dp"
-        android:background="#FF333333"
+        android:background="@color/tool_options_background"
         android:visibility="visible"
         app:layout_constraintBottom_toTopOf="@id/tools"
         app:layout_constraintStart_toStartOf="parent"
@@ -183,9 +183,9 @@
                 android:gravity="center"
                 android:layout_marginBottom="0dp"
                 android:layout_marginTop="0dp">
-                <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="Pen Mode" android:background="@drawable/button_background" android:padding="2dp" android:layout_marginEnd="5dp" android:clickable="true" android:focusable="true"/>
-                <ImageView android:id="@+id/draw_mode_circle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/circleicon" android:contentDescription="Circle Mode" android:background="@drawable/button_background" android:padding="2dp" android:layout_marginEnd="5dp" android:clickable="true" android:focusable="true"/>
-                <ImageView android:id="@+id/draw_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/squareicon" android:contentDescription="Square Mode" android:background="@drawable/button_background" android:padding="2dp" android:clickable="true" android:focusable="true"/>
+                <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="@string/pen_mode" android:background="@drawable/button_background" android:padding="2dp" android:layout_marginEnd="5dp" android:clickable="true" android:focusable="true"/>
+                <ImageView android:id="@+id/draw_mode_circle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/circleicon" android:contentDescription="@string/circle_mode" android:background="@drawable/button_background" android:padding="2dp" android:layout_marginEnd="5dp" android:clickable="true" android:focusable="true"/>
+                <ImageView android:id="@+id/draw_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/squareicon" android:contentDescription="@string/square_mode" android:background="@drawable/button_background" android:padding="2dp" android:clickable="true" android:focusable="true"/>
             </LinearLayout>
 
             <!-- Colors -->
@@ -208,7 +208,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/round_color_background"
-                        android:backgroundTint="#FFFF0000" />
+                        android:backgroundTint="@color/color_red" />
                     <ImageView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -227,7 +227,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/round_color_background"
-                        android:backgroundTint="#FF00FF00" />
+                        android:backgroundTint="@color/color_green" />
                     <ImageView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -246,7 +246,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/round_color_background"
-                        android:backgroundTint="#FF0000FF" />
+                        android:backgroundTint="@color/color_blue" />
                     <ImageView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -265,7 +265,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/round_color_background"
-                        android:backgroundTint="#FFFFFF00" />
+                        android:backgroundTint="@color/color_yellow" />
                     <ImageView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -284,7 +284,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/round_color_background"
-                        android:backgroundTint="#FFFFA500" />
+                        android:backgroundTint="@color/color_orange" />
                     <ImageView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -303,7 +303,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/round_color_background"
-                        android:backgroundTint="#FFFFC0CB" />
+                        android:backgroundTint="@color/color_pink" />
                     <ImageView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -322,7 +322,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/round_color_background"
-                        android:backgroundTint="#FF000000" />
+                        android:backgroundTint="@color/black" />
                     <ImageView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -340,7 +340,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/round_color_background"
-                        android:backgroundTint="#FFFFFFFF" />
+                        android:backgroundTint="@color/white" />
                     <ImageView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -353,9 +353,9 @@
             </LinearLayout>
 
             <!-- Size/Opacity Sliders -->
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Size" android:textColor="@android:color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/size" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
             <SeekBar android:id="@+id/draw_size_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="0dp"/>
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Opacity" android:textColor="@android:color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/opacity" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
             <SeekBar android:id="@+id/draw_opacity_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="0dp"/>
 
         </LinearLayout>
@@ -368,10 +368,10 @@
         android:orientation="horizontal"
         android:gravity="center"
         android:visibility="gone">
-        <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropfreeformicon" android:contentDescription="Freeform Crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
-        <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropsquareicon" android:contentDescription="Square Crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
-        <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropportraiticon" android:contentDescription="Portrait Crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
-        <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="Landscape Crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
+        <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropfreeformicon" android:contentDescription="@string/freeform_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
+        <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropsquareicon" android:contentDescription="@string/square_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
+        <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropportraiticon" android:contentDescription="@string/portrait_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
+        <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="@string/landscape_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
     </LinearLayout>
 
         <!-- Adjust Options -->
@@ -382,11 +382,11 @@
             android:orientation="vertical"
             android:gravity="center_vertical"
             android:visibility="gone">
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Brightness" android:textColor="@android:color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/brightness" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
             <SeekBar android:id="@+id/adjust_brightness_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="4dp"/>
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Contrast" android:textColor="@android:color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/contrast" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
             <SeekBar android:id="@+id/adjust_contrast_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="4dp"/>
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Saturation" android:textColor="@android:color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/saturation" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
             <SeekBar android:id="@+id/adjust_saturation_slider" android:layout_width="match_parent" android:layout_height="wrap_content"/>
         </LinearLayout>
 
@@ -397,12 +397,12 @@
         android:id="@+id/canvas"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="#FF000000"
+        android:background="@color/canvas_background"
         app:layout_constraintTop_toBottomOf="@id/action_bar"
         app:layout_constraintBottom_toTopOf="@id/tool_options"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:contentDescription="Canvas" />
+        android:contentDescription="@string/canvas" />
 
 
     </androidx.constraintlayout.widget.ConstraintLayout>
@@ -412,7 +412,7 @@
         android:id="@+id/scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#80000000"
+        android:background="@color/scrim_background"
         android:visibility="gone" />
 
     <!-- Save Panel (Pop-up) -->
@@ -451,7 +451,7 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@drawable/saveasicon"
-                    android:contentDescription="Save As"
+                    android:contentDescription="@string/save_as"
                     android:layout_marginBottom="4dp"
                     android:clickable="false"
                     android:focusable="false" />
@@ -460,7 +460,7 @@
                     android:id="@+id/button_save_copy"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Save Copy"
+                    android:text="@string/save_copy"
                     android:backgroundTint="?attr/colorSecondary"
                     android:textColor="?attr/colorOnSecondary"/>
             </LinearLayout>
@@ -477,7 +477,7 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@drawable/warningicon"
-                    android:contentDescription="Warning"
+                    android:contentDescription="@string/warning"
                     android:layout_marginBottom="4dp"
                     android:clickable="false"
                     android:focusable="false" />
@@ -486,7 +486,7 @@
                     android:id="@+id/button_overwrite"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Overwrite"
+                    android:text="@string/overwrite"
                     android:backgroundTint="?attr/colorSecondary"
                     android:textColor="?attr/colorOnSecondary"/>
             </LinearLayout>
@@ -507,15 +507,15 @@
                 android:id="@+id/radio_jpg"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="JPG"
-                android:textColor="@android:color/white"
+                android:text="@string/jpg"
+                android:textColor="@color/white"
                 android:layout_marginEnd="8dp"/>
 
             <RadioButton
                 android:id="@+id/radio_png"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="PNG"
+                android:text="@string/png"
                 android:textColor="@android:color/white"
                 android:layout_marginEnd="8dp"/>
 
@@ -523,7 +523,7 @@
                 android:id="@+id/radio_webp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="WEBP"
+                android:text="@string/webp"
                 android:textColor="@android:color/white"/>
         </RadioGroup>
 
@@ -532,7 +532,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text=""
-            android:textColor="#FFFFA500"
+            android:textColor="@color/transparency_warning"
             android:textSize="10sp"
             android:gravity="center"
             android:visibility="gone"
