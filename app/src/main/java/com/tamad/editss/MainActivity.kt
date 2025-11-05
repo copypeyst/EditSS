@@ -52,10 +52,12 @@ enum class ImageOrigin {
     EDITED_INTERNAL
 }
 
+// MODIFIED: Added originalMimeType to track the image's starting format
 data class ImageInfo(
     val uri: Uri,
     val origin: ImageOrigin,
-    var canOverwrite: Boolean
+    var canOverwrite: Boolean,
+    val originalMimeType: String // Added to track original format
 )
 
 // Coil handles all caching, memory management, and bitmap processing automatically
@@ -250,20 +252,21 @@ class MainActivity : AppCompatActivity() {
         val radioPNG: RadioButton = findViewById(R.id.radio_png)
         val radioWEBP: RadioButton = findViewById(R.id.radio_webp)
         
+        // MODIFIED: Added call to updateSaveButtonsState() in each listener
         radioJPG.setOnClickListener {
             selectedSaveFormat = "image/jpeg"
-            // Update transparency warning based on actual image content
             updateTransparencyWarning()
+            updateSaveButtonsState()
         }
         radioPNG.setOnClickListener {
             selectedSaveFormat = "image/png"
-            // PNG supports transparency, so hide warning
             updateTransparencyWarning()
+            updateSaveButtonsState()
         }
         radioWEBP.setOnClickListener {
             selectedSaveFormat = "image/webp"
-            // Update transparency warning based on actual image content
             updateTransparencyWarning()
+            updateSaveButtonsState()
         }
 
         // Initialize Draw Options
@@ -524,8 +527,11 @@ class MainActivity : AppCompatActivity() {
                             // Step 8: Track image origin and set canOverwrite flag appropriately
                             val origin = determineImageOrigin(uri)
                             val canOverwrite = determineCanOverwrite(origin)
+
+                            // MODIFIED: Get and store original MIME type
+                            val originalMimeType = contentResolver.getType(uri) ?: "image/jpeg"
                             
-                            currentImageInfo = ImageInfo(uri, origin, canOverwrite)
+                            currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
                             
                             // Display the loaded image
                             canvasImageView.setImageDrawable(drawable)
@@ -538,7 +544,7 @@ class MainActivity : AppCompatActivity() {
                             updateSavePanelUI()
                             
                             // Auto-detect and set the original image format
-                            detectAndSetImageFormat(uri)
+                            detectAndSetImageFormat(uri) // This will also call updateSaveButtonsState() via the radio button click
                             
                             // Detect transparency for warning system (simplified approach)
                             try {
@@ -842,54 +848,31 @@ class MainActivity : AppCompatActivity() {
 
     // Step 9 & 10: Update save panel UI based on image origin and canOverwrite flag
     private fun updateSavePanelUI() {
-        val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
+        updateSaveButtonsState() // Consolidate logic into one function
+    }
+    
+    // NEW: Central function to control the visibility of the Overwrite button
+    private fun updateSaveButtonsState() {
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
-        
-        if (currentImageInfo == null) {
-            // No image loaded, show both buttons (default behavior)
-            buttonSaveCopy.visibility = View.VISIBLE
-            buttonOverwrite.visibility = View.VISIBLE
+
+        val info = currentImageInfo
+        if (info == null) {
+            // Default state: no image loaded, hide it.
+            buttonOverwrite.visibility = View.GONE
             return
         }
-        
-        val imageInfo = currentImageInfo!!
-        
-        // Always show SaveCopy
-        buttonSaveCopy.visibility = View.VISIBLE
-        
-        // Step 9: Define EDITED_INTERNAL behavior - only show Overwrite for writable images
-        when {
-            !imageInfo.canOverwrite -> {
-                // Hide Overwrite for IMPORTED_READONLY or when permission is lost
-                buttonOverwrite.visibility = View.GONE
-            }
-            imageInfo.origin == ImageOrigin.IMPORTED_READONLY -> {
-                // Hide Overwrite for IMPORTED_READONLY even if canOverwrite was somehow true
-                buttonOverwrite.visibility = View.GONE
-            }
-            imageInfo.origin == ImageOrigin.IMPORTED_WRITABLE && imageInfo.canOverwrite -> {
-                // Show both SaveCopy and Overwrite for writable imports
-                buttonOverwrite.visibility = View.VISIBLE
-            }
-            imageInfo.origin == ImageOrigin.CAMERA_CAPTURED && imageInfo.canOverwrite -> {
-                // Show both SaveCopy and Overwrite for camera captures
-                buttonOverwrite.visibility = View.VISIBLE
-            }
-            imageInfo.origin == ImageOrigin.EDITED_INTERNAL && imageInfo.canOverwrite -> {
-                // Step 9: Show Overwrite for EDITED_INTERNAL images (app-created)
-                buttonOverwrite.visibility = View.VISIBLE
-            }
-            else -> {
-                // Default: hide overwrite button
-                buttonOverwrite.visibility = View.GONE
-            }
+
+        // Show overwrite ONLY if it's allowed AND the save format is the same as the original
+        if (info.canOverwrite && selectedSaveFormat == info.originalMimeType) {
+            buttonOverwrite.visibility = View.VISIBLE
+        } else {
+            buttonOverwrite.visibility = View.GONE
         }
     }
     
     // Updated function to save a copy using Coil to fetch the bitmap reliably.
     private fun saveImageAsCopy() {
-        // Ensure there is an image URI to save from
-        val imageUriToSave = currentImageInfo?.uri ?: run {
+        val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, "No image to save", Toast.LENGTH_SHORT).show()
             return
         }
@@ -898,7 +881,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 // Step 1: Ask Coil to get the Bitmap directly from the image URI.
                 val request = ImageRequest.Builder(this@MainActivity)
-                    .data(imageUriToSave)
+                    .data(imageInfo.uri)
                     .allowHardware(false) // Important for saving: ensures we get a software bitmap
                     .build()
                 
@@ -906,11 +889,16 @@ class MainActivity : AppCompatActivity() {
                 val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
 
                 if (bitmapToSave != null) {
-                    // Step 2: Proceed with the existing saving logic now that we have a reliable Bitmap.
+                    // MODIFIED: Generate a user-friendly, unique copy name
+                    val originalDisplayName = getDisplayNameFromUri(imageInfo.uri) ?: "Image.jpg"
+                    val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
+                    val uniqueDisplayName = generateUniqueCopyName(originalDisplayName, picturesDirectory)
+
+                    // MODIFIED: Save to dedicated app folder "EditSS"
                     val values = ContentValues().apply {
-                        put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
+                        put(MediaStore.Images.Media.DISPLAY_NAME, uniqueDisplayName)
                         put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
-                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/EditSS")
                         put(MediaStore.Images.Media.IS_PENDING, 1)
                     }
                     
@@ -942,7 +930,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, "Image saved successfully", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@MainActivity, "Image saved to EditSS folder", Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                         }
@@ -971,6 +959,12 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Cannot overwrite this image", Toast.LENGTH_SHORT).show()
             return
         }
+        
+        // Double-check that format hasn't changed, as a safeguard.
+        if (selectedSaveFormat != imageInfo.originalMimeType) {
+            Toast.makeText(this, "Format changed. Please save a copy.", Toast.LENGTH_LONG).show()
+            return
+        }
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -982,67 +976,14 @@ class MainActivity : AppCompatActivity() {
                 val result = imageLoader.execute(request).drawable
                 val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
                     ?: throw Exception("Could not get image to overwrite")
-
-                val originalMimeType = contentResolver.getType(imageInfo.uri)
-                val isFormatChanging = originalMimeType != selectedSaveFormat
-
-                if (isFormatChanging) {
-                    // --- FORMAT IS CHANGING: Delete old entry and create new one ---
-                    
-                    // Step 1: Delete the old MediaStore entry
-                    val deleteCount = contentResolver.delete(imageInfo.uri, null, null)
-                    if (deleteCount <= 0) {
-                        throw Exception("Failed to delete old MediaStore entry")
-                    }
-                    
-                    // Step 2: Create a new MediaStore entry with the new format
-                    val values = ContentValues().apply {
-                        put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
-                        put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
-                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
-                        put(MediaStore.Images.Media.IS_PENDING, 1)
-                    }
-                    
-                    val newUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                    if (newUri == null) {
-                        throw Exception("Failed to create new MediaStore entry")
-                    }
-                    
-                    // Step 3: Write the image data to the new URI
-                    contentResolver.openOutputStream(newUri)?.use { outputStream ->
-                        compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
-                    }
-                    
-                    // Step 4: Mark the new entry as complete
-                    values.clear()
-                    values.put(MediaStore.Images.Media.IS_PENDING, 0)
-                    contentResolver.update(newUri, values, null, null)
-                    // Step 5: Invalidate Coil's cache for the old URI to prevent showing stale image
-                    imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
-                    imageLoader.diskCache?.remove(imageInfo.uri.toString())
-                    
-                    // Step 6: Update our app's reference to point to the new URI
-                    pendingOverwriteUri = newUri
-
-                } else {
-                    // --- FORMAT IS THE SAME: Simple overwrite is fine. ---
-                    contentResolver.openOutputStream(imageInfo.uri, "w")?.use { outputStream ->
-                        compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
-                    }
-                }
-
-                // Update our app's reference and show success message
-                if (isFormatChanging) {
-                    // For format changes, show success and update reference
-                    currentImageInfo = currentImageInfo?.copy(uri = pendingOverwriteUri ?: imageInfo.uri)
-                    pendingOverwriteUri = null
-                    Toast.makeText(this@MainActivity, "Image converted and overwritten successfully", Toast.LENGTH_SHORT).show()
-                } else {
-                    // For same format overwrite, just show success
-                    Toast.makeText(this@MainActivity, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
+                
+                // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
+                contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
+                    compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
                 }
                 
                 withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
                     savePanel.visibility = View.GONE
                     scrim.visibility = View.GONE
                 }
@@ -1066,6 +1007,37 @@ class MainActivity : AppCompatActivity() {
             else -> ".jpg"
         }
         return "IMG_${timestamp}_${randomSuffix}$extension"
+    }
+
+    // NEW: Generates user-friendly copy names like "Image - Copy (2).jpg"
+    private fun generateUniqueCopyName(originalDisplayName: String, directory: String): String {
+        val newExtension = when (selectedSaveFormat) {
+            "image/jpeg" -> ".jpg"
+            "image/png" -> ".png"
+            "image/webp" -> ".webp"
+            else -> ".jpg"
+        }
+
+        val dotIndex = originalDisplayName.lastIndexOf('.')
+        val name = if (dotIndex > 0) originalDisplayName.substring(0, dotIndex) else originalDisplayName
+
+        // First guess: "Image - Copy.jpg"
+        var newName = "$name - Copy$newExtension"
+        var file = File(directory, newName)
+        if (!file.exists()) {
+            return newName
+        }
+
+        // If that exists, start incrementing: "Image - Copy (2).jpg"
+        var counter = 2
+        while (true) {
+            newName = "$name - Copy ($counter)$newExtension"
+            file = File(directory, newName)
+            if (!file.exists()) {
+                return newName
+            }
+            counter++
+        }
     }
     
     // Step 24 & 25: Update transparency warning based on actual image content
@@ -1166,6 +1138,7 @@ class MainActivity : AppCompatActivity() {
             "image/png" -> radioPNG.isChecked = true
             "image/webp" -> radioWEBP.isChecked = true
         }
+        updateSaveButtonsState() // Also update the button visibility
     }
     
     // Auto-detect image format and preselect it
