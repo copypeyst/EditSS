@@ -838,7 +838,12 @@ class MainActivity : AppCompatActivity() {
 
                 if (bitmapToSave != null) {
                     // MODIFIED: Generate a user-friendly, unique copy name
-                    val originalDisplayName = getDisplayNameFromUri(imageInfo.uri) ?: "Image"
+                    val originalDisplayName = if (imageInfo.origin == ImageOrigin.CAMERA_CAPTURED) {
+                        // For camera images, use proper naming format like IMG_20241105_130359.jpg
+                        generateCameraDisplayName()
+                    } else {
+                        getDisplayNameFromUri(imageInfo.uri) ?: "Image"
+                    }
                     val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
                     val uniqueDisplayName = generateUniqueCopyName(originalDisplayName, picturesDirectory)
 
@@ -983,6 +988,18 @@ class MainActivity : AppCompatActivity() {
             }
             counter++
         }
+    }
+
+    // NEW: Generate proper display name for camera-captured images
+    private fun generateCameraDisplayName(): String {
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val extension = when (selectedSaveFormat) {
+            "image/jpeg" -> ".jpg"
+            "image/png" -> ".png"
+            "image/webp" -> ".webp"
+            else -> ".jpg"
+        }
+        return "IMG_${timestamp}$extension"
     }
     
     // Step 24 & 25: Update transparency warning based on actual image content
