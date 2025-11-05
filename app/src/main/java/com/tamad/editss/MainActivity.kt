@@ -368,7 +368,7 @@ class MainActivity : AppCompatActivity() {
         drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    val size = progress + 1 // Convert to 1-101 range
+                    val size = (progress + 1).toFloat() // Convert to 1-101 range as Float
                     editViewModel.updateDrawingSize(size)
                 }
             }
@@ -379,7 +379,7 @@ class MainActivity : AppCompatActivity() {
         drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    val opacity = progress + 1 // Convert to 1-101 range
+                    val opacity = progress + 1 // Convert to 1-101 range as Int
                     editViewModel.updateDrawingOpacity(opacity)
                 }
             }
