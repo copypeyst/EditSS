@@ -1,7 +1,8 @@
 package com.tamad.editss
 
+import androidx.activity.result.contract.ActivityResultContracts
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
-import android.os.Bundle
 import android.content.Intent
 import android.content.ClipData
 import android.content.pm.PackageManager
@@ -17,21 +18,15 @@ import android.widget.RadioButton
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.FrameLayout
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.widget.Toast
 import android.provider.Settings
 import android.net.Uri
-import android.content.DialogInterface
 import androidx.appcompat.app.AlertDialog
 import android.provider.MediaStore
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import android.graphics.Bitmap
 import android.graphics.Bitmap.CompressFormat
-import android.graphics.Canvas
 import android.os.Environment
 import android.content.ContentValues
 import android.media.MediaScannerConnection
@@ -67,8 +62,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val PERMISSION_REQUEST_CODE = 100
-        private const val IMPORT_REQUEST_CODE = 101
-        private const val CAMERA_REQUEST_CODE = 102
     }
 
     private lateinit var rootLayout: FrameLayout
@@ -112,6 +105,61 @@ class MainActivity : AppCompatActivity() {
     // Temporarily stores the URI of the new file while we wait for user confirmation
     private var pendingOverwriteUri: Uri? = null
     // --- END: ADDED FOR OVERWRITE FIX ---
+
+    private val importImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val uri = result.data?.data
+            if (uri != null) {
+                val clipData = result.data?.clipData
+                if (clipData != null && clipData.itemCount > 1) {
+                    Toast.makeText(this, getString(R.string.multiple_images_not_supported_loading_first), Toast.LENGTH_SHORT).show()
+                }
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+                    try {
+                        contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    } catch (e: SecurityException) {
+                        Toast.makeText(this, getString(R.string.could_not_persist_access_to_image), Toast.LENGTH_SHORT).show()
+                    }
+                }
+                loadImageFromUri(uri, false)
+            }
+        }
+    }
+
+    private val cameraCaptureLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val cameraUri = currentCameraUri
+            if (cameraUri != null) {
+                canvasImageView.post {
+                    try {
+                        loadImageFromUri(cameraUri, false)
+                    } catch (e: Exception) {
+                        Toast.makeText(this, getString(R.string.error_loading_camera_image, e.message), Toast.LENGTH_SHORT).show()
+                        cleanupCameraFile(cameraUri)
+                    }
+                }
+                currentCameraUri = null
+            }
+        } else {
+            val cameraUri = currentCameraUri
+            if (cameraUri != null) {
+                cleanupCameraFile(cameraUri)
+            }
+            currentCameraUri = null
+        }
+    }
+
+    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        if (isGranted) {
+            openImagePicker()
+        } else {
+            showPermissionDeniedDialog()
+        }
+    }
+
 
     // Coil image loader for efficient image handling
     private val imageLoader by lazy {
@@ -191,9 +239,7 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE // Hide save panel
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
-            currentActiveTool = toolDraw
-            // Step 17: Optional memory management on tool switch
-            onToolSwitch()
+
         }
 
         toolCrop.setOnClickListener {
@@ -203,9 +249,7 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE // Hide save panel
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
-            currentActiveTool = toolCrop
-            // Step 17: Optional memory management on tool switch
-            onToolSwitch()
+
         }
 
         toolAdjust.setOnClickListener {
@@ -216,8 +260,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
-            // Step 17: Optional memory management on tool switch
-            onToolSwitch()
         }
 
         // Initialize Save Panel buttons
@@ -377,7 +419,7 @@ class MainActivity : AppCompatActivity() {
             // This code runs AFTER the user responds to the delete confirmation dialog.
             if (result.resultCode == RESULT_OK) {
                 // User confirmed the deletion.
-                Toast.makeText(this, "Original file deleted.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.original_file_deleted), Toast.LENGTH_SHORT).show()
                 
                 // Now, safely update our app's reference to point to the new file.
                 pendingOverwriteUri?.let {
@@ -390,7 +432,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 // User cancelled the deletion. The original file remains.
-                Toast.makeText(this, "Original file was not deleted.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.original_file_was_not_deleted), Toast.LENGTH_SHORT).show()
                 // We still need to update our app's reference to the new file that was created.
                 pendingOverwriteUri?.let {
                     currentImageInfo = currentImageInfo?.copy(uri = it)
@@ -399,17 +441,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         // --- END: ADDED FOR OVERWRITE FIX ---
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        // Coil handles all memory management automatically
-    }
-
-    override fun onPause() {
-        super.onPause()
-        // Coil handles memory management automatically
-        // No need for manual cache clearing
     }
 
     override fun onResume() {
@@ -432,7 +463,7 @@ class MainActivity : AppCompatActivity() {
                     val itemCount = clipData.itemCount
                     if (itemCount > 1) {
                         // Multiple images - reject for safety
-                        Toast.makeText(this, "Multiple images not supported. Please select a single image.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.multiple_images_not_supported), Toast.LENGTH_LONG).show()
                         return
                     }
                     // Single image from clip data
@@ -456,7 +487,7 @@ class MainActivity : AppCompatActivity() {
             // Create private file in app's external files directory
             val imageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
             if (imageDir == null) {
-                Toast.makeText(this, "Cannot access storage", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.cannot_access_storage), Toast.LENGTH_SHORT).show()
                 return
             }
             
@@ -469,7 +500,7 @@ class MainActivity : AppCompatActivity() {
             
             if (!privateFile.exists()) {
                 if (!privateFile.createNewFile()) {
-                    Toast.makeText(this, "Failed to create temp file", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.failed_to_create_temp_file), Toast.LENGTH_SHORT).show()
                     return
                 }
             }
@@ -489,10 +520,10 @@ class MainActivity : AppCompatActivity() {
             currentCameraUri = photoURI
             
             // Start camera activity
-            startActivityForResult(intent, CAMERA_REQUEST_CODE)
+            cameraCaptureLauncher.launch(intent)
             
         } catch (e: Exception) {
-            Toast.makeText(this, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.camera_error, e.message), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -500,13 +531,13 @@ class MainActivity : AppCompatActivity() {
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
         // Prevent loading while already loading
         if (isImageLoading) {
-            Toast.makeText(this, "Image is still loading, please wait...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.image_is_still_loading), Toast.LENGTH_SHORT).show()
             return
         }
         
         // Prevent rapid successive attempts after failure
         if (isImageLoadAttempted && lastImageLoadFailed) {
-            Toast.makeText(this, "Previous load failed. Please try a different image.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.previous_load_failed), Toast.LENGTH_LONG).show()
             return
         }
         
@@ -516,7 +547,7 @@ class MainActivity : AppCompatActivity() {
         
         try {
             // Show loading indicator
-            Toast.makeText(this, "Loading image...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.loading_image), Toast.LENGTH_SHORT).show()
             
             // Create Coil image request
             val request = ImageRequest.Builder(this)
@@ -539,7 +570,7 @@ class MainActivity : AppCompatActivity() {
                             canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
                             canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                             
-                            Toast.makeText(this, "Loaded ${origin.name} image successfully", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
                             
                             // Update UI based on canOverwrite
                             updateSavePanelUI()
@@ -562,7 +593,7 @@ class MainActivity : AppCompatActivity() {
                             
                             lastImageLoadFailed = false
                         } catch (e: Exception) {
-                            handleImageLoadFailure("Error displaying image: ${e.message}")
+                            handleImageLoadFailure(getString(R.string.error_displaying_image, e.message))
                         } finally {
                             isImageLoading = false
                         }
@@ -601,19 +632,11 @@ class MainActivity : AppCompatActivity() {
                 // Clear canvas on failed load
                 canvasImageView.setImageBitmap(null)
                 canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                Toast.makeText(this, "Couldn't load image: $errorMessage", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.could_not_load_image, errorMessage), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
-                // Even error handling failed, but don't crash
+                Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message}")
             }
         }
-    }
-
-    /**
-     * Step 17: Method to be called when switching tools
-     * Coil handles all memory management automatically
-     */
-    private fun onToolSwitch() {
-        // No manual memory management needed with Coil
     }
 
     // All bitmap loading, caching, downsampling, and memory management is now handled automatically by Coil
@@ -678,11 +701,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestImagePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.READ_MEDIA_IMAGES),
-                PERMISSION_REQUEST_CODE
-            )
+            requestPermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES)
         } else {
             // Android 10-12: No permission request needed, proceed directly
             openImagePicker()
@@ -702,102 +721,17 @@ class MainActivity : AppCompatActivity() {
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
             
-            startActivityForResult(intent, IMPORT_REQUEST_CODE)
+            importImageLauncher.launch(intent)
         } catch (e: Exception) {
-            Toast.makeText(this, "Could not open photo picker: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission granted, proceed with import
-                openImagePicker()
-            } else {
-                // Permission denied - show dialog (Step 5 implementation)
-                showPermissionDeniedDialog()
-            }
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        
-        when (requestCode) {
-            IMPORT_REQUEST_CODE -> {
-                if (resultCode == RESULT_OK) {
-                    // Safety check: Only process single image even if multiple selection is somehow allowed
-                    val uri = data?.data
-                    if (uri != null) {
-                        // Check for multi-image selection safety
-                        val clipData = data.clipData
-                        if (clipData != null && clipData.itemCount > 1) {
-                            // If multiple images somehow selected, only use the first one
-                            Toast.makeText(this, "Multiple images not supported. Loading first image only.", Toast.LENGTH_SHORT).show()
-                        }
-                        
-                        // Step 20: For Android 10-12, request persistable URI permission for MediaStore
-                        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
-                            try {
-                                contentResolver.takePersistableUriPermission(
-                                    uri,
-                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                )
-                            } catch (e: SecurityException) {
-                                // Handle case where permission can't be persisted
-                                Toast.makeText(this, "Could not persist access to image", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                        loadImageFromUri(uri, false)
-                    }
-                }
-            }
-            CAMERA_REQUEST_CODE -> {
-                if (resultCode == RESULT_OK) {
-                    // Handle successful camera capture result
-                    val cameraUri = currentCameraUri
-                    if (cameraUri != null) {
-                        // Use post to delay loading slightly to prevent crashes
-                        canvasImageView.post {
-                            try {
-                                // This is a private file from camera, so treat as EDITED_INTERNAL
-                                loadImageFromUri(cameraUri, false)
-                            } catch (e: Exception) {
-                                // Better error handling for crashes
-                                Toast.makeText(this, "Error loading camera image: ${e.message}", Toast.LENGTH_SHORT).show()
-                                // Clean up the private file if loading fails
-                                cleanupCameraFile(cameraUri)
-                            }
-                        }
-                        currentCameraUri = null
-                    }
-                } else {
-                    // Camera was cancelled or failed - clean up private file
-                    val cameraUri = currentCameraUri
-                    if (cameraUri != null) {
-                        cleanupCameraFile(cameraUri)
-                    }
-                    currentCameraUri = null
-                    // Don't show error for cancelled operations
-                }
-            }
+            Toast.makeText(this, getString(R.string.could_not_open_photo_picker, e.message), Toast.LENGTH_LONG).show()
         }
     }
 
     // Permission denied dialog (Step 5)
     private fun showPermissionDeniedDialog() {
         AlertDialog.Builder(this)
-            .setTitle("Permission Required")
-            .setMessage("Permission denied. Please allow access in Settings.")
-            .setPositiveButton("Settings") { _, _ ->
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                val uri = Uri.fromParts("package", packageName, null)
-                intent.data = uri
-                startActivity(intent)
-            }
-            .setNegativeButton("Cancel") { dialog, _ ->
+            .setTitle(getString(R.string.permission_required))
+            .setNegativeButton(getString(R.string.cancel)) { dialog, _ ->
                 dialog.dismiss()
             }
             .setCancelable(false)
@@ -832,8 +766,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun showPermissionRevokedDialog() {
         AlertDialog.Builder(this)
-            .setTitle("Permission Revoked")
-            .setMessage("Permission has been revoked. Please reopen Settings to re-enable access.")
+            .setTitle(getString(R.string.permission_revoked))
+            .setMessage(getString(R.string.permission_revoked_message))
             .setPositiveButton("Settings") { _, _ ->
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                 val uri = Uri.fromParts("package", packageName, null)
@@ -879,7 +813,7 @@ class MainActivity : AppCompatActivity() {
     // Updated function to save a copy using Coil to fetch the bitmap reliably.
     private fun saveImageAsCopy() {
         val imageInfo = currentImageInfo ?: run {
-            Toast.makeText(this, "No image to save", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.no_image_to_save), Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -936,12 +870,12 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, "Image saved to EditSS folder", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                         }
                     } else {
-                        throw Exception("Save failed: Couldn't create image entry")
+                        throw Exception(getString(R.string.save_failed))
                     }
                 } else {
                     throw Exception("No image to save")
@@ -957,18 +891,18 @@ class MainActivity : AppCompatActivity() {
     // FINAL, CORRECTED VERSION - This one avoids deletion and uses MediaStore update instead.
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
-            Toast.makeText(this, "No image to overwrite", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.no_image_to_overwrite), Toast.LENGTH_SHORT).show()
             return
         }
 
         if (!imageInfo.canOverwrite) {
-            Toast.makeText(this, "Cannot overwrite this image", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.cannot_overwrite_this_image), Toast.LENGTH_SHORT).show()
             return
         }
         
         // Double-check that format hasn't changed, as a safeguard.
         if (selectedSaveFormat != imageInfo.originalMimeType) {
-            Toast.makeText(this, "Format changed. Please save a copy.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.format_changed_please_save_a_copy), Toast.LENGTH_LONG).show()
             return
         }
 
@@ -989,32 +923,19 @@ class MainActivity : AppCompatActivity() {
                 }
                 
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
                     savePanel.visibility = View.GONE
                     scrim.visibility = View.GONE
                 }
 
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Overwrite failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, getString(R.string.overwrite_failed, e.message), Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
     
-    // This function is no longer used for copy naming, but is kept as a fallback if needed.
-    private fun generateUniqueFilename(): String {
-        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val randomSuffix = (Math.random() * 1000).toInt()
-        val extension = when (selectedSaveFormat) {
-            "image/jpeg" -> ".jpg"
-            "image/png" -> ".png"
-            "image/webp" -> ".webp"
-            else -> ".jpg"
-        }
-        return "IMG_${timestamp}_${randomSuffix}$extension"
-    }
-
     // NEW: Robust function to generate Windows-style copy names.
     private fun generateUniqueCopyName(originalDisplayName: String, directory: String): String {
         val newExtension = when (selectedSaveFormat) {
@@ -1062,10 +983,10 @@ class MainActivity : AppCompatActivity() {
             when {
                 selectedSaveFormat == "image/jpeg" -> {
                     // JPEG doesn't support transparency
-                    transparencyWarningText.text = "JPG doesn't support transparency"
+                    transparencyWarningText.text = getString(R.string.jpg_does_not_support_transparency)
                     transparencyWarningText.visibility = View.VISIBLE
                 }
-                selectedSaveFormat == "image/webp" && isLosslessWebP() -> {
+                selectedSaveFormat == "image/webp" && currentImageHasTransparency -> {
                     // Lossless WEBP supports transparency, so hide warning
                     transparencyWarningText.visibility = View.GONE
                 }
@@ -1079,38 +1000,7 @@ class MainActivity : AppCompatActivity() {
             transparencyWarningText.visibility = View.GONE
         }
     }
-    
-    // Helper to determine if we should use lossless WEBP
-    private fun isLosslessWebP(): Boolean {
-        return selectedSaveFormat == "image/webp" && currentImageHasTransparency
-    }
-    
-    // Step 25: Detect if the current image has transparency from bitmap
-    private fun detectImageTransparency(bitmap: Bitmap): Boolean {
-        try {
-            // Sample a few pixels to detect transparency
-            val width = bitmap.width
-            val height = bitmap.height
-            val pixels = IntArray(minOf(100, width * height)) // Sample up to 100 pixels
             
-            // Sample pixels from different parts of the image
-            for (i in pixels.indices) {
-                val x = (i * width / pixels.size) % width
-                val y = (i * height / pixels.size) / width
-                val pixel = bitmap.getPixel(x, y)
-                
-                // Check if pixel is fully transparent (alpha = 0)
-                if (android.graphics.Color.alpha(pixel) < 255) {
-                    return true
-                }
-            }
-        } catch (e: Exception) {
-            // If transparency detection fails, assume no transparency for safety
-            return false
-        }
-        return false
-    }
-    
     // Helper method to detect transparency from drawable (improved approach)
     private fun detectImageTransparencyFromDrawable(drawable: android.graphics.drawable.Drawable): Boolean {
         try {
@@ -1191,7 +1081,7 @@ class MainActivity : AppCompatActivity() {
                 else -> "Unknown"
             }
             
-            Toast.makeText(this, "Detected format: $formatName", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.detected_format, formatName), Toast.LENGTH_SHORT).show()
             
         } catch (e: Exception) {
             // If detection fails, keep current default
