@@ -486,176 +486,179 @@ class MainActivity : AppCompatActivity() {
             }
         }
         // --- END: ADDED FOR OVERWRITE FIX ---
-    
-        // Step 4: Set up canvas touch handling for drawing
-        private fun setupCanvasTouchHandling() {
-            canvasImageView.setOnTouchListener { view, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        // Only start drawing if we're in draw tool mode
-                        if (currentActiveTool == findViewById<ImageView>(R.id.tool_draw)) {
-                            isDrawingMode = true
-                            val x = event.x
-                            val y = event.y
-                            currentDrawStartPoint = android.graphics.PointF(x, y)
-                            currentDrawCurrentPoint = android.graphics.PointF(x, y)
-                            
-                            // For pen tool, start drawing immediately
-                            if (currentDrawTool == "pen") {
-                                drawOnCanvas(x, y, x, y, true)
-                            }
-                            true
-                        } else {
-                            false
+        
+        // Initialize canvas touch handling for drawing
+        setupCanvasTouchHandling()
+    }
+
+    // Step 4: Set up canvas touch handling for drawing
+    private fun setupCanvasTouchHandling() {
+        canvasImageView.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    // Only start drawing if we're in draw tool mode
+                    if (currentActiveTool == findViewById<ImageView>(R.id.tool_draw)) {
+                        isDrawingMode = true
+                        val x = event.x
+                        val y = event.y
+                        currentDrawStartPoint = android.graphics.PointF(x, y)
+                        currentDrawCurrentPoint = android.graphics.PointF(x, y)
+                        
+                        // For pen tool, start drawing immediately
+                        if (currentDrawTool == "pen") {
+                            drawOnCanvas(x, y, x, y, true)
                         }
+                        true
+                    } else {
+                        false
                     }
-                    MotionEvent.ACTION_MOVE -> {
-                        if (isDrawingMode && currentActiveTool == findViewById<ImageView>(R.id.tool_draw)) {
-                            val x = event.x
-                            val y = event.y
-                            currentDrawCurrentPoint = android.graphics.PointF(x, y)
-                            
-                            when (currentDrawTool) {
-                                "pen" -> {
-                                    // Draw line from previous point to current point
-                                    val startPoint = currentDrawStartPoint ?: return@setOnTouchListener true
-                                    drawOnCanvas(startPoint.x, startPoint.y, x, y, false)
-                                    currentDrawStartPoint = android.graphics.PointF(x, y)
-                                }
-                                "circle", "square" -> {
-                                    // Update preview for shape tools
-                                    invalidateCanvas()
-                                }
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (isDrawingMode && currentActiveTool == findViewById<ImageView>(R.id.tool_draw)) {
+                        val x = event.x
+                        val y = event.y
+                        currentDrawCurrentPoint = android.graphics.PointF(x, y)
+                        
+                        when (currentDrawTool) {
+                            "pen" -> {
+                                // Draw line from previous point to current point
+                                val startPoint = currentDrawStartPoint ?: return@setOnTouchListener true
+                                drawOnCanvas(startPoint.x, startPoint.y, x, y, false)
+                                currentDrawStartPoint = android.graphics.PointF(x, y)
                             }
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        if (isDrawingMode && currentActiveTool == findViewById<ImageView>(R.id.tool_draw)) {
-                            val x = event.x
-                            val y = event.y
-                            val startPoint = currentDrawStartPoint ?: return@setOnTouchListener true
-                            
-                            when (currentDrawTool) {
-                                "circle" -> {
-                                    drawCircle(startPoint.x, startPoint.y, x, y)
-                                }
-                                "square" -> {
-                                    drawSquare(startPoint.x, startPoint.y, x, y)
-                                }
+                            "circle", "square" -> {
+                                // Update preview for shape tools
+                                invalidateCanvas()
                             }
-                            
-                            // Reset drawing state
-                            isDrawingMode = false
-                            currentDrawStartPoint = null
-                            currentDrawCurrentPoint = null
-                            true
-                        } else {
-                            false
                         }
+                        true
+                    } else {
+                        false
                     }
-                    else -> false
                 }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (isDrawingMode && currentActiveTool == findViewById<ImageView>(R.id.tool_draw)) {
+                        val x = event.x
+                        val y = event.y
+                        val startPoint = currentDrawStartPoint ?: return@setOnTouchListener true
+                        
+                        when (currentDrawTool) {
+                            "circle" -> {
+                                drawCircle(startPoint.x, startPoint.y, x, y)
+                            }
+                            "square" -> {
+                                drawSquare(startPoint.x, startPoint.y, x, y)
+                            }
+                        }
+                        
+                        // Reset drawing state
+                        isDrawingMode = false
+                        currentDrawStartPoint = null
+                        currentDrawCurrentPoint = null
+                        true
+                    } else {
+                        false
+                    }
+                }
+                else -> false
             }
         }
-    
-        // Step 4: Draw on canvas using Android's native Paint API
-        private fun drawOnCanvas(startX: Float, startY: Float, endX: Float, endY: Float, isStart: Boolean) {
-            try {
-                val bitmap = (canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                    ?: return
-    
-                val canvas = android.graphics.Canvas(bitmap)
-                val paint = android.graphics.Paint().apply {
-                    color = currentDrawColor
-                    strokeWidth = currentDrawSize
-                    style = android.graphics.Paint.Style.STROKE
-                    alpha = (currentDrawOpacity * 255).toInt()
-                    isAntiAlias = true
-                    strokeJoin = android.graphics.Paint.Join.ROUND
-                    strokeCap = android.graphics.Paint.Cap.ROUND
-                }
-    
-                canvas.drawLine(startX, startY, endX, endY, paint)
-                
-                // Update the ImageView to show the modified bitmap
-                canvasImageView.setImageBitmap(bitmap)
-                canvasImageView.invalidate()
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error drawing on canvas: ${e.message}")
+    }
+
+    // Step 4: Draw on canvas using Android's native Paint API
+    private fun drawOnCanvas(startX: Float, startY: Float, endX: Float, endY: Float, isStart: Boolean) {
+        try {
+            val bitmap = (canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                ?: return
+
+            val canvas = android.graphics.Canvas(bitmap)
+            val paint = android.graphics.Paint().apply {
+                color = currentDrawColor
+                strokeWidth = currentDrawSize
+                style = android.graphics.Paint.Style.STROKE
+                alpha = (currentDrawOpacity * 255).toInt()
+                isAntiAlias = true
+                strokeJoin = android.graphics.Paint.Join.ROUND
+                strokeCap = android.graphics.Paint.Cap.ROUND
             }
-        }
-    
-        // Step 5: Draw circle using single-finger dragging (MS Paint style)
-        private fun drawCircle(startX: Float, startY: Float, endX: Float, endY: Float) {
-            try {
-                val bitmap = (canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                    ?: return
-    
-                val canvas = android.graphics.Canvas(bitmap)
-                val paint = android.graphics.Paint().apply {
-                    color = currentDrawColor
-                    strokeWidth = currentDrawSize
-                    style = android.graphics.Paint.Style.STROKE
-                    alpha = (currentDrawOpacity * 255).toInt()
-                    isAntiAlias = true
-                }
-    
-                val centerX = (startX + endX) / 2
-                val centerY = (startY + endY) / 2
-                val radius = kotlin.math.sqrt(
-                    kotlin.math.pow(endX - startX, 2.0) + kotlin.math.pow(endY - startY, 2.0)
-                ).toFloat() / 2
-    
-                canvas.drawCircle(centerX, centerY, radius, paint)
-                
-                canvasImageView.setImageBitmap(bitmap)
-                canvasImageView.invalidate()
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error drawing circle: ${e.message}")
-            }
-        }
-    
-        // Step 5: Draw square using single-finger dragging (MS Paint style)
-        private fun drawSquare(startX: Float, startY: Float, endX: Float, endY: Float) {
-            try {
-                val bitmap = (canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                    ?: return
-    
-                val canvas = android.graphics.Canvas(bitmap)
-                val paint = android.graphics.Paint().apply {
-                    color = currentDrawColor
-                    strokeWidth = currentDrawSize
-                    style = android.graphics.Paint.Style.STROKE
-                    alpha = (currentDrawOpacity * 255).toInt()
-                    isAntiAlias = true
-                }
-    
-                val left = kotlin.math.min(startX, endX)
-                val top = kotlin.math.min(startY, endY)
-                val right = kotlin.math.max(startX, endX)
-                val bottom = kotlin.math.max(startY, endY)
-                val size = kotlin.math.min(right - left, bottom - top)
-                
-                // Make it a square by using the smaller dimension
-                val adjustedRight = left + size
-                val adjustedBottom = top + size
-    
-                canvas.drawRect(left, top, adjustedRight, adjustedBottom, paint)
-                
-                canvasImageView.setImageBitmap(bitmap)
-                canvasImageView.invalidate()
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error drawing square: ${e.message}")
-            }
-        }
-    
-        // Helper method to invalidate canvas for preview updates
-        private fun invalidateCanvas() {
+
+            canvas.drawLine(startX, startY, endX, endY, paint)
+            
+            // Update the ImageView to show the modified bitmap
+            canvasImageView.setImageBitmap(bitmap)
             canvasImageView.invalidate()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error drawing on canvas: ${e.message}")
         }
+    }
+
+    // Step 5: Draw circle using single-finger dragging (MS Paint style)
+    private fun drawCircle(startX: Float, startY: Float, endX: Float, endY: Float) {
+        try {
+            val bitmap = (canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                ?: return
+
+            val canvas = android.graphics.Canvas(bitmap)
+            val paint = android.graphics.Paint().apply {
+                color = currentDrawColor
+                strokeWidth = currentDrawSize
+                style = android.graphics.Paint.Style.STROKE
+                alpha = (currentDrawOpacity * 255).toInt()
+                isAntiAlias = true
+            }
+
+            val centerX = (startX + endX) / 2
+            val centerY = (startY + endY) / 2
+            val radius = kotlin.math.sqrt(
+                kotlin.math.pow(endX - startX, 2.0) + kotlin.math.pow(endY - startY, 2.0)
+            ).toFloat() / 2
+
+            canvas.drawCircle(centerX, centerY, radius, paint)
+            
+            canvasImageView.setImageBitmap(bitmap)
+            canvasImageView.invalidate()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error drawing circle: ${e.message}")
+        }
+    }
+
+    // Step 5: Draw square using single-finger dragging (MS Paint style)
+    private fun drawSquare(startX: Float, startY: Float, endX: Float, endY: Float) {
+        try {
+            val bitmap = (canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                ?: return
+
+            val canvas = android.graphics.Canvas(bitmap)
+            val paint = android.graphics.Paint().apply {
+                color = currentDrawColor
+                strokeWidth = currentDrawSize
+                style = android.graphics.Paint.Style.STROKE
+                alpha = (currentDrawOpacity * 255).toInt()
+                isAntiAlias = true
+            }
+
+            val left = kotlin.math.min(startX, endX)
+            val top = kotlin.math.min(startY, endY)
+            val right = kotlin.math.max(startX, endX)
+            val bottom = kotlin.math.max(startY, endY)
+            val size = kotlin.math.min(right - left, bottom - top)
+            
+            // Make it a square by using the smaller dimension
+            val adjustedRight = left + size
+            val adjustedBottom = top + size
+
+            canvas.drawRect(left, top, adjustedRight, adjustedBottom, paint)
+            
+            canvasImageView.setImageBitmap(bitmap)
+            canvasImageView.invalidate()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error drawing square: ${e.message}")
+        }
+    }
+
+    // Helper method to invalidate canvas for preview updates
+    private fun invalidateCanvas() {
+        canvasImageView.invalidate()
     }
 
     // Step 1 & 2: Implement sharing functionality
