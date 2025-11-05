@@ -167,8 +167,8 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
         private fun drawOverlay(canvas: Canvas) {
             // Create overlay excluding the crop rectangle area
             val path = Path()
-            path.addRect(0f, 0f, width.toFloat(), height.toFloat())
-            path.addRect(cropRect)
+            path.addRect(0f, 0f, width.toFloat(), height.toFloat(), Path.Direction.CW)
+            path.addRect(cropRect, Path.Direction.CCW)
             
             canvas.drawPath(path, overlayPaint)
         }
