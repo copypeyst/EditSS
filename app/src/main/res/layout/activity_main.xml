@@ -471,6 +471,7 @@
                 android:layout_marginStart="8dp">
 
                 <ImageView
+                    android:id="@+id/warning_icon"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@drawable/warningicon"
