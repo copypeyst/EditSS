@@ -42,6 +42,10 @@ import coil.memory.MemoryCache
 import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
+import kotlin.math.pow
+import kotlin.math.sqrt
+import kotlin.math.min
+import kotlin.math.max
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
