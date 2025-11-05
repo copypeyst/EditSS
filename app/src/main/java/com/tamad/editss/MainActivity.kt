@@ -670,7 +670,9 @@ class MainActivity : AppCompatActivity() {
     // Step 8: Helper method to determine image origin
     private fun determineImageOrigin(uri: Uri): ImageOrigin {
         return when {
-            // Check if this is a FileProvider URI from our app
+            // Check if this is a camera temp file (temporary cache file)
+            uri.path?.contains("camera_temp_") == true -> ImageOrigin.CAMERA_CAPTURED
+            // Check if this is a FileProvider URI from our app (but not camera temp)
             uri.authority == "${packageName}.fileprovider" -> ImageOrigin.EDITED_INTERNAL
             uri.toString().contains("media") && !uri.toString().contains("persisted") -> {
                 // Imported via MediaStore, may or may not be writable depending on permission
