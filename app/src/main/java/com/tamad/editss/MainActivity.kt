@@ -42,10 +42,6 @@ import coil.memory.MemoryCache
 import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
-import kotlin.math.pow
-import kotlin.math.sqrt
-import kotlin.math.min
-import kotlin.math.max
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -72,7 +68,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var rootLayout: FrameLayout
-    private lateinit var canvasImageView: ImageView
+    private lateinit var drawingView: DrawingView
+
+    private var sharedPaintColor: Int = android.graphics.Color.RED
+    private var sharedPaintSize: Float = 12f
+    private var sharedPaintOpacity: Int = 255
     private lateinit var savePanel: View
     private lateinit var toolOptionsLayout: LinearLayout
     private lateinit var drawOptionsLayout: LinearLayout
@@ -80,6 +80,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adjustOptionsLayout: LinearLayout
     private lateinit var scrim: View
     private lateinit var transparencyWarningText: TextView
+
+    private lateinit var cropView: CropView
+    private lateinit var adjustView: AdjustView
 
     private var currentActiveTool: ImageView? = null
     private var currentDrawMode: ImageView? = null
@@ -94,17 +97,6 @@ class MainActivity : AppCompatActivity() {
     
     // Track if current image has transparency
     private var currentImageHasTransparency = false
-    
-    // Step 3: Drawing tools - Global shared settings across Pen/Circle/Square
-    private var currentDrawColor: Int = android.graphics.Color.RED
-    private var currentDrawSize: Float = 10f
-    private var currentDrawOpacity: Float = 1.0f
-    
-    // Step 4 & 5: Drawing state tracking
-    private var isDrawingMode = false
-    private var currentDrawStartPoint: android.graphics.PointF? = null
-    private var currentDrawCurrentPoint: android.graphics.PointF? = null
-    private var currentDrawTool: String = "pen" // "pen", "circle", "square"
     
     // Step 13: Store camera capture URI temporarily
     private var currentCameraUri: Uri? = null
@@ -151,7 +143,7 @@ class MainActivity : AppCompatActivity() {
         if (result.resultCode == RESULT_OK) {
             val cameraUri = currentCameraUri
             if (cameraUri != null) {
-                canvasImageView.post {
+                drawingView.post {
                     try {
                         loadImageFromUri(cameraUri, false)
                     } catch (e: Exception) {
@@ -203,11 +195,12 @@ class MainActivity : AppCompatActivity() {
 
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
-        canvasImageView = findViewById(R.id.canvas)
+        drawingView = findViewById(R.id.drawing_view)
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val buttonImport: ImageView = findViewById(R.id.button_import)
         val buttonCamera: ImageView = findViewById(R.id.button_camera)
         val buttonShare: ImageView = findViewById(R.id.button_share)
+        val buttonCrop: ImageView = findViewById(R.id.button_crop)
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
@@ -219,6 +212,9 @@ class MainActivity : AppCompatActivity() {
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         scrim = findViewById(R.id.scrim)
         transparencyWarningText = findViewById(R.id.transparency_warning_text)
+
+        cropView = findViewById(R.id.crop_view)
+        adjustView = findViewById(R.id.adjust_view)
 
         // Save Panel Logic
         buttonSave.setOnClickListener {
@@ -255,6 +251,32 @@ class MainActivity : AppCompatActivity() {
             shareCurrentImage()
         }
 
+        // Crop Button Logic
+        buttonCrop.setOnClickListener {
+            val currentBitmap = (drawingView.getImageView().drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+            if (currentBitmap == null) {
+                Toast.makeText(this, getString(R.string.no_image_to_crop), Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val cropRect = cropView.getCroppedRect()
+            if (cropRect.width() <= 0 || cropRect.height() <= 0) {
+                Toast.makeText(this, getString(R.string.invalid_crop_selection), Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val croppedBitmap = Bitmap.createBitmap(
+                currentBitmap,
+                cropRect.left.toInt(),
+                cropRect.top.toInt(),
+                cropRect.width().toInt(),
+                cropRect.height().toInt()
+            )
+            drawingView.getImageView().setImageBitmap(croppedBitmap)
+            cropView.getImageView().setImageBitmap(croppedBitmap)
+            Toast.makeText(this, getString(R.string.image_cropped), Toast.LENGTH_SHORT).show()
+        }
+
         // Tool Buttons Logic
         toolDraw.setOnClickListener {
             drawOptionsLayout.visibility = View.VISIBLE
@@ -264,6 +286,9 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
+            drawingView.visibility = View.VISIBLE
+            cropView.visibility = View.GONE
+            adjustView.visibility = View.GONE
         }
 
         toolCrop.setOnClickListener {
@@ -274,6 +299,9 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
+            drawingView.visibility = View.GONE
+            cropView.visibility = View.VISIBLE
+            adjustView.visibility = View.GONE
         }
 
         toolAdjust.setOnClickListener {
@@ -284,6 +312,9 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
+            drawingView.visibility = View.GONE
+            cropView.visibility = View.GONE
+            adjustView.visibility = View.VISIBLE
         }
 
         // Initialize Save Panel buttons
@@ -337,51 +368,29 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Initialize Draw Options
-        val drawSizeSlider: SeekBar = findViewById(R.id.draw_size_slider)
-        val drawOpacitySlider: SeekBar = findViewById(R.id.draw_opacity_slider)
+        findViewById<SeekBar>(R.id.draw_size_slider)
+        findViewById<SeekBar>(R.id.draw_opacity_slider)
         val drawModePen: ImageView = findViewById(R.id.draw_mode_pen)
         val drawModeCircle: ImageView = findViewById(R.id.draw_mode_circle)
         val drawModeSquare: ImageView = findViewById(R.id.draw_mode_square)
 
-        // Step 3: Set up shared settings listeners for size and opacity
-        drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    currentDrawSize = (progress + 1).toFloat() // 1-100 range
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    currentDrawOpacity = progress / 100f // 0.0-1.0 range
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        // Step 4 & 5: Tool selection and touch handling
         drawModePen.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModePen.isSelected = true
             currentDrawMode = drawModePen
-            currentDrawTool = "pen"
+            drawingView.setDrawMode(DrawMode.PEN)
         }
         drawModeCircle.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModeCircle.isSelected = true
             currentDrawMode = drawModeCircle
-            currentDrawTool = "circle"
+            drawingView.setDrawMode(DrawMode.CIRCLE)
         }
         drawModeSquare.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModeSquare.isSelected = true
             currentDrawMode = drawModeSquare
-            currentDrawTool = "square"
+            drawingView.setDrawMode(DrawMode.SQUARE)
         }
 
         // Initialize Crop Options
@@ -394,27 +403,52 @@ class MainActivity : AppCompatActivity() {
             currentCropMode?.isSelected = false
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
+            cropView.setCropMode(CropMode.FREEFORM)
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
+            cropView.setCropMode(CropMode.SQUARE)
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
+            cropView.setCropMode(CropMode.PORTRAIT)
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
+            cropView.setCropMode(CropMode.LANDSCAPE)
         }
 
         // Initialize Adjust Options (no logic yet)
-        findViewById<SeekBar>(R.id.adjust_brightness_slider)
-        findViewById<SeekBar>(R.id.adjust_contrast_slider)
-        findViewById<SeekBar>(R.id.adjust_saturation_slider)
+        findViewById<SeekBar>(R.id.adjust_brightness_slider).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                // Brightness: -100 to 100, map to -1.0 to 1.0
+                adjustView.setBrightness((progress - 100) / 100f)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        findViewById<SeekBar>(R.id.adjust_contrast_slider).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                // Contrast: 0 to 200, map to 0.0 to 2.0
+                adjustView.setContrast(progress / 100f)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        findViewById<SeekBar>(R.id.adjust_saturation_slider).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                // Saturation: 0 to 200, map to 0.0 to 2.0
+                adjustView.setSaturation(progress / 100f)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
         // Color Swatches Logic
         val colorBlackContainer: FrameLayout = findViewById(R.id.color_black_container)
@@ -431,9 +465,8 @@ class MainActivity : AppCompatActivity() {
             val border = v.findViewWithTag<View>("border")
             border?.visibility = View.VISIBLE
             currentSelectedColor = v as FrameLayout
-            
-            // Step 3: Update current draw color based on selection
-            currentDrawColor = when (v.id) {
+
+            sharedPaintColor = when (v.id) {
                 R.id.color_black_container -> android.graphics.Color.BLACK
                 R.id.color_white_container -> android.graphics.Color.WHITE
                 R.id.color_red_container -> android.graphics.Color.RED
@@ -444,6 +477,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.color_pink_container -> android.graphics.Color.parseColor("#FFC0CB")
                 else -> android.graphics.Color.RED
             }
+            drawingView.setPaintColor(sharedPaintColor)
         }
 
         colorBlackContainer.setOnClickListener(colorClickListener)
@@ -454,6 +488,26 @@ class MainActivity : AppCompatActivity() {
         colorYellowContainer.setOnClickListener(colorClickListener)
         colorOrangeContainer.setOnClickListener(colorClickListener)
         colorPinkContainer.setOnClickListener(colorClickListener)
+
+        findViewById<SeekBar>(R.id.draw_size_slider).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                sharedPaintSize = progress.toFloat()
+                drawingView.setPaintSize(sharedPaintSize)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        findViewById<SeekBar>(R.id.draw_opacity_slider).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                sharedPaintOpacity = progress
+                drawingView.setPaintOpacity(sharedPaintOpacity)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
         // Set default selections
         drawModePen.isSelected = true
@@ -503,206 +557,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         // --- END: ADDED FOR OVERWRITE FIX ---
-        
-        // Initialize canvas touch handling for drawing
-        setupCanvasTouchHandling()
-    }
-
-    // Step 4: Set up canvas touch handling for drawing
-    private fun setupCanvasTouchHandling() {
-        canvasImageView.setOnTouchListener { view, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    // Only start drawing if we're in draw tool mode
-                    if (currentActiveTool == findViewById<ImageView>(R.id.tool_draw)) {
-                        isDrawingMode = true
-                        val x = event.x
-                        val y = event.y
-                        currentDrawStartPoint = android.graphics.PointF(x, y)
-                        currentDrawCurrentPoint = android.graphics.PointF(x, y)
-                        
-                        // For pen tool, start drawing immediately
-                        if (currentDrawTool == "pen") {
-                            drawOnCanvas(x, y, x, y, true)
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (isDrawingMode && currentActiveTool == findViewById<ImageView>(R.id.tool_draw)) {
-                        val x = event.x
-                        val y = event.y
-                        currentDrawCurrentPoint = android.graphics.PointF(x, y)
-                        
-                        when (currentDrawTool) {
-                            "pen" -> {
-                                // Draw line from previous point to current point
-                                val startPoint = currentDrawStartPoint ?: return@setOnTouchListener true
-                                drawOnCanvas(startPoint.x, startPoint.y, x, y, false)
-                                currentDrawStartPoint = android.graphics.PointF(x, y)
-                            }
-                            "circle", "square" -> {
-                                // Update preview for shape tools
-                                invalidateCanvas()
-                            }
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (isDrawingMode && currentActiveTool == findViewById<ImageView>(R.id.tool_draw)) {
-                        val x = event.x
-                        val y = event.y
-                        val startPoint = currentDrawStartPoint ?: return@setOnTouchListener true
-                        
-                        when (currentDrawTool) {
-                            "circle" -> {
-                                drawCircle(startPoint.x, startPoint.y, x, y)
-                            }
-                            "square" -> {
-                                drawSquare(startPoint.x, startPoint.y, x, y)
-                            }
-                        }
-                        
-                        // Reset drawing state
-                        isDrawingMode = false
-                        currentDrawStartPoint = null
-                        currentDrawCurrentPoint = null
-                        true
-                    } else {
-                        false
-                    }
-                }
-                else -> false
-            }
-        }
-    }
-
-    // Step 4: Draw on canvas using Android's native Paint API
-    private fun drawOnCanvas(startX: Float, startY: Float, endX: Float, endY: Float, isStart: Boolean) {
-        try {
-            // Get the original bitmap
-            val drawable = canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable ?: return
-            val originalBitmap = drawable.bitmap ?: return
-            
-            // Create a mutable copy of the bitmap
-            val mutableBitmap = originalBitmap.copy(originalBitmap.config, true)
-            val canvas = android.graphics.Canvas(mutableBitmap)
-            
-            val paint = android.graphics.Paint().apply {
-                color = currentDrawColor
-                strokeWidth = currentDrawSize
-                style = android.graphics.Paint.Style.STROKE
-                alpha = (currentDrawOpacity * 255).toInt()
-                isAntiAlias = true
-                strokeJoin = android.graphics.Paint.Join.ROUND
-                strokeCap = android.graphics.Paint.Cap.ROUND
-            }
-
-            canvas.drawLine(startX, startY, endX, endY, paint)
-            
-            // Update the ImageView to show the modified bitmap
-            canvasImageView.setImageBitmap(mutableBitmap)
-            canvasImageView.invalidate()
-            
-            // Update currentImageInfo to reflect the modified image
-            if (currentImageInfo != null) {
-                currentImageInfo = currentImageInfo!!.copy(origin = ImageOrigin.EDITED_INTERNAL)
-            }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error drawing on canvas: ${e.message}")
-        }
-    }
-
-    // Step 5: Draw circle using single-finger dragging (MS Paint style)
-    private fun drawCircle(startX: Float, startY: Float, endX: Float, endY: Float) {
-        try {
-            // Get the original bitmap
-            val drawable = canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable ?: return
-            val originalBitmap = drawable.bitmap ?: return
-            
-            // Create a mutable copy of the bitmap
-            val mutableBitmap = originalBitmap.copy(originalBitmap.config, true)
-            val canvas = android.graphics.Canvas(mutableBitmap)
-            
-            val paint = android.graphics.Paint().apply {
-                color = currentDrawColor
-                strokeWidth = currentDrawSize
-                style = android.graphics.Paint.Style.STROKE
-                alpha = (currentDrawOpacity * 255).toInt()
-                isAntiAlias = true
-            }
-
-            val centerX = (startX + endX) / 2
-            val centerY = (startY + endY) / 2
-            val radius = kotlin.math.sqrt(
-                (endX - startX) * (endX - startX) + (endY - startY) * (endY - startY)
-            ).toFloat() / 2
-
-            canvas.drawCircle(centerX, centerY, radius, paint)
-            
-            canvasImageView.setImageBitmap(mutableBitmap)
-            canvasImageView.invalidate()
-            
-            // Update currentImageInfo to reflect the modified image
-            if (currentImageInfo != null) {
-                currentImageInfo = currentImageInfo!!.copy(origin = ImageOrigin.EDITED_INTERNAL)
-            }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error drawing circle: ${e.message}")
-        }
-    }
-
-    // Step 5: Draw square using single-finger dragging (MS Paint style)
-    private fun drawSquare(startX: Float, startY: Float, endX: Float, endY: Float) {
-        try {
-            // Get the original bitmap
-            val drawable = canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable ?: return
-            val originalBitmap = drawable.bitmap ?: return
-            
-            // Create a mutable copy of the bitmap
-            val mutableBitmap = originalBitmap.copy(originalBitmap.config, true)
-            val canvas = android.graphics.Canvas(mutableBitmap)
-            
-            val paint = android.graphics.Paint().apply {
-                color = currentDrawColor
-                strokeWidth = currentDrawSize
-                style = android.graphics.Paint.Style.STROKE
-                alpha = (currentDrawOpacity * 255).toInt()
-                isAntiAlias = true
-            }
-
-            val left = kotlin.math.min(startX, endX)
-            val top = kotlin.math.min(startY, endY)
-            val right = kotlin.math.max(startX, endX)
-            val bottom = kotlin.math.max(startY, endY)
-            val size = kotlin.math.min(right - left, bottom - top)
-            
-            // Make it a square by using the smaller dimension
-            val adjustedRight = left + size
-            val adjustedBottom = top + size
-
-            canvas.drawRect(left, top, adjustedRight, adjustedBottom, paint)
-            
-            canvasImageView.setImageBitmap(mutableBitmap)
-            canvasImageView.invalidate()
-            
-            // Update currentImageInfo to reflect the modified image
-            if (currentImageInfo != null) {
-                currentImageInfo = currentImageInfo!!.copy(origin = ImageOrigin.EDITED_INTERNAL)
-            }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error drawing square: ${e.message}")
-        }
-    }
-
-    // Helper method to invalidate canvas for preview updates
-    private fun invalidateCanvas() {
-        canvasImageView.invalidate()
     }
 
     // Step 1 & 2: Implement sharing functionality
@@ -927,9 +781,15 @@ class MainActivity : AppCompatActivity() {
                             currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
                             
                             // Display the loaded image
-                            canvasImageView.setImageDrawable(drawable)
-                            canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
-                            canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            drawingView.getImageView().setImageDrawable(drawable)
+                            drawingView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
+                            drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            cropView.getImageView().setImageDrawable(drawable)
+                            cropView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
+                            cropView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            adjustView.getImageView().setImageDrawable(drawable)
+                            adjustView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
+                            adjustView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                             
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
                             
@@ -941,7 +801,7 @@ class MainActivity : AppCompatActivity() {
                             
                             // Detect transparency for warning system (simplified approach)
                             try {
-                                val loadedDrawable = canvasImageView.drawable
+                                val loadedDrawable = drawingView.getImageView().drawable
                                 if (loadedDrawable != null && loadedDrawable.intrinsicWidth > 0 && loadedDrawable.intrinsicHeight > 0) {
                                     currentImageHasTransparency = detectImageTransparencyFromDrawable(loadedDrawable)
                                     updateTransparencyWarning()
@@ -991,8 +851,8 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             try {
                 // Clear canvas on failed load
-                canvasImageView.setImageBitmap(null)
-                canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                drawingView.getImageView().setImageBitmap(null)
+                drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 Toast.makeText(this, getString(R.string.could_not_load_image, errorMessage), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message}")
