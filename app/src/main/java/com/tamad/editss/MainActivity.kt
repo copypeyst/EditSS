@@ -228,6 +228,12 @@ class MainActivity : AppCompatActivity() {
         drawingView = findViewById(R.id.drawing_view)
         drawingView.setupDrawingState(editViewModel)
 
+        // Initialize sliders with default values (25% size, 100% opacity)
+        val defaultSize = 25 // 25% of slider range
+        val defaultOpacity = 100 // 100% of slider range
+        drawSizeSlider.progress = defaultSize
+        drawOpacitySlider.progress = defaultOpacity
+
         // Save Panel Logic
         buttonSave.setOnClickListener {
             if (savePanel.visibility == View.VISIBLE) {

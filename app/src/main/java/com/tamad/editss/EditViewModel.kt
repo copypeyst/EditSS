@@ -14,8 +14,8 @@ sealed class EditAction {
 // Shared drawing state for Draw, Circle, and Square tools only
 data class DrawingState(
     val color: Int = android.graphics.Color.BLACK,
-    val size: Float = 10f,
-    val opacity: Int = 255
+    val size: Float = 26f, // Default to position 25 on slider (matches (25 + 1))
+    val opacity: Int = 252 // Default to position 100 on slider (matches ((100 - 1) * 2.55))
 )
 
 class EditViewModel : ViewModel() {
