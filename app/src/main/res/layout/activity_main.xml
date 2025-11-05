@@ -419,7 +419,7 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/save_panel"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
+        android:layout_height="205dp"
         android:background="@drawable/rounded_background"
         android:padding="16dp"
         android:visibility="gone"
