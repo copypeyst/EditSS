@@ -841,8 +841,8 @@ class MainActivity : AppCompatActivity() {
                 if (bitmapToSave != null) {
                     // MODIFIED: Generate a user-friendly, unique copy name
                     val originalDisplayName = if (imageInfo.origin == ImageOrigin.CAMERA_CAPTURED) {
-                        // For camera images, use proper naming format like IMG_20241105_130359.jpg
-                        generateCameraDisplayName()
+                        // For camera images, use proper naming format like IMG_20241105_130359.jpg (no "- Copy" suffix)
+                        generateUniqueCameraName()
                     } else {
                         getDisplayNameFromUri(imageInfo.uri) ?: "Image"
                     }
@@ -1002,6 +1002,25 @@ class MainActivity : AppCompatActivity() {
             else -> ".jpg"
         }
         return "IMG_${timestamp}$extension"
+    }
+    
+    // NEW: Generate unique camera name without "- Copy" suffixes for camera captures
+    private fun generateUniqueCameraName(): String {
+        val baseName = generateCameraDisplayName()
+        val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
+        
+        // Check if the base name already exists
+        var file = File(picturesDirectory, baseName)
+        if (!file.exists()) {
+            return baseName
+        }
+        
+        // If it exists, append timestamp to make it unique (camera originals shouldn't have - Copy)
+        val uniqueSuffix = SimpleDateFormat("_yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val extension = baseName.substringAfterLast('.')
+        val nameWithoutExt = baseName.substringBeforeLast('.')
+        
+        return "${nameWithoutExt}${uniqueSuffix}.${extension}"
     }
     
     // Step 24 & 25: Update transparency warning based on actual image content
