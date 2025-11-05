@@ -109,6 +109,15 @@ class MainActivity : AppCompatActivity() {
     private var pendingOverwriteUri: Uri? = null
     // --- END: ADDED FOR OVERWRITE FIX ---
 
+    // Drawing tools ViewModel for shared state
+    private lateinit var editViewModel: EditViewModel
+    
+    // Drawing-related UI elements
+    private lateinit var drawingView: DrawingView
+    private lateinit var drawSizeSlider: SeekBar
+    private lateinit var drawOpacitySlider: SeekBar
+    // --- END: ADDED FOR OVERWRITE FIX ---
+
     private val importImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             val uri = result.data?.data
@@ -186,6 +195,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Initialize ViewModel for shared drawing state
+        editViewModel = EditViewModel()
+
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
         canvasImageView = findViewById(R.id.canvas)
@@ -199,11 +211,21 @@ class MainActivity : AppCompatActivity() {
 
         savePanel = findViewById(R.id.save_panel)
         toolOptionsLayout = findViewById(R.id.tool_options)
+        scrim = findViewById(R.id.scrim)
+        transparencyWarningText = findViewById(R.id.transparency_warning_text)
+
+        // Initialize drawing controls
+        drawSizeSlider = findViewById(R.id.draw_size_slider)
+        drawOpacitySlider = findViewById(R.id.draw_opacity_slider)
         drawOptionsLayout = findViewById(R.id.draw_options)
         cropOptionsLayout = findViewById(R.id.crop_options)
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         scrim = findViewById(R.id.scrim)
         transparencyWarningText = findViewById(R.id.transparency_warning_text)
+        
+        // Initialize DrawingView and connect to ViewModel
+        drawingView = findViewById(R.id.drawing_view)
+        drawingView.setupDrawingState(editViewModel)
 
         // Save Panel Logic
         buttonSave.setOnClickListener {
@@ -322,8 +344,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Initialize Draw Options
-        findViewById<SeekBar>(R.id.draw_size_slider)
-        findViewById<SeekBar>(R.id.draw_opacity_slider)
         val drawModePen: ImageView = findViewById(R.id.draw_mode_pen)
         val drawModeCircle: ImageView = findViewById(R.id.draw_mode_circle)
         val drawModeSquare: ImageView = findViewById(R.id.draw_mode_square)
@@ -343,6 +363,29 @@ class MainActivity : AppCompatActivity() {
             drawModeSquare.isSelected = true
             currentDrawMode = drawModeSquare
         }
+        
+        // Initialize slider listeners for shared drawing state
+        drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    val size = progress + 1 // Convert to 1-101 range
+                    editViewModel.updateDrawingSize(size)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        
+        drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    val opacity = progress + 1 // Convert to 1-101 range
+                    editViewModel.updateDrawingOpacity(opacity)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
         // Initialize Crop Options
         val cropModeFreeform: ImageView = findViewById(R.id.crop_mode_freeform)
@@ -391,6 +434,21 @@ class MainActivity : AppCompatActivity() {
             val border = v.findViewWithTag<View>("border")
             border?.visibility = View.VISIBLE
             currentSelectedColor = v as FrameLayout
+            
+            // Update shared drawing state in ViewModel
+            val selectedColor = when (v.id) {
+                R.id.color_black_container -> android.graphics.Color.BLACK
+                R.id.color_white_container -> android.graphics.Color.WHITE
+                R.id.color_red_container -> android.graphics.Color.RED
+                R.id.color_green_container -> android.graphics.Color.GREEN
+                R.id.color_blue_container -> android.graphics.Color.BLUE
+                R.id.color_yellow_container -> android.graphics.Color.YELLOW
+                R.id.color_orange_container -> android.graphics.Color.rgb(255, 165, 0) // Orange
+                R.id.color_pink_container -> android.graphics.Color.rgb(255, 192, 203) // Pink
+                else -> android.graphics.Color.RED // Default fallback
+            }
+            
+            editViewModel.updateDrawingColor(selectedColor)
         }
 
         colorBlackContainer.setOnClickListener(colorClickListener)
