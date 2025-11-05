@@ -32,7 +32,14 @@ class AdjustView @JvmOverloads constructor(
     private var isAdjusting = false
     private var editViewModel: EditViewModel? = null
     private var lifecycleScope: CoroutineScope? = null
-    
+
+    init {
+        paint.isAntiAlias = true
+        paint.style = Paint.Style.FILL
+        adjustBitmap.isAntiAlias = true
+        adjustBitmap.isFilterBitmap = true
+    }
+
     fun setupAdjustState(viewModel: EditViewModel) {
         this.editViewModel = viewModel
         // The lifecycle scope will be set when the view is attached
@@ -40,7 +47,7 @@ class AdjustView @JvmOverloads constructor(
             observeAdjustState()
         }
     }
-    
+
     private fun observeAdjustState() {
         editViewModel?.let { viewModel ->
             lifecycleScope?.launch {
@@ -52,7 +59,7 @@ class AdjustView @JvmOverloads constructor(
             }
         }
     }
-    
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         // Get lifecycle scope from activity
@@ -60,77 +67,10 @@ class AdjustView @JvmOverloads constructor(
         lifecycleScope = activity?.lifecycleScope
         observeAdjustState()
     }
-    
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         lifecycleScope = null
-    }
-    
-    private fun applyAdjustments() {
-        val bitmap = adjustedBitmap ?: return
-
-        // Create a new bitmap for adjustments to preserve original
-        val adjusted = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(adjusted)
-        val imagePaint = Paint()
-
-        // Apply ColorFilter for combined adjustments
-        imagePaint.colorFilter = createColorFilter(
-            currentSettings.brightness,
-            currentSettings.contrast,
-            currentSettings.saturation
-        )
-
-        // Apply adjustments
-        canvas.drawBitmap(bitmap, 0f, 0f, imagePaint)
-
-        adjustedBitmap = adjusted
-    }
-    
-    private fun createColorFilter(brightness: Float, contrast: Float, saturation: Float): ColorFilter {
-        return when {
-            brightness != 0f || contrast != 0f -> {
-                // Use ColorMatrix for brightness and contrast
-                val matrix = ColorMatrix()
-                
-                // Brightness adjustment - use postTranslate instead of set
-                val brightnessScale = brightness / 100f
-                if (brightnessScale != 0f) {
-                    val brightnessMatrix = ColorMatrix()
-                    brightnessMatrix.postTranslate(
-                        255f * brightnessScale,
-                        255f * brightnessScale,
-                        255f * brightnessScale,
-                        0f
-                    )
-                    matrix.postConcat(brightnessMatrix)
-                }
-                
-                // Contrast adjustment - use postConcat with scale matrix
-                val contrastScale = (contrast / 100f) + 1f
-                if (contrastScale != 1f) {
-                    val contrastMatrix = ColorMatrix()
-                    contrastMatrix.setScale(contrastScale, contrastScale, contrastScale, 1f)
-                    matrix.postConcat(contrastMatrix)
-                }
-                
-                ColorMatrixColorFilter(matrix)
-            }
-            saturation != 0f -> {
-                // Use PorterDuffColorFilter for saturation
-                val colorMatrix = ColorMatrix()
-                colorMatrix.setSaturation(saturation / 100f + 1f)
-                ColorMatrixColorFilter(colorMatrix)
-            }
-            else -> null
-        } ?: NoOpColorFilter()
-    }
-
-    init {
-        paint.isAntiAlias = true
-        paint.style = Paint.Style.FILL
-        adjustBitmap.isAntiAlias = true
-        adjustBitmap.isFilterBitmap = true
     }
 
     fun setOriginalImage(bitmap: Bitmap) {
@@ -170,7 +110,8 @@ class AdjustView @JvmOverloads constructor(
         val bitmap = adjustedBitmap ?: return
 
         // Create a new bitmap for adjustments to preserve original
-        val adjusted = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, true)
+        val config = bitmap.config ?: Bitmap.Config.ARGB_8888
+        val adjusted = bitmap.copy(config, true)
         val canvas = Canvas(adjusted)
         val imagePaint = Paint()
 
@@ -186,44 +127,29 @@ class AdjustView @JvmOverloads constructor(
 
         adjustedBitmap = adjusted
     }
-    
+
     private fun createColorFilter(brightness: Float, contrast: Float, saturation: Float): ColorFilter {
-        return when {
-            brightness != 0f || contrast != 0f -> {
-                // Use ColorMatrix for brightness and contrast
-                val matrix = ColorMatrix()
-                
-                // Brightness adjustment - use postTranslate instead of set
-                val brightnessScale = brightness / 100f
-                if (brightnessScale != 0f) {
-                    val brightnessMatrix = ColorMatrix()
-                    brightnessMatrix.postTranslate(
-                        255f * brightnessScale,
-                        255f * brightnessScale,
-                        255f * brightnessScale,
-                        0f
-                    )
-                    matrix.postConcat(brightnessMatrix)
-                }
-                
-                // Contrast adjustment - use postConcat with scale matrix
-                val contrastScale = (contrast / 100f) + 1f
-                if (contrastScale != 1f) {
-                    val contrastMatrix = ColorMatrix()
-                    contrastMatrix.setScale(contrastScale, contrastScale, contrastScale, 1f)
-                    matrix.postConcat(contrastMatrix)
-                }
-                
-                ColorMatrixColorFilter(matrix)
-            }
-            saturation != 0f -> {
-                // Use PorterDuffColorFilter for saturation
-                val colorMatrix = ColorMatrix()
-                colorMatrix.setSaturation(saturation / 100f + 1f)
-                ColorMatrixColorFilter(colorMatrix)
-            }
-            else -> null
-        } ?: NoOpColorFilter()
+        val matrix = ColorMatrix()
+        
+        // Apply contrast adjustment
+        val contrastScale = (contrast / 100f) + 1f
+        if (contrastScale != 1f) {
+            matrix.postScale(contrastScale, contrastScale, contrastScale, 1f)
+        }
+        
+        // Apply brightness adjustment using translate
+        val brightnessOffset = brightness * 2.55f // Convert to 0-255 range
+        if (brightnessOffset != 0f) {
+            matrix.postTranslate(brightnessOffset, brightnessOffset, brightnessOffset, 0f)
+        }
+        
+        // Apply saturation adjustment
+        if (saturation != 0f) {
+            val saturationScale = saturation / 100f + 1f
+            matrix.postSaturation(saturationScale)
+        }
+        
+        return ColorMatrixColorFilter(matrix)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -244,7 +170,4 @@ class AdjustView @JvmOverloads constructor(
         super.setImageURI(uri)
         // This will be handled when the bitmap is set
     }
-
-    // Helper class for no-op color filter
-    private class NoOpColorFilter : ColorFilter()
 }
