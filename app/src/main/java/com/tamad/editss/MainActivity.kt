@@ -40,6 +40,8 @@ import coil.request.ImageRequest
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import java.util.regex.Pattern
+import java.text.SimpleDateFormat
+import java.util.Date
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
