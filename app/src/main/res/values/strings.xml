@@ -71,5 +71,6 @@
     <string name="image_cropped">Image cropped</string>
     <string name="no_image_to_crop">No image to crop</string>
     <string name="invalid_crop_selection">Invalid crop selection</string>
+    <string name="share_failed">Share failed: %1$s</string>
 
 </resources>
