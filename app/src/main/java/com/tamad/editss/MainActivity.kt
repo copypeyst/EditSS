@@ -800,8 +800,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Show overwrite ONLY if it's allowed AND the save format is the same as the original
-        val shouldShowOverwrite = info.canOverwrite && selectedSaveFormat == info.originalMimeType
+        // Show overwrite ONLY if:
+        // 1. It's not a camera-captured image (camera images are temporary cache files)
+        // 2. It's allowed (canOverwrite)
+        // 3. The save format matches the original format
+        val shouldShowOverwrite = info.origin != ImageOrigin.CAMERA_CAPTURED &&
+                                  info.canOverwrite &&
+                                  selectedSaveFormat == info.originalMimeType
         if (shouldShowOverwrite) {
             buttonOverwrite.visibility = View.VISIBLE
             warningIcon.visibility = View.VISIBLE
