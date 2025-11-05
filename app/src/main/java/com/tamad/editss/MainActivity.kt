@@ -431,6 +431,19 @@ class MainActivity : AppCompatActivity() {
             val border = v.findViewWithTag<View>("border")
             border?.visibility = View.VISIBLE
             currentSelectedColor = v as FrameLayout
+            
+            // Step 3: Update current draw color based on selection
+            currentDrawColor = when (v.id) {
+                R.id.color_black_container -> android.graphics.Color.BLACK
+                R.id.color_white_container -> android.graphics.Color.WHITE
+                R.id.color_red_container -> android.graphics.Color.RED
+                R.id.color_green_container -> android.graphics.Color.GREEN
+                R.id.color_blue_container -> android.graphics.Color.BLUE
+                R.id.color_yellow_container -> android.graphics.Color.YELLOW
+                R.id.color_orange_container -> android.graphics.Color.parseColor("#FFA500")
+                R.id.color_pink_container -> android.graphics.Color.parseColor("#FFC0CB")
+                else -> android.graphics.Color.RED
+            }
         }
 
         colorBlackContainer.setOnClickListener(colorClickListener)
@@ -572,10 +585,14 @@ class MainActivity : AppCompatActivity() {
     // Step 4: Draw on canvas using Android's native Paint API
     private fun drawOnCanvas(startX: Float, startY: Float, endX: Float, endY: Float, isStart: Boolean) {
         try {
-            val bitmap = (canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                ?: return
-
-            val canvas = android.graphics.Canvas(bitmap)
+            // Get the original bitmap
+            val drawable = canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable ?: return
+            val originalBitmap = drawable.bitmap ?: return
+            
+            // Create a mutable copy of the bitmap
+            val mutableBitmap = originalBitmap.copy(originalBitmap.config, true)
+            val canvas = android.graphics.Canvas(mutableBitmap)
+            
             val paint = android.graphics.Paint().apply {
                 color = currentDrawColor
                 strokeWidth = currentDrawSize
@@ -589,8 +606,13 @@ class MainActivity : AppCompatActivity() {
             canvas.drawLine(startX, startY, endX, endY, paint)
             
             // Update the ImageView to show the modified bitmap
-            canvasImageView.setImageBitmap(bitmap)
+            canvasImageView.setImageBitmap(mutableBitmap)
             canvasImageView.invalidate()
+            
+            // Update currentImageInfo to reflect the modified image
+            if (currentImageInfo != null) {
+                currentImageInfo = currentImageInfo!!.copy(origin = ImageOrigin.EDITED_INTERNAL)
+            }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error drawing on canvas: ${e.message}")
         }
@@ -599,10 +621,14 @@ class MainActivity : AppCompatActivity() {
     // Step 5: Draw circle using single-finger dragging (MS Paint style)
     private fun drawCircle(startX: Float, startY: Float, endX: Float, endY: Float) {
         try {
-            val bitmap = (canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                ?: return
-
-            val canvas = android.graphics.Canvas(bitmap)
+            // Get the original bitmap
+            val drawable = canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable ?: return
+            val originalBitmap = drawable.bitmap ?: return
+            
+            // Create a mutable copy of the bitmap
+            val mutableBitmap = originalBitmap.copy(originalBitmap.config, true)
+            val canvas = android.graphics.Canvas(mutableBitmap)
+            
             val paint = android.graphics.Paint().apply {
                 color = currentDrawColor
                 strokeWidth = currentDrawSize
@@ -619,8 +645,13 @@ class MainActivity : AppCompatActivity() {
 
             canvas.drawCircle(centerX, centerY, radius, paint)
             
-            canvasImageView.setImageBitmap(bitmap)
+            canvasImageView.setImageBitmap(mutableBitmap)
             canvasImageView.invalidate()
+            
+            // Update currentImageInfo to reflect the modified image
+            if (currentImageInfo != null) {
+                currentImageInfo = currentImageInfo!!.copy(origin = ImageOrigin.EDITED_INTERNAL)
+            }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error drawing circle: ${e.message}")
         }
@@ -629,10 +660,14 @@ class MainActivity : AppCompatActivity() {
     // Step 5: Draw square using single-finger dragging (MS Paint style)
     private fun drawSquare(startX: Float, startY: Float, endX: Float, endY: Float) {
         try {
-            val bitmap = (canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                ?: return
-
-            val canvas = android.graphics.Canvas(bitmap)
+            // Get the original bitmap
+            val drawable = canvasImageView.drawable as? android.graphics.drawable.BitmapDrawable ?: return
+            val originalBitmap = drawable.bitmap ?: return
+            
+            // Create a mutable copy of the bitmap
+            val mutableBitmap = originalBitmap.copy(originalBitmap.config, true)
+            val canvas = android.graphics.Canvas(mutableBitmap)
+            
             val paint = android.graphics.Paint().apply {
                 color = currentDrawColor
                 strokeWidth = currentDrawSize
@@ -653,8 +688,13 @@ class MainActivity : AppCompatActivity() {
 
             canvas.drawRect(left, top, adjustedRight, adjustedBottom, paint)
             
-            canvasImageView.setImageBitmap(bitmap)
+            canvasImageView.setImageBitmap(mutableBitmap)
             canvasImageView.invalidate()
+            
+            // Update currentImageInfo to reflect the modified image
+            if (currentImageInfo != null) {
+                currentImageInfo = currentImageInfo!!.copy(origin = ImageOrigin.EDITED_INTERNAL)
+            }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error drawing square: ${e.message}")
         }
