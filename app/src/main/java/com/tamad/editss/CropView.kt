@@ -1,10 +1,7 @@
 package com.tamad.editss
 
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.RectF
-import android.graphics.Matrix
+import android.graphics.*
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -47,39 +44,59 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
 
         private val paint = Paint()
         private val cornerPaint = Paint()
+        private val edgePaint = Paint()
+        private val gridPaint = Paint()
+        private val overlayPaint = Paint()
+        
         private var cropRect = RectF()
         private var initialCropRect = RectF()
         private var currentCropMode = CropMode.FREEFORM
-        private val matrixValues = FloatArray(9)
-        private var imageMatrix = Matrix()
         
-        // Touch handling
+        // Touch handling - 8 edges + 4 corners + center = 13 handles
         private var isDragging = false
-        private var isResizing = false
-        private var dragHandle = 0 // 0=none, 1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right, 5=center
+        private var dragHandle = 0 // 0=none, 1-4=edges(top,right,bottom,left), 5-8=corners, 9=center
         private var lastX = 0f
         private var lastY = 0f
-        private val handleSize = 30f
+        private val handleSize = 50f
+        private val edgeThickness = 30f
+        private val centerSize = 40f
 
         init {
+            // Main marquee border
             paint.isAntiAlias = true
             paint.style = Paint.Style.STROKE
-            paint.color = android.graphics.Color.WHITE
+            paint.color = Color.WHITE
             paint.strokeWidth = 3f
 
+            // Corner handles
             cornerPaint.isAntiAlias = true
             cornerPaint.style = Paint.Style.FILL
-            cornerPaint.color = android.graphics.Color.WHITE
-            
-            // Don't initialize here - view isn't measured yet
-            // Initialize will happen in onSizeChanged
+            cornerPaint.color = Color.WHITE
+
+            // Edge handles
+            edgePaint.isAntiAlias = true
+            edgePaint.style = Paint.Style.FILL
+            edgePaint.color = Color.WHITE
+            edgePaint.alpha = 180
+
+            // Grid lines
+            gridPaint.isAntiAlias = true
+            gridPaint.style = Paint.Style.STROKE
+            gridPaint.color = Color.WHITE
+            gridPaint.strokeWidth = 1f
+            gridPaint.alpha = 120
+
+            // Semi-transparent overlay outside marquee
+            overlayPaint.isAntiAlias = true
+            overlayPaint.style = Paint.Style.FILL
+            overlayPaint.color = Color.parseColor("#66000000") // Semi-transparent black
         }
         
         private fun initializeCropRectangle() {
             val viewWidth = width.toFloat()
             val viewHeight = height.toFloat()
             
-            // Handle case where view hasn't been measured yet (width/height = 0)
+            // Handle case where view hasn't been measured yet
             val effectiveWidth = if (viewWidth == 0f) 1000f else viewWidth
             val effectiveHeight = if (viewHeight == 0f) 1000f else viewHeight
             
@@ -128,21 +145,94 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             
+            // Draw semi-transparent overlay outside marquee
+            drawOverlay(canvas)
+            
             // Draw the main crop rectangle
             canvas.drawRect(cropRect, paint)
 
-            // Draw corner handles
-            val cornerSize = handleSize / 2
-            canvas.drawRect(cropRect.left - cornerSize, cropRect.top - cornerSize, cropRect.left + cornerSize, cropRect.top + cornerSize, cornerPaint)
-            canvas.drawRect(cropRect.right - cornerSize, cropRect.top - cornerSize, cropRect.right + cornerSize, cropRect.top + cornerSize, cornerPaint)
-            canvas.drawRect(cropRect.left - cornerSize, cropRect.bottom - cornerSize, cropRect.left + cornerSize, cropRect.bottom + cornerSize, cornerPaint)
-            canvas.drawRect(cropRect.right - cornerSize, cropRect.bottom - cornerSize, cropRect.right + cornerSize, cropRect.bottom + cornerSize, cornerPaint)
+            // Draw 3x3 grid lines inside the marquee
+            drawGrid(canvas)
             
-            // Draw center drag indicator
+            // Draw edge handles (top, right, bottom, left)
+            drawEdgeHandles(canvas)
+            
+            // Draw corner handles
+            drawCornerHandles(canvas)
+            
+            // Draw center move handle
+            drawCenterHandle(canvas)
+        }
+        
+        private fun drawOverlay(canvas: Canvas) {
+            // Create overlay excluding the crop rectangle area
+            val path = Path()
+            path.addRect(0f, 0f, width.toFloat(), height.toFloat())
+            path.addRect(cropRect)
+            
+            canvas.drawPath(path, overlayPaint)
+        }
+        
+        private fun drawGrid(canvas: Canvas) {
+            // Vertical grid lines (split marquee into 3 columns)
+            val left = cropRect.left
+            val right = cropRect.right
+            val top = cropRect.top
+            val bottom = cropRect.bottom
+            val width = right - left
+            val height = bottom - top
+            
+            val thirdWidth = width / 3
+            val thirdHeight = height / 3
+            
+            // Vertical lines
+            canvas.drawLine(left + thirdWidth, top, left + thirdWidth, bottom, gridPaint)
+            canvas.drawLine(left + 2 * thirdWidth, top, left + 2 * thirdWidth, bottom, gridPaint)
+            
+            // Horizontal lines
+            canvas.drawLine(left, top + thirdHeight, right, top + thirdHeight, gridPaint)
+            canvas.drawLine(left, top + 2 * thirdHeight, right, top + 2 * thirdHeight, gridPaint)
+        }
+        
+        private fun drawEdgeHandles(canvas: Canvas) {
+            val left = cropRect.left
+            val right = cropRect.right
+            val top = cropRect.top
+            val bottom = cropRect.bottom
+            
+            // Top edge
+            canvas.drawRect(left + handleSize, top - edgeThickness / 2, right - handleSize, top + edgeThickness / 2, edgePaint)
+            // Right edge
+            canvas.drawRect(right - edgeThickness / 2, top + handleSize, right + edgeThickness / 2, bottom - handleSize, edgePaint)
+            // Bottom edge
+            canvas.drawRect(left + handleSize, bottom - edgeThickness / 2, right - handleSize, bottom + edgeThickness / 2, edgePaint)
+            // Left edge
+            canvas.drawRect(left - edgeThickness / 2, top + handleSize, left + edgeThickness / 2, bottom - handleSize, edgePaint)
+        }
+        
+        private fun drawCornerHandles(canvas: Canvas) {
+            val left = cropRect.left
+            val right = cropRect.right
+            val top = cropRect.top
+            val bottom = cropRect.bottom
+            val cornerSize = handleSize / 2
+            
+            // Top-left
+            canvas.drawRect(left - cornerSize, top - cornerSize, left + cornerSize, top + cornerSize, cornerPaint)
+            // Top-right
+            canvas.drawRect(right - cornerSize, top - cornerSize, right + cornerSize, top + cornerSize, cornerPaint)
+            // Bottom-left
+            canvas.drawRect(left - cornerSize, bottom - cornerSize, left + cornerSize, bottom + cornerSize, cornerPaint)
+            // Bottom-right
+            canvas.drawRect(right - cornerSize, bottom - cornerSize, right + cornerSize, bottom + cornerSize, cornerPaint)
+        }
+        
+        private fun drawCenterHandle(canvas: Canvas) {
             val centerX = (cropRect.left + cropRect.right) / 2
             val centerY = (cropRect.top + cropRect.bottom) / 2
-            val centerSize = handleSize / 3
-            canvas.drawRect(centerX - centerSize, centerY - centerSize, centerX + centerSize, centerY + centerSize, cornerPaint)
+            val size = centerSize / 2
+            
+            canvas.drawRect(centerX - size, centerY - size, centerX + size, centerY + size, cornerPaint)
         }
         
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -152,28 +242,58 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
         }
         
         private fun getTouchHandle(x: Float, y: Float): Int {
-            // Check if touch is near corners or center
-            val centerX = (cropRect.left + cropRect.right) / 2
-            val centerY = (cropRect.top + cropRect.bottom) / 2
-            val cornerThreshold = handleSize
+            val left = cropRect.left
+            val right = cropRect.right
+            val top = cropRect.top
+            val bottom = cropRect.bottom
+            val centerX = (left + right) / 2
+            val centerY = (top + bottom) / 2
             
-            // Check corners
-            if (Math.abs(x - cropRect.left) <= cornerThreshold && Math.abs(y - cropRect.top) <= cornerThreshold) {
-                return 1 // top-left
+            val cornerThreshold = handleSize
+            val edgeThreshold = edgeThickness / 2 + handleSize
+            
+            // Check edge handles first (larger areas)
+            // Top edge
+            if (y in (top - edgeThreshold)..(top + edgeThreshold) && 
+                x in (left + cornerThreshold)..(right - cornerThreshold)) {
+                return 1 // top edge
             }
-            if (Math.abs(x - cropRect.right) <= cornerThreshold && Math.abs(y - cropRect.top) <= cornerThreshold) {
-                return 2 // top-right
+            
+            // Right edge
+            if (x in (right - edgeThreshold)..(right + edgeThreshold) && 
+                y in (top + cornerThreshold)..(bottom - cornerThreshold)) {
+                return 2 // right edge
             }
-            if (Math.abs(x - cropRect.left) <= cornerThreshold && Math.abs(y - cropRect.bottom) <= cornerThreshold) {
-                return 3 // bottom-left
+            
+            // Bottom edge
+            if (y in (bottom - edgeThreshold)..(bottom + edgeThreshold) && 
+                x in (left + cornerThreshold)..(right - cornerThreshold)) {
+                return 3 // bottom edge
             }
-            if (Math.abs(x - cropRect.right) <= cornerThreshold && Math.abs(y - cropRect.bottom) <= cornerThreshold) {
-                return 4 // bottom-right
+            
+            // Left edge
+            if (x in (left - edgeThreshold)..(left + edgeThreshold) && 
+                y in (top + cornerThreshold)..(bottom - cornerThreshold)) {
+                return 4 // left edge
+            }
+            
+            // Check corner handles
+            if (Math.abs(x - left) <= cornerThreshold && Math.abs(y - top) <= cornerThreshold) {
+                return 5 // top-left
+            }
+            if (Math.abs(x - right) <= cornerThreshold && Math.abs(y - top) <= cornerThreshold) {
+                return 6 // top-right
+            }
+            if (Math.abs(x - left) <= cornerThreshold && Math.abs(y - bottom) <= cornerThreshold) {
+                return 7 // bottom-left
+            }
+            if (Math.abs(x - right) <= cornerThreshold && Math.abs(y - bottom) <= cornerThreshold) {
+                return 8 // bottom-right
             }
             
             // Check center
-            if (Math.abs(x - centerX) <= cornerThreshold && Math.abs(y - centerY) <= cornerThreshold) {
-                return 5 // center
+            if (Math.abs(x - centerX) <= centerSize && Math.abs(y - centerY) <= centerSize) {
+                return 9 // center
             }
             
             return 0 // no handle
@@ -202,7 +322,7 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
                     newRect.bottom = centerY + size / 2
                 }
                 CropMode.PORTRAIT -> {
-                    // 9:16 aspect ratio (width:height)
+                    // 16:9 aspect ratio (width:height)
                     val width = newRect.width()
                     val height = width * (16f / 9f)
                     val centerY = (newRect.top + newRect.bottom) / 2
@@ -244,23 +364,37 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
                         val newRect = RectF(cropRect)
                         
                         when (dragHandle) {
-                            1 -> { // top-left
+                            // Edge handles - move only that edge
+                            1 -> { // top edge
+                                newRect.top += deltaY
+                            }
+                            2 -> { // right edge
+                                newRect.right += deltaX
+                            }
+                            3 -> { // bottom edge
+                                newRect.bottom += deltaY
+                            }
+                            4 -> { // left edge
+                                newRect.left += deltaX
+                            }
+                            // Corner handles - move adjacent edges
+                            5 -> { // top-left
                                 newRect.left += deltaX
                                 newRect.top += deltaY
                             }
-                            2 -> { // top-right
+                            6 -> { // top-right
                                 newRect.right += deltaX
                                 newRect.top += deltaY
                             }
-                            3 -> { // bottom-left
+                            7 -> { // bottom-left
                                 newRect.left += deltaX
                                 newRect.bottom += deltaY
                             }
-                            4 -> { // bottom-right
+                            8 -> { // bottom-right
                                 newRect.right += deltaX
                                 newRect.bottom += deltaY
                             }
-                            5 -> { // center - move entire rectangle
+                            9 -> { // center - move entire rectangle
                                 newRect.left += deltaX
                                 newRect.right += deltaX
                                 newRect.top += deltaY
@@ -285,7 +419,5 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
                 else -> return false
             }
         }
-
-        // Removed old updateCropRect function - replaced with new drag-based approach
     }
 }
