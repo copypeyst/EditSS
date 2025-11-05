@@ -71,40 +71,44 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
             cornerPaint.style = Paint.Style.FILL
             cornerPaint.color = android.graphics.Color.WHITE
             
-            // Initialize with a centered crop rectangle
-            initializeCropRectangle()
+            // Don't initialize here - view isn't measured yet
+            // Initialize will happen in onSizeChanged
         }
         
         private fun initializeCropRectangle() {
             val viewWidth = width.toFloat()
             val viewHeight = height.toFloat()
             
+            // Handle case where view hasn't been measured yet (width/height = 0)
+            val effectiveWidth = if (viewWidth == 0f) 1000f else viewWidth
+            val effectiveHeight = if (viewHeight == 0f) 1000f else viewHeight
+            
             // Calculate initial crop rectangle based on mode
             initialCropRect = when (currentCropMode) {
                 CropMode.SQUARE -> {
-                    val size = Math.min(viewWidth, viewHeight) * 0.8f
-                    val left = (viewWidth - size) / 2
-                    val top = (viewHeight - size) / 2
+                    val size = Math.min(effectiveWidth, effectiveHeight) * 0.8f
+                    val left = (effectiveWidth - size) / 2
+                    val top = (effectiveHeight - size) / 2
                     RectF(left, top, left + size, top + size)
                 }
                 CropMode.PORTRAIT -> {
-                    val aspectRatio = 9f / 16f
-                    val height = viewHeight * 0.8f
+                    val aspectRatio = 16f / 9f // Height:Width = 16:9 for portrait
+                    val height = effectiveHeight * 0.8f
                     val width = height * aspectRatio
-                    val left = (viewWidth - width) / 2
-                    val top = (viewHeight - height) / 2
+                    val left = (effectiveWidth - width) / 2
+                    val top = (effectiveHeight - height) / 2
                     RectF(left, top, left + width, top + height)
                 }
                 CropMode.LANDSCAPE -> {
-                    val aspectRatio = 16f / 9f
-                    val width = viewWidth * 0.8f
-                    val height = width * aspectRatio
-                    val left = (viewWidth - width) / 2
-                    val top = (viewHeight - height) / 2
+                    val aspectRatio = 16f / 9f // Width:Height = 16:9 for landscape
+                    val width = effectiveWidth * 0.8f
+                    val height = width / aspectRatio
+                    val left = (effectiveWidth - width) / 2
+                    val top = (effectiveHeight - height) / 2
                     RectF(left, top, left + width, top + height)
                 }
                 else -> { // FREEFORM
-                    RectF(viewWidth * 0.1f, viewHeight * 0.1f, viewWidth * 0.9f, viewHeight * 0.9f)
+                    RectF(effectiveWidth * 0.1f, effectiveHeight * 0.1f, effectiveWidth * 0.9f, effectiveHeight * 0.9f)
                 }
             }
             cropRect = RectF(initialCropRect)
@@ -112,7 +116,7 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
 
         fun setCropMode(cropMode: CropMode) {
             currentCropMode = cropMode
-            // Reset to initial position fitted to image
+            // Always reset to initial position fitted to image
             initializeCropRectangle()
             invalidate()
         }
@@ -188,6 +192,7 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
             // Apply aspect ratio constraints based on mode
             when (currentCropMode) {
                 CropMode.SQUARE -> {
+                    // 1:1 aspect ratio
                     val size = Math.max(newRect.width(), newRect.height())
                     val centerX = (newRect.left + newRect.right) / 2
                     val centerY = (newRect.top + newRect.bottom) / 2
@@ -197,17 +202,17 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
                     newRect.bottom = centerY + size / 2
                 }
                 CropMode.PORTRAIT -> {
-                    val aspectRatio = 9f / 16f
+                    // 9:16 aspect ratio (width:height)
                     val width = newRect.width()
-                    val height = width / aspectRatio
+                    val height = width * (16f / 9f)
                     val centerY = (newRect.top + newRect.bottom) / 2
                     newRect.top = centerY - height / 2
                     newRect.bottom = centerY + height / 2
                 }
                 CropMode.LANDSCAPE -> {
-                    val aspectRatio = 16f / 9f
+                    // 16:9 aspect ratio (width:height)
                     val height = newRect.height()
-                    val width = height * aspectRatio
+                    val width = height * (16f / 9f)
                     val centerX = (newRect.left + newRect.right) / 2
                     newRect.left = centerX - width / 2
                     newRect.right = centerX + width / 2
