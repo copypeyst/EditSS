@@ -39,7 +39,7 @@
     <string name="loading_image">Loading image...</string>
     <string name="loaded_image_successfully">Loaded %1$s image successfully</string>
     <string name="error_displaying_image">Error displaying image: %1$s</string>
-    <string name="could_not_load_image">Couldn't load image: %1$s</string>
+    <string name="could_not_load_image">Couldn\'t load image: %1$s</string>
     <string name="cannot_access_storage">Cannot access storage</string>
     <string name="failed_to_create_temp_file">Failed to create temp file</string>
     <string name="camera_error">Camera error: %1$s</string>
@@ -55,13 +55,13 @@
     <string name="permission_revoked_message">Permission has been revoked. Please reopen Settings to re-enable access.</string>
     <string name="no_image_to_save">No image to save</string>
     <string name="image_saved_to_editss_folder">Image saved to EditSS folder</string>
-    <string name="save_failed">Save failed: Couldn't create image entry</string>
+    <string name="save_failed">Save failed: Couldn\'t create image entry</string>
     <string name="no_image_to_overwrite">No image to overwrite</string>
     <string name="cannot_overwrite_this_image">Cannot overwrite this image</string>
     <string name="format_changed_please_save_a_copy">Format changed. Please save a copy.</string>
     <string name="image_overwritten_successfully">Image overwritten successfully</string>
     <string name="overwrite_failed">Overwrite failed: %1$s</string>
-    <string name="jpg_does_not_support_transparency">JPG doesn't support transparency</string>
+    <string name="jpg_does_not_support_transparency">JPG doesn\'t support transparency</string>
     <string name="detected_format">Detected format: %1$s</string>
     <string name="original_file_deleted">Original file deleted.</string>
     <string name="original_file_was_not_deleted">Original file was not deleted.</string>
