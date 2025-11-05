@@ -117,12 +117,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var drawingView: DrawingView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
-    
-    // Adjust-related UI elements
-    private lateinit var adjustView: AdjustView
-    private lateinit var brightnessSlider: SeekBar
-    private lateinit var contrastSlider: SeekBar
-    private lateinit var saturationSlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
 
     private val importImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -233,24 +227,12 @@ class MainActivity : AppCompatActivity() {
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
         drawingView.setupDrawingState(editViewModel)
-        
-        // Initialize AdjustView and connect to ViewModel
-        adjustView = findViewById(R.id.adjust_view)
-        adjustView.setupAdjustState(editViewModel)
 
         // Initialize sliders with default values (25% size, 100% opacity)
         val defaultSize = 25 // 25% of slider range
         val defaultOpacity = 100 // 100% of slider range
         drawSizeSlider.progress = defaultSize
         drawOpacitySlider.progress = defaultOpacity
-        
-        // Initialize adjust sliders with default values (0% for all)
-        val defaultBrightness = 50 // Middle of 0-100 range = 0% brightness
-        val defaultContrast = 50   // Middle of 0-100 range = 0% contrast
-        val defaultSaturation = 50 // Middle of 0-100 range = 0% saturation
-        brightnessSlider.progress = defaultBrightness
-        contrastSlider.progress = defaultContrast
-        saturationSlider.progress = defaultSaturation
 
         // Save Panel Logic
         buttonSave.setOnClickListener {
@@ -443,10 +425,10 @@ class MainActivity : AppCompatActivity() {
             currentCropMode = cropModeLandscape
         }
 
-        // Initialize Adjust Options
-        brightnessSlider = findViewById(R.id.adjust_brightness_slider)
-        contrastSlider = findViewById(R.id.adjust_contrast_slider)
-        saturationSlider = findViewById(R.id.adjust_saturation_slider)
+        // Initialize Adjust Options (no logic yet)
+        findViewById<SeekBar>(R.id.adjust_brightness_slider)
+        findViewById<SeekBar>(R.id.adjust_contrast_slider)
+        findViewById<SeekBar>(R.id.adjust_saturation_slider)
 
         // Color Swatches Logic
         val colorBlackContainer: FrameLayout = findViewById(R.id.color_black_container)
