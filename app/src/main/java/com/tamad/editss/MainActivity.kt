@@ -987,23 +987,42 @@ class MainActivity : AppCompatActivity() {
                 val isFormatChanging = originalMimeType != selectedSaveFormat
 
                 if (isFormatChanging) {
-                    // --- FORMAT IS CHANGING: Overwrite content AND update MediaStore record ---
+                    // --- FORMAT IS CHANGING: Delete old entry and create new one ---
                     
-                    // Overwrite the content of the original URI with the new image data
-                    contentResolver.openOutputStream(imageInfo.uri, "w")?.use { outputStream ->
+                    // Step 1: Delete the old MediaStore entry
+                    val deleteCount = contentResolver.delete(imageInfo.uri, null, null)
+                    if (deleteCount <= 0) {
+                        throw Exception("Failed to delete old MediaStore entry")
+                    }
+                    
+                    // Step 2: Create a new MediaStore entry with the new format
+                    val values = ContentValues().apply {
+                        put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
+                        put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
+                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                        put(MediaStore.Images.Media.IS_PENDING, 1)
+                    }
+                    
+                    val newUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    if (newUri == null) {
+                        throw Exception("Failed to create new MediaStore entry")
+                    }
+                    
+                    // Step 3: Write the image data to the new URI
+                    contentResolver.openOutputStream(newUri)?.use { outputStream ->
                         compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
                     }
-
-                    // Now, create a ContentValues object to update the file's metadata in the MediaStore
-                    val values = ContentValues().apply {
-                        // Put the new filename with the correct extension
-                        put(MediaStore.Images.Media.DISPLAY_NAME, generateUniqueFilename())
-                        // Put the new MIME type so the system knows it's a different format
-                        put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
-                    }
-
-                    // Update the MediaStore record for the original URI with the new values
-                    contentResolver.update(imageInfo.uri, values, null, null)
+                    
+                    // Step 4: Mark the new entry as complete
+                    values.clear()
+                    values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                    contentResolver.update(newUri, values, null, null)
+                    // Step 5: Invalidate Coil's cache for the old URI to prevent showing stale image
+                    imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
+                    imageLoader.diskCache?.remove(imageInfo.uri.toString())
+                    
+                    // Step 6: Update our app's reference to point to the new URI
+                    pendingOverwriteUri = newUri
 
                 } else {
                     // --- FORMAT IS THE SAME: Simple overwrite is fine. ---
@@ -1012,9 +1031,18 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                // This message now applies to both scenarios
-                withContext(Dispatchers.Main) {
+                // Update our app's reference and show success message
+                if (isFormatChanging) {
+                    // For format changes, show success and update reference
+                    currentImageInfo = currentImageInfo?.copy(uri = pendingOverwriteUri ?: imageInfo.uri)
+                    pendingOverwriteUri = null
+                    Toast.makeText(this@MainActivity, "Image converted and overwritten successfully", Toast.LENGTH_SHORT).show()
+                } else {
+                    // For same format overwrite, just show success
                     Toast.makeText(this@MainActivity, "Image overwritten successfully", Toast.LENGTH_SHORT).show()
+                }
+                
+                withContext(Dispatchers.Main) {
                     savePanel.visibility = View.GONE
                     scrim.visibility = View.GONE
                 }
