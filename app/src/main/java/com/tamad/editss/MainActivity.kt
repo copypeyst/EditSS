@@ -242,7 +242,7 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE // Hide save panel
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
-
+            currentActiveTool = toolDraw
         }
 
         toolCrop.setOnClickListener {
@@ -252,7 +252,7 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE // Hide save panel
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
-
+            currentActiveTool = toolCrop
         }
 
         toolAdjust.setOnClickListener {

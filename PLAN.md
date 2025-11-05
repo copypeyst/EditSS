@@ -60,12 +60,13 @@ UI (top to bottom)
 32. If MediaStore insertion fails during save, show “Save failed. Couldn’t create image entry.” and prevent further write attempts to null URIs.
 33. Implemented Coil-based image loading system that automatically handles all bitmap decoding, memory management, caching, and UI synchronization. Coil replaces the previous BitmapManager approach with built-in memory/disk caching and robust error handling.
 34. Hide the Overwrite button when the selected format (JPG/PNG/WEBP) differs from the original image's format to prevent MediaStore MIME type update failures. This preserves the working same-format overwrite functionality while avoiding format change conflicts.
-
 35. Fixed a critical save bug by using Coil's API to reliably extract bitmaps for saving, instead of the previously broken method.
 36. Added visual icons to the save panel to distinguish between "Save Copy" and "Overwrite" actions.
 37. Implemented a bright orange warning text to appear below the format selection when a format that doesn't support transparency (like JPEG) is chosen for a transparent image.
 38. The app now automatically detects and pre-selects the original format of an image (JPEG, PNG, or WEBP) when it's loaded.
 39. Added loading state tracking to prevent crashes and provide better user feedback during image loading.
+40. Camera images now use proper IMG_YYYYMMDD_HHMMSS.jpg format without "- Copy" suffixes, treating them as original captures rather than copies.
+41. Save button text dynamically changes to "Save" for camera images while maintaining "Save Copy" for imported images to reflect their different nature.
 
 [TODO]
 1. When sharing a saved image, use its content URI directly. Grant temporary access with FLAG_GRANT_READ_URI_PERMISSION on the share intent.
