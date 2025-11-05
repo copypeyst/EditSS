@@ -614,7 +614,7 @@ class MainActivity : AppCompatActivity() {
             val centerX = (startX + endX) / 2
             val centerY = (startY + endY) / 2
             val radius = kotlin.math.sqrt(
-                kotlin.math.pow(endX - startX, 2.0) + kotlin.math.pow(endY - startY, 2.0)
+                (endX - startX) * (endX - startX) + (endY - startY) * (endY - startY)
             ).toFloat() / 2
 
             canvas.drawCircle(centerX, centerY, radius, paint)
