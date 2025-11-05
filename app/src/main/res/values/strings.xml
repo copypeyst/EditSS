@@ -68,9 +68,6 @@
     <string name="no_image_to_share">No image to share</string>
     <string name="sharing_image">Sharing image...</string>
     <string name="share_image">Share Image</string>
-    <string name="image_cropped">Image cropped</string>
-    <string name="no_image_to_crop">No image to crop</string>
-    <string name="invalid_crop_selection">Invalid crop selection</string>
     <string name="share_failed">Share failed: %1$s</string>
 
 </resources>

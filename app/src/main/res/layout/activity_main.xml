@@ -38,17 +38,6 @@
 
 
         <ImageView
-            android:id="@+id/button_crop"
-            android:layout_width="0dp"
-            android:layout_height="30dp"
-            android:layout_weight="1"
-            android:src="@drawable/cropicon"
-            android:contentDescription="@string/crop"
-            android:background="@drawable/ripple_effect"
-            android:clickable="true"
-            android:focusable="true" />
-
-        <ImageView
             android:id="@+id/button_import"
             android:layout_width="0dp"
             android:layout_height="30dp"
@@ -404,8 +393,8 @@
     </LinearLayout>
 
     <!-- Canvas -->
-    <com.tamad.editss.DrawingView
-        android:id="@+id/drawing_view"
+    <ImageView
+        android:id="@+id/canvas"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:background="@color/canvas_background"
@@ -414,26 +403,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         android:contentDescription="@string/canvas" />
-
-    <com.tamad.editss.CropView
-        android:id="@+id/crop_view"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/action_bar"
-        app:layout_constraintBottom_toTopOf="@id/tool_options"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <com.tamad.editss.AdjustView
-        android:id="@+id/adjust_view"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/action_bar"
-        app:layout_constraintBottom_toTopOf="@id/tool_options"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
 
 
     </androidx.constraintlayout.widget.ConstraintLayout>

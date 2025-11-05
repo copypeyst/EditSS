@@ -68,11 +68,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var rootLayout: FrameLayout
-    private lateinit var drawingView: DrawingView
-
-    private var sharedPaintColor: Int = android.graphics.Color.RED
-    private var sharedPaintSize: Float = 12f
-    private var sharedPaintOpacity: Int = 255
+    private lateinit var canvasImageView: ImageView
     private lateinit var savePanel: View
     private lateinit var toolOptionsLayout: LinearLayout
     private lateinit var drawOptionsLayout: LinearLayout
@@ -80,9 +76,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adjustOptionsLayout: LinearLayout
     private lateinit var scrim: View
     private lateinit var transparencyWarningText: TextView
-
-    private lateinit var cropView: CropView
-    private lateinit var adjustView: AdjustView
 
     private var currentActiveTool: ImageView? = null
     private var currentDrawMode: ImageView? = null
@@ -143,7 +136,7 @@ class MainActivity : AppCompatActivity() {
         if (result.resultCode == RESULT_OK) {
             val cameraUri = currentCameraUri
             if (cameraUri != null) {
-                drawingView.post {
+                canvasImageView.post {
                     try {
                         loadImageFromUri(cameraUri, false)
                     } catch (e: Exception) {
@@ -195,12 +188,11 @@ class MainActivity : AppCompatActivity() {
 
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
-        drawingView = findViewById(R.id.drawing_view)
+        canvasImageView = findViewById(R.id.canvas)
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val buttonImport: ImageView = findViewById(R.id.button_import)
         val buttonCamera: ImageView = findViewById(R.id.button_camera)
         val buttonShare: ImageView = findViewById(R.id.button_share)
-        val buttonCrop: ImageView = findViewById(R.id.button_crop)
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
@@ -212,9 +204,6 @@ class MainActivity : AppCompatActivity() {
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         scrim = findViewById(R.id.scrim)
         transparencyWarningText = findViewById(R.id.transparency_warning_text)
-
-        cropView = findViewById(R.id.crop_view)
-        adjustView = findViewById(R.id.adjust_view)
 
         // Save Panel Logic
         buttonSave.setOnClickListener {
@@ -251,32 +240,6 @@ class MainActivity : AppCompatActivity() {
             shareCurrentImage()
         }
 
-        // Crop Button Logic
-        buttonCrop.setOnClickListener {
-            val currentBitmap = (drawingView.getImageView().drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-            if (currentBitmap == null) {
-                Toast.makeText(this, getString(R.string.no_image_to_crop), Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val cropRect = cropView.getCroppedRect()
-            if (cropRect.width() <= 0 || cropRect.height() <= 0) {
-                Toast.makeText(this, getString(R.string.invalid_crop_selection), Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val croppedBitmap = Bitmap.createBitmap(
-                currentBitmap,
-                cropRect.left.toInt(),
-                cropRect.top.toInt(),
-                cropRect.width().toInt(),
-                cropRect.height().toInt()
-            )
-            drawingView.getImageView().setImageBitmap(croppedBitmap)
-            cropView.getImageView().setImageBitmap(croppedBitmap)
-            Toast.makeText(this, getString(R.string.image_cropped), Toast.LENGTH_SHORT).show()
-        }
-
         // Tool Buttons Logic
         toolDraw.setOnClickListener {
             drawOptionsLayout.visibility = View.VISIBLE
@@ -286,9 +249,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
-            drawingView.visibility = View.VISIBLE
-            cropView.visibility = View.GONE
-            adjustView.visibility = View.GONE
         }
 
         toolCrop.setOnClickListener {
@@ -299,9 +259,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
-            drawingView.visibility = View.GONE
-            cropView.visibility = View.VISIBLE
-            adjustView.visibility = View.GONE
         }
 
         toolAdjust.setOnClickListener {
@@ -312,9 +269,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
-            drawingView.visibility = View.GONE
-            cropView.visibility = View.GONE
-            adjustView.visibility = View.VISIBLE
         }
 
         // Initialize Save Panel buttons
@@ -378,19 +332,16 @@ class MainActivity : AppCompatActivity() {
             currentDrawMode?.isSelected = false
             drawModePen.isSelected = true
             currentDrawMode = drawModePen
-            drawingView.setDrawMode(DrawMode.PEN)
         }
         drawModeCircle.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModeCircle.isSelected = true
             currentDrawMode = drawModeCircle
-            drawingView.setDrawMode(DrawMode.CIRCLE)
         }
         drawModeSquare.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModeSquare.isSelected = true
             currentDrawMode = drawModeSquare
-            drawingView.setDrawMode(DrawMode.SQUARE)
         }
 
         // Initialize Crop Options
@@ -403,52 +354,27 @@ class MainActivity : AppCompatActivity() {
             currentCropMode?.isSelected = false
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
-            cropView.setCropMode(CropMode.FREEFORM)
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
-            cropView.setCropMode(CropMode.SQUARE)
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
-            cropView.setCropMode(CropMode.PORTRAIT)
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
-            cropView.setCropMode(CropMode.LANDSCAPE)
         }
 
         // Initialize Adjust Options (no logic yet)
-        findViewById<SeekBar>(R.id.adjust_brightness_slider).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                // Brightness: -100 to 100, map to -1.0 to 1.0
-                adjustView.setBrightness((progress - 100) / 100f)
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-        findViewById<SeekBar>(R.id.adjust_contrast_slider).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                // Contrast: 0 to 200, map to 0.0 to 2.0
-                adjustView.setContrast(progress / 100f)
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-        findViewById<SeekBar>(R.id.adjust_saturation_slider).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                // Saturation: 0 to 200, map to 0.0 to 2.0
-                adjustView.setSaturation(progress / 100f)
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
+        findViewById<SeekBar>(R.id.adjust_brightness_slider)
+        findViewById<SeekBar>(R.id.adjust_contrast_slider)
+        findViewById<SeekBar>(R.id.adjust_saturation_slider)
 
         // Color Swatches Logic
         val colorBlackContainer: FrameLayout = findViewById(R.id.color_black_container)
@@ -465,19 +391,6 @@ class MainActivity : AppCompatActivity() {
             val border = v.findViewWithTag<View>("border")
             border?.visibility = View.VISIBLE
             currentSelectedColor = v as FrameLayout
-
-            sharedPaintColor = when (v.id) {
-                R.id.color_black_container -> android.graphics.Color.BLACK
-                R.id.color_white_container -> android.graphics.Color.WHITE
-                R.id.color_red_container -> android.graphics.Color.RED
-                R.id.color_green_container -> android.graphics.Color.GREEN
-                R.id.color_blue_container -> android.graphics.Color.BLUE
-                R.id.color_yellow_container -> android.graphics.Color.YELLOW
-                R.id.color_orange_container -> android.graphics.Color.parseColor("#FFA500")
-                R.id.color_pink_container -> android.graphics.Color.parseColor("#FFC0CB")
-                else -> android.graphics.Color.RED
-            }
-            drawingView.setPaintColor(sharedPaintColor)
         }
 
         colorBlackContainer.setOnClickListener(colorClickListener)
@@ -488,26 +401,6 @@ class MainActivity : AppCompatActivity() {
         colorYellowContainer.setOnClickListener(colorClickListener)
         colorOrangeContainer.setOnClickListener(colorClickListener)
         colorPinkContainer.setOnClickListener(colorClickListener)
-
-        findViewById<SeekBar>(R.id.draw_size_slider).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                sharedPaintSize = progress.toFloat()
-                drawingView.setPaintSize(sharedPaintSize)
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        findViewById<SeekBar>(R.id.draw_opacity_slider).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                sharedPaintOpacity = progress
-                drawingView.setPaintOpacity(sharedPaintOpacity)
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
 
         // Set default selections
         drawModePen.isSelected = true
@@ -781,15 +674,9 @@ class MainActivity : AppCompatActivity() {
                             currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
                             
                             // Display the loaded image
-                            drawingView.getImageView().setImageDrawable(drawable)
-                            drawingView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
-                            drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                            cropView.getImageView().setImageDrawable(drawable)
-                            cropView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
-                            cropView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                            adjustView.getImageView().setImageDrawable(drawable)
-                            adjustView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
-                            adjustView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            canvasImageView.setImageDrawable(drawable)
+                            canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
+                            canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                             
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
                             
@@ -801,7 +688,7 @@ class MainActivity : AppCompatActivity() {
                             
                             // Detect transparency for warning system (simplified approach)
                             try {
-                                val loadedDrawable = drawingView.getImageView().drawable
+                                val loadedDrawable = canvasImageView.drawable
                                 if (loadedDrawable != null && loadedDrawable.intrinsicWidth > 0 && loadedDrawable.intrinsicHeight > 0) {
                                     currentImageHasTransparency = detectImageTransparencyFromDrawable(loadedDrawable)
                                     updateTransparencyWarning()
@@ -851,8 +738,8 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             try {
                 // Clear canvas on failed load
-                drawingView.getImageView().setImageBitmap(null)
-                drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                canvasImageView.setImageBitmap(null)
+                canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 Toast.makeText(this, getString(R.string.could_not_load_image, errorMessage), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message}")
