@@ -95,13 +95,10 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
-            
             canvas.save()
             canvas.scale(scaleFactor, scaleFactor, midPointX, midPointY)
             when (currentDrawMode) {
-                DrawMode.PEN -> {
-                    canvas.drawPath(path, paint)
-                }
+                DrawMode.PEN -> canvas.drawPath(path, paint)
                 DrawMode.CIRCLE -> {
                     val radius = Math.sqrt(Math.pow((startX - endX).toDouble(), 2.0) + Math.pow((startY - endY).toDouble(), 2.0)).toFloat()
                     canvas.drawCircle(startX, startY, radius, paint)
@@ -119,19 +116,15 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    // Only start drawing if touch is within canvas bounds
-                    if (isWithinCanvas(x, y)) {
-                        activePointerId = event.getPointerId(0)
-                        startX = x
-                        startY = y
-                        endX = x
-                        endY = y
-                        if (currentDrawMode == DrawMode.PEN) {
-                            path.moveTo(x, y)
-                        }
-                        return true
+                    activePointerId = event.getPointerId(0)
+                    startX = x
+                    startY = y
+                    endX = x
+                    endY = y
+                    if (currentDrawMode == DrawMode.PEN) {
+                        path.moveTo(x, y)
                     }
-                    return false
+                    return true
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> {
                     // Cancel drawing if a second finger is added mid-stroke
@@ -147,7 +140,7 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
                         // One-finger gesture for drawing/shape placement
                         endX = x
                         endY = y
-                        if (currentDrawMode == DrawMode.PEN && isWithinCanvas(x, y)) {
+                        if (currentDrawMode == DrawMode.PEN) {
                             path.lineTo(x, y)
                         }
                     } else if (event.pointerCount == 2) {
@@ -182,10 +175,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
             val x = event.getX(0) - event.getX(1)
             val y = event.getY(0) - event.getY(1)
             return Math.sqrt((x * x + y * y).toDouble()).toFloat()
-        }
-        
-        private fun isWithinCanvas(x: Float, y: Float): Boolean {
-            return x >= 0 && x <= width && y >= 0 && y <= height
         }
     }
 }
