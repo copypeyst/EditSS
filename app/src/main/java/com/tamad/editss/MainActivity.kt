@@ -43,7 +43,6 @@ import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
-import com.yalantis.ucrop.UCrop
 import android.graphics.Color
 
 // Step 8: Image origin tracking enum
@@ -144,19 +143,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // UCrop launcher for crop functionality
+    // Native crop launcher for crop functionality
     private val cropImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
-            val croppedUri = UCrop.getOutput(result.data!!)
+            val croppedUri = result.data?.getParcelableExtra<Uri>("CROPPED_URI")
             if (croppedUri != null) {
                 // Update the current image with the cropped version
                 currentImageInfo = currentImageInfo?.copy(uri = croppedUri, origin = ImageOrigin.EDITED_INTERNAL)
                 loadImageFromUri(croppedUri, false)
                 Toast.makeText(this, "Image cropped successfully", Toast.LENGTH_SHORT).show()
             }
-        } else if (result.resultCode == UCrop.RESULT_ERROR) {
-            val cropError = UCrop.getError(result.data!!)
-            Toast.makeText(this, "Crop error: ${cropError?.message}", Toast.LENGTH_SHORT).show()
+        } else if (result.resultCode == RESULT_CANCELED) {
+            // User cancelled crop operation
         }
     }
 
@@ -1381,36 +1379,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // UCrop activity launcher
+    // Native crop activity launcher
     private fun startCropActivity(aspectRatio: Float?) {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, "No image to crop", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val options = UCrop.Options().apply {
-            // Customize UCrop appearance
-            setToolbarColor(ContextCompat.getColor(this@MainActivity, R.color.primary_color))
-            setStatusBarColor(ContextCompat.getColor(this@MainActivity, R.color.primary_dark_color))
-            setActiveWidgetColor(ContextCompat.getColor(this@MainActivity, R.color.accent_color))
-            setToolbarTitle("Crop Image")
-            setHideBottomControls(false)
-            setFreeStyleCropEnabled(true)
-            setCircleDimmedLayer(false)
-            setShowCropFrame(true)
-            setShowCropGrid(true)
-            setCropGridStrokeWidth(2f)
-            setCropGridColor(Color.WHITE)
-            setDimmedLayerColor(Color.parseColor("#80000000"))
+        val intent = Intent(this, CropActivity::class.java).apply {
+            putExtra("ASPECT_RATIO", aspectRatio ?: 0f)
+            putExtra("IMAGE_URI", imageInfo.uri)
         }
-
-        val sourceUri = imageInfo.uri
-        val destinationUri = Uri.fromFile(File(cacheDir, "cropped_${System.currentTimeMillis()}.jpg"))
-
-        UCrop.of(sourceUri, destinationUri)
-            .withAspectRatio(aspectRatio ?: 0f, 1f) // 0f means free aspect ratio
-            .withOptions(options)
-            .start(this, cropImageLauncher)
+        cropImageLauncher.launch(intent)
     }
 
     // Helper to get display name from URI
