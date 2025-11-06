@@ -18,10 +18,13 @@ enum class Tool {
 
 class ImageCanvasView @JvmOverloads constructor(
     context: Context,
-    attrs: AttributeSet? = null
-) : FrameLayout(context, attrs) {
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : FrameLayout(context, attrs, defStyleAttr) {
 
-    private val baseImageView: ImageView
+    private var _baseImageView: ImageView
+    private val baseImageView: ImageView get() = _baseImageView
+
     private var currentTool: Tool = Tool.NONE
     private var toolView: View? = null
 
@@ -36,8 +39,8 @@ class ImageCanvasView @JvmOverloads constructor(
 
     init {
         // Create the base ImageView that holds the image
-        baseImageView = ImageView(context)
-        addView(baseImageView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        _baseImageView = ImageView(context)
+        addView(_baseImageView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
     /**
@@ -58,21 +61,14 @@ class ImageCanvasView @JvmOverloads constructor(
             setImage(bitmap)
         } else {
             currentBitmap = null
-            baseImageView.setImageBitmap(null)
+            _baseImageView.setImageBitmap(null)
         }
-    }
-
-    /**
-     * Set background color
-     */
-    fun setBackgroundColor(color: Int) {
-        baseImageView.setBackgroundColor(color)
     }
 
     /**
      * Get the base image view (for compatibility)
      */
-    val baseImageView: ImageView get() = this.baseImageView
+    fun getBaseImageView(): ImageView = _baseImageView
 
     /**
      * Get the current image bitmap (with modifications applied)
@@ -99,21 +95,21 @@ class ImageCanvasView @JvmOverloads constructor(
             }
             Tool.DRAW -> {
                 // Create and add DrawingView
-                val drawingView = DrawingView(context, null)
+                val drawingView = DrawingView(context, null as AttributeSet?)
                 setupDrawingView(drawingView)
                 addView(drawingView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                 toolView = drawingView
             }
             Tool.CROP -> {
                 // Create and add CropView
-                val cropView = CropView(context, null)
+                val cropView = CropView(context, null as AttributeSet?)
                 setupCropView(cropView)
                 addView(cropView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                 toolView = cropView
             }
             Tool.ADJUST -> {
                 // Create and add AdjustView
-                val adjustView = AdjustView(context, null)
+                val adjustView = AdjustView(context, null as AttributeSet?)
                 setupAdjustView(adjustView)
                 addView(adjustView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                 toolView = adjustView
@@ -198,7 +194,7 @@ class ImageCanvasView @JvmOverloads constructor(
             // Draw only the drawing canvas (not the image view sibling)
             drawingCanvas.draw(canvas)
             // Update the base image to show the modified bitmap
-            baseImageView.setImageBitmap(bitmap)
+            _baseImageView.setImageBitmap(bitmap)
         }
     }
 }

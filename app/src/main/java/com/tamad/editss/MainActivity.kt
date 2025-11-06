@@ -1,6 +1,8 @@
 package com.tamad.editss
 
 import androidx.activity.result.contract.ActivityResultContracts
+import com.tamad.editss.Tool
+import com.tamad.editss.DrawMode
 import android.util.Log
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -745,7 +747,7 @@ class MainActivity : AppCompatActivity() {
                             try {
                                 val loadedBitmap = canvasImageView.getBitmap()
                                 if (loadedBitmap != null && loadedBitmap.width > 0 && loadedBitmap.height > 0) {
-                                    currentImageHasTransparency = detectImageTransparencyFromDrawable(canvasImageView.baseImageView.drawable)
+                                    currentImageHasTransparency = detectImageTransparencyFromDrawable(canvasImageView.getBaseImageView().drawable)
                                     updateTransparencyWarning()
                                 }
                             } catch (e: Exception) {
