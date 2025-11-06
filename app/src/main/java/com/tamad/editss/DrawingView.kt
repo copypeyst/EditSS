@@ -16,7 +16,7 @@ enum class DrawMode {
     SQUARE
 }
 
-class DrawingView(context: Context, attrs: AttributeSet? = null) : FrameLayout(context, attrs) {
+class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, attrs) {
 
     private val imageView: ImageView
     private val drawingCanvas: DrawingCanvas
@@ -49,39 +49,7 @@ class DrawingView(context: Context, attrs: AttributeSet? = null) : FrameLayout(c
         drawingCanvas.setDrawMode(drawMode)
     }
 
-    fun setEditViewModel(viewModel: EditViewModel) {
-        drawingCanvas.setEditViewModel(viewModel)
-    }
-
-    fun clearDrawing() {
-        drawingCanvas.clearCanvas()
-    }
-
-    fun getCurrentPath(): Path? {
-        return drawingCanvas.getCurrentPath()
-    }
-
-    fun getCurrentPaint(): Paint? {
-        return drawingCanvas.getCurrentPaint()
-    }
-
-    fun getCurrentMode(): DrawMode {
-        return drawingCanvas.getCurrentMode()
-    }
-
-    fun replayActions(actions: List<EditAction.Draw>) {
-        drawingCanvas.replayActions(actions)
-    }
-
-    fun undo() {
-        drawingCanvas.undo()
-    }
-
-    fun redo(path: Path, paint: Paint) {
-        drawingCanvas.redo(path, paint)
-    }
-
-    private inner class DrawingCanvas(context: Context) : View(context) {
+    private class DrawingCanvas(context: Context) : View(context) {
 
         private val paint = Paint()
         private val path = Path()
@@ -98,60 +66,11 @@ class DrawingView(context: Context, attrs: AttributeSet? = null) : FrameLayout(c
 
         private var activePointerId = MotionEvent.INVALID_POINTER_ID
 
-        private var editViewModel: EditViewModel? = null
-        private val actionPaths = mutableListOf<Pair<Path, Paint>>()
-
-        fun setEditViewModel(viewModel: EditViewModel) {
-            editViewModel = viewModel
-        }
-
-        fun clearCanvas() {
-            path.reset()
-            actionPaths.clear()
-            invalidate()
-        }
-
-        fun getCurrentPath(): Path? {
-            return if (actionPaths.isNotEmpty()) actionPaths.last().first else null
-        }
-
-        fun getCurrentPaint(): Paint? {
-            return if (actionPaths.isNotEmpty()) actionPaths.last().second else null
-        }
-
-        fun getCurrentMode(): DrawMode {
-            return currentDrawMode
-        }
-
-        fun replayActions(actions: List<EditAction.Draw>) {
-            path.reset()
-            actionPaths.clear()
-            for (action in actions) {
-                val paintCopy = Paint(action.paint)
-                val pathCopy = Path(action.path)
-                path.addPath(pathCopy)
-                actionPaths.add(Pair(pathCopy, paintCopy))
-            }
-            invalidate()
-        }
-
-        fun undo() {
-            if (actionPaths.isNotEmpty()) {
-                actionPaths.removeLast()
-                path.reset()
-                for ((pathData, _) in actionPaths) {
-                    path.addPath(pathData)
-                }
-                invalidate()
-            }
-        }
-
-        fun redo(pathData: Path, paintData: Paint) {
-            val paintCopy = Paint(paintData)
-            val pathCopy = Path(pathData)
-            path.addPath(pathCopy)
-            actionPaths.add(Pair(pathCopy, paintCopy))
-            invalidate()
+        init {
+            paint.isAntiAlias = true
+            paint.style = Paint.Style.STROKE
+            paint.strokeJoin = Paint.Join.ROUND
+            paint.strokeCap = Paint.Cap.ROUND
         }
 
         fun setPaintColor(color: Int) {
@@ -174,23 +93,14 @@ class DrawingView(context: Context, attrs: AttributeSet? = null) : FrameLayout(c
             super.onDraw(canvas)
             canvas.save()
             canvas.scale(scaleFactor, scaleFactor, midPointX, midPointY)
-            for ((pathData, paintData) in actionPaths) {
-                when (currentDrawMode) {
-                    DrawMode.PEN -> canvas.drawPath(pathData, paintData)
-                    else -> {
-                        val bounds = android.graphics.RectF()
-                        pathData.computeBounds(bounds, true)
-                        when (currentDrawMode) {
-                            DrawMode.CIRCLE -> {
-                                val radius = Math.sqrt(Math.pow((bounds.left - bounds.right).toDouble(), 2.0) + Math.pow((bounds.top - bounds.bottom).toDouble(), 2.0)).toFloat() / 2
-                                val centerX = (bounds.left + bounds.right) / 2
-                                val centerY = (bounds.top + bounds.bottom) / 2
-                                canvas.drawCircle(centerX, centerY, radius, paintData)
-                            }
-                            DrawMode.SQUARE -> canvas.drawRect(bounds, paintData)
-                            else -> {}
-                        }
-                    }
+            when (currentDrawMode) {
+                DrawMode.PEN -> canvas.drawPath(path, paint)
+                DrawMode.CIRCLE -> {
+                    val radius = Math.sqrt(Math.pow((startX - endX).toDouble(), 2.0) + Math.pow((startY - endY).toDouble(), 2.0)).toFloat()
+                    canvas.drawCircle(startX, startY, radius, paint)
+                }
+                DrawMode.SQUARE -> {
+                    canvas.drawRect(startX, startY, endX, endY, paint)
                 }
             }
             canvas.restore()
@@ -213,8 +123,9 @@ class DrawingView(context: Context, attrs: AttributeSet? = null) : FrameLayout(c
                     return true
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> {
+                    // Cancel drawing if a second finger is added mid-stroke
                     if (currentDrawMode == DrawMode.PEN) {
-                        finalizeCurrentDrawing()
+                        path.reset()
                     }
                     previousDistance = getPointerDistance(event)
                     midPointX = (event.getX(0) + event.getX(1)) / 2
@@ -222,12 +133,14 @@ class DrawingView(context: Context, attrs: AttributeSet? = null) : FrameLayout(c
                 }
                 MotionEvent.ACTION_MOVE -> {
                     if (event.pointerCount == 1) {
+                        // One-finger gesture for drawing/shape placement
                         endX = x
                         endY = y
                         if (currentDrawMode == DrawMode.PEN) {
                             path.lineTo(x, y)
                         }
                     } else if (event.pointerCount == 2) {
+                        // Two-finger gesture for zoom/pan
                         val newDistance = getPointerDistance(event)
                         if (previousDistance != 0f) {
                             scaleFactor *= newDistance / previousDistance
@@ -240,30 +153,10 @@ class DrawingView(context: Context, attrs: AttributeSet? = null) : FrameLayout(c
                     endX = x
                     endY = y
                     if (currentDrawMode != DrawMode.PEN) {
-                        when (currentDrawMode) {
-                            DrawMode.CIRCLE -> {
-                                val radius = Math.sqrt(Math.pow((startX - endX).toDouble(), 2.0) + Math.pow((startY - endY).toDouble(), 2.0)).toFloat()
-                                val circlePath = Path().apply {
-                                    addCircle(startX, startY, radius, Path.Direction.CW)
-                                }
-                                val paintCopy = Paint(paint)
-                                actionPaths.add(Pair(circlePath, paintCopy))
-                            }
-                            DrawMode.SQUARE -> {
-                                val rectPath = Path().apply {
-                                    addRect(startX, startY, endX, endY, Path.Direction.CW)
-                                }
-                                val paintCopy = Paint(paint)
-                                actionPaths.add(Pair(rectPath, paintCopy))
-                            }
-                            else -> {}
-                        }
-                    } else {
-                        finalizeCurrentDrawing()
+                        invalidate()
                     }
                     previousDistance = 0f
                     activePointerId = MotionEvent.INVALID_POINTER_ID
-                    invalidate()
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     activePointerId = MotionEvent.INVALID_POINTER_ID
@@ -272,16 +165,6 @@ class DrawingView(context: Context, attrs: AttributeSet? = null) : FrameLayout(c
             }
 
             return true
-        }
-
-        private fun finalizeCurrentDrawing() {
-            if (currentDrawMode == DrawMode.PEN) {
-                val paintCopy = Paint(paint)
-                val pathCopy = Path(path)
-                actionPaths.add(Pair(pathCopy, paintCopy))
-                editViewModel?.pushAction(EditAction.Draw(pathCopy, paintCopy, currentDrawMode))
-                path.reset()
-            }
         }
 
         private fun getPointerDistance(event: MotionEvent): Float {
