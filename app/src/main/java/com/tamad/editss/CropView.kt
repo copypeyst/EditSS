@@ -1,1 +1,0 @@
-// File completely removed - no crop functionality needed

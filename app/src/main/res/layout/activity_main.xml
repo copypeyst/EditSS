@@ -415,8 +415,8 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Crop Overlay -->
-    <com.tamad.editss.CropView
+    <!-- Crop Overlay - Removed custom view, using simple FrameLayout -->
+    <FrameLayout
         android:id="@+id/crop_view"
         android:layout_width="0dp"
         android:layout_height="0dp"
