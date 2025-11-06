@@ -10,7 +10,7 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 
-class AdjustView(context: Context, attrs: AttributeSet) : FrameLayout(context, attrs) {
+class AdjustView(context: Context, attrs: AttributeSet? = null) : FrameLayout(context, attrs) {
 
     private val imageView: ImageView
     private val adjustOverlay: AdjustOverlay

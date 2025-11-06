@@ -18,7 +18,7 @@ enum class CropMode {
     LANDSCAPE
 }
 
-class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, attrs) {
+class CropView(context: Context, attrs: AttributeSet? = null) : FrameLayout(context, attrs) {
 
     private val imageView: ImageView
     private val cropOverlay: CropOverlay

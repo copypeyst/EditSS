@@ -16,7 +16,7 @@ enum class DrawMode {
     SQUARE
 }
 
-class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, attrs) {
+class DrawingView(context: Context, attrs: AttributeSet? = null) : FrameLayout(context, attrs) {
 
     private val imageView: ImageView
     private val drawingCanvas: DrawingCanvas
