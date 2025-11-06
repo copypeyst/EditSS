@@ -70,7 +70,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var rootLayout: FrameLayout
-    private lateinit var canvasImageView: ImageCanvasView
+    private lateinit var canvasImageView: ImageView
     private lateinit var savePanel: View
     private lateinit var toolOptionsLayout: LinearLayout
     private lateinit var drawOptionsLayout: LinearLayout
@@ -251,9 +251,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
-
-            // Set the canvas to draw mode
-            canvasImageView.setTool(Tool.DRAW)
         }
 
         toolCrop.setOnClickListener {
@@ -264,9 +261,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
-
-            // Set the canvas to crop mode
-            canvasImageView.setTool(Tool.CROP)
         }
 
         toolAdjust.setOnClickListener {
@@ -277,9 +271,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
-
-            // Set the canvas to adjust mode
-            canvasImageView.setTool(Tool.ADJUST)
         }
 
         // Initialize Save Panel buttons
@@ -342,8 +333,7 @@ class MainActivity : AppCompatActivity() {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
                     val size = progress.toFloat()
-                    // Apply to current drawing tool
-                    canvasImageView.setPaintSize(size)
+                    // TODO: Apply to current drawing tool
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -356,8 +346,7 @@ class MainActivity : AppCompatActivity() {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
                     val opacity = progress
-                    // Apply to current drawing tool
-                    canvasImageView.setPaintOpacity(opacity)
+                    // TODO: Apply to current drawing tool
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -371,19 +360,16 @@ class MainActivity : AppCompatActivity() {
             currentDrawMode?.isSelected = false
             drawModePen.isSelected = true
             currentDrawMode = drawModePen
-            canvasImageView.setDrawMode(DrawMode.PEN)
         }
         drawModeCircle.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModeCircle.isSelected = true
             currentDrawMode = drawModeCircle
-            canvasImageView.setDrawMode(DrawMode.CIRCLE)
         }
         drawModeSquare.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModeSquare.isSelected = true
             currentDrawMode = drawModeSquare
-            canvasImageView.setDrawMode(DrawMode.SQUARE)
         }
 
         // Initialize Crop Options
@@ -434,7 +420,7 @@ class MainActivity : AppCompatActivity() {
             border?.visibility = View.VISIBLE
             currentSelectedColor = v as FrameLayout
 
-            // Set the color based on which color container was clicked
+            // TODO: Set the color for drawing tool
             val color = when (v.id) {
                 R.id.color_red_container -> android.graphics.Color.RED
                 R.id.color_green_container -> android.graphics.Color.GREEN
@@ -446,7 +432,6 @@ class MainActivity : AppCompatActivity() {
                 R.id.color_white_container -> android.graphics.Color.WHITE
                 else -> android.graphics.Color.RED
             }
-            canvasImageView.setPaintColor(color)
         }
 
         colorBlackContainer.setOnClickListener(colorClickListener)
@@ -466,18 +451,11 @@ class MainActivity : AppCompatActivity() {
         currentCropMode = cropModeFreeform
 
         colorRedContainer.performClick()
-        // Set default paint color to red
-        canvasImageView.setPaintColor(android.graphics.Color.RED)
-        // Set default paint size
-        canvasImageView.setPaintSize(10f)
-        // Set default paint opacity
-        canvasImageView.setPaintOpacity(255)
 
         // Set draw as default active tool
         toolDraw.isSelected = true
         currentActiveTool = toolDraw
         drawOptionsLayout.visibility = View.VISIBLE
-        canvasImageView.setTool(Tool.DRAW)
         
         // Handle incoming intents
         handleIntent(intent)
@@ -524,11 +502,18 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val bitmapToShare = canvasImageView.getBitmap()
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Get bitmap from Coil
+                val request = ImageRequest.Builder(this@MainActivity)
+                    .data(imageInfo.uri)
+                    .allowHardware(false) // Important for sharing: ensures we get a software bitmap
+                    .build()
 
-        if (bitmapToShare != null) {
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
+                val result = imageLoader.execute(request).drawable
+                val bitmapToShare = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+
+                if (bitmapToShare != null) {
                     var shareUri: Uri? = null
 
                     // Determine sharing strategy based on image origin
@@ -586,14 +571,14 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         throw Exception("Failed to create share URI")
                     }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
-                    }
+                } else {
+                    throw Exception("No image to share")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
                 }
             }
-        } else {
-            Toast.makeText(this, getString(R.string.no_image_to_share), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -732,7 +717,7 @@ class MainActivity : AppCompatActivity() {
                             // Convert drawable to bitmap and set it
                             val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
                             if (bitmap != null) {
-                                canvasImageView.setImage(bitmap)
+                                canvasImageView.setImageBitmap(bitmap)
                             }
                             
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
@@ -745,9 +730,9 @@ class MainActivity : AppCompatActivity() {
                             
                             // Detect transparency for warning system (simplified approach)
                             try {
-                                val loadedBitmap = canvasImageView.getBitmap()
-                                if (loadedBitmap != null && loadedBitmap.width > 0 && loadedBitmap.height > 0) {
-                                    currentImageHasTransparency = detectImageTransparencyFromDrawable(canvasImageView.getBaseImageView().drawable)
+                                val loadedDrawable = canvasImageView.drawable
+                                if (loadedDrawable != null && loadedDrawable.intrinsicWidth > 0 && loadedDrawable.intrinsicHeight > 0) {
+                                    currentImageHasTransparency = detectImageTransparencyFromDrawable(loadedDrawable)
                                     updateTransparencyWarning()
                                 }
                             } catch (e: Exception) {
@@ -1003,18 +988,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Updated function to save a copy using the bitmap from ImageCanvasView.
+    // Updated function to save a copy using Coil to fetch the bitmap reliably.
     private fun saveImageAsCopy() {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, getString(R.string.no_image_to_save), Toast.LENGTH_SHORT).show()
             return
         }
 
-        val bitmapToSave = canvasImageView.getBitmap()
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Step 1: Ask Coil to get the Bitmap directly from the image URI.
+                val request = ImageRequest.Builder(this@MainActivity)
+                    .data(imageInfo.uri)
+                    .allowHardware(false) // Important for saving: ensures we get a software bitmap
+                    .build()
 
-        if (bitmapToSave != null) {
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
+                val result = imageLoader.execute(request).drawable
+                val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+
+                if (bitmapToSave != null) {
                     // Generate filename based on image origin
                     val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
                     val uniqueDisplayName = if (imageInfo.origin == ImageOrigin.CAMERA_CAPTURED) {
@@ -1069,14 +1061,14 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         throw Exception(getString(R.string.save_failed))
                     }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, e.message, Toast.LENGTH_SHORT).show()
-                    }
+                } else {
+                    throw Exception("No image to save")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, e.message, Toast.LENGTH_SHORT).show()
                 }
             }
-        } else {
-            Toast.makeText(this, getString(R.string.no_image_to_save), Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -1098,30 +1090,33 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val bitmapToSave = canvasImageView.getBitmap()
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Step 1: Get the bitmap to save (same as before)
+                val request = ImageRequest.Builder(this@MainActivity)
+                    .data(imageInfo.uri)
+                    .allowHardware(false)
+                    .build()
+                val result = imageLoader.execute(request).drawable
+                val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                    ?: throw Exception("Could not get image to overwrite")
 
-        if (bitmapToSave != null) {
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
-                    contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
-                        compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
-                    }
+                // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
+                contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
+                    compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                }
 
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
-                        savePanel.visibility = View.GONE
-                        scrim.visibility = View.GONE
-                    }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
+                    savePanel.visibility = View.GONE
+                    scrim.visibility = View.GONE
+                }
 
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, getString(R.string.overwrite_failed, e.message), Toast.LENGTH_SHORT).show()
-                    }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, getString(R.string.overwrite_failed, e.message), Toast.LENGTH_SHORT).show()
                 }
             }
-        } else {
-            Toast.makeText(this, getString(R.string.no_image_to_overwrite), Toast.LENGTH_SHORT).show()
         }
     }
     
