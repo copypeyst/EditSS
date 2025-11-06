@@ -43,7 +43,6 @@ import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
-import android.graphics.Color
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -140,21 +139,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 loadImageFromUri(uri, false)
             }
-        }
-    }
-
-    // Native crop launcher for crop functionality
-    private val cropImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val croppedUri = result.data?.getParcelableExtra<Uri>("CROPPED_URI")
-            if (croppedUri != null) {
-                // Update the current image with the cropped version
-                currentImageInfo = currentImageInfo?.copy(uri = croppedUri, origin = ImageOrigin.EDITED_INTERNAL)
-                loadImageFromUri(croppedUri, false)
-                Toast.makeText(this, "Image cropped successfully", Toast.LENGTH_SHORT).show()
-            }
-        } else if (result.resultCode == RESULT_CANCELED) {
-            // User cancelled crop operation
         }
     }
 
@@ -427,25 +411,21 @@ class MainActivity : AppCompatActivity() {
             currentCropMode?.isSelected = false
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
-            startCropActivity(null) // Freeform crop
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
-            startCropActivity(1f) // Square crop (1:1 aspect ratio)
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
-            startCropActivity(9f/16f) // Portrait crop (9:16 aspect ratio)
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
-            startCropActivity(16f/9f) // Landscape crop (16:9 aspect ratio)
         }
 
         // Initialize Adjust Options (no logic yet)
@@ -1377,20 +1357,6 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             throw Exception("Failed to compress image: ${e.message}")
         }
-    }
-
-    // Native crop activity launcher
-    private fun startCropActivity(aspectRatio: Float?) {
-        val imageInfo = currentImageInfo ?: run {
-            Toast.makeText(this, "No image to crop", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val intent = Intent(this, CropActivity::class.java).apply {
-            putExtra("ASPECT_RATIO", aspectRatio ?: 0f)
-            putExtra("IMAGE_URI", imageInfo.uri)
-        }
-        cropImageLauncher.launch(intent)
     }
 
     // Helper to get display name from URI

@@ -36,10 +36,6 @@
             </intent-filter>
         </activity>
         
-        <activity
-            android:name=".CropActivity"
-            android:theme="@style/Theme.EditSS" />
-        
         <!-- FileProvider for private camera files -->
         <provider
             android:name="androidx.core.content.FileProvider"

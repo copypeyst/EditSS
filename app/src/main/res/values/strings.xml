@@ -70,7 +70,4 @@
     <string name="share_image">Share Image</string>
     <string name="share_failed">Share failed: %1$s</string>
 
-    <!-- CropActivity.kt -->
-    <string name="crop_image">Crop Image</string>
-
 </resources>

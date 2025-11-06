@@ -21,10 +21,4 @@
     <color name="color_pink">#FFFFC0CB</color>
     
     <color name="transparency_warning">#FFFFA500</color>
-    
-    <!-- Crop colors -->
-    <color name="crop_overlay_background">#80000000</color>
-    <color name="button_bar_background">#CC222222</color>
-    <color name="button_cancel_color">#FF666666</color>
-    <color name="button_crop_color">#FF6200EE</color>
 </resources>
