@@ -23,7 +23,6 @@ class ImageCanvasView @JvmOverloads constructor(
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
     private var _baseImageView: ImageView
-    private val baseImageView: ImageView get() = _baseImageView
 
     private var currentTool: Tool = Tool.NONE
     private var toolView: View? = null
@@ -50,7 +49,7 @@ class ImageCanvasView @JvmOverloads constructor(
         // Create a mutable copy of the bitmap so we can modify it
         val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
         currentBitmap = mutableBitmap
-        baseImageView.setImageBitmap(mutableBitmap)
+        _baseImageView.setImageBitmap(mutableBitmap)
     }
 
     /**
