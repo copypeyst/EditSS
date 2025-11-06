@@ -36,11 +36,9 @@
             </intent-filter>
         </activity>
         
-        <!-- UCrop Activity -->
         <activity
-            android:name="com.yalantis.ucrop.UCropActivity"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+            android:name=".CropActivity"
+            android:theme="@style/Theme.EditSS" />
         
         <!-- FileProvider for private camera files -->
         <provider

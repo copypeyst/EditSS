@@ -22,8 +22,9 @@
     
     <color name="transparency_warning">#FFFFA500</color>
     
-    <!-- UCrop colors -->
-    <color name="primary_color">#FF6200EE</color>
-    <color name="primary_dark_color">#FF3700B3</color>
-    <color name="accent_color">#FF03DAC5</color>
+    <!-- Crop colors -->
+    <color name="crop_overlay_background">#80000000</color>
+    <color name="button_bar_background">#CC222222</color>
+    <color name="button_cancel_color">#FF666666</color>
+    <color name="button_crop_color">#FF6200EE</color>
 </resources>
