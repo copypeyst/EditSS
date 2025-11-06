@@ -21,4 +21,9 @@
     <color name="color_pink">#FFFFC0CB</color>
     
     <color name="transparency_warning">#FFFFA500</color>
+    
+    <!-- UCrop colors -->
+    <color name="primary_color">#FF6200EE</color>
+    <color name="primary_dark_color">#FF3700B3</color>
+    <color name="accent_color">#FF03DAC5</color>
 </resources>

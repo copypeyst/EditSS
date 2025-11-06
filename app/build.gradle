@@ -57,6 +57,7 @@ dependencies {
     implementation libs.coil
     implementation libs.coil.gif
     implementation libs.coil.svg
+    implementation 'com.github.yalantis:ucrop:2.2.8'
 
     testImplementation libs.junit
     androidTestImplementation libs.androidx.junit

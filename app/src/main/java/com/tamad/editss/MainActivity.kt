@@ -43,6 +43,8 @@ import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
+import com.yalantis.ucrop.UCrop
+import android.graphics.Color
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -139,6 +141,22 @@ class MainActivity : AppCompatActivity() {
                 }
                 loadImageFromUri(uri, false)
             }
+        }
+    }
+
+    // UCrop launcher for crop functionality
+    private val cropImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val croppedUri = UCrop.getOutput(result.data!!)
+            if (croppedUri != null) {
+                // Update the current image with the cropped version
+                currentImageInfo = currentImageInfo?.copy(uri = croppedUri, origin = ImageOrigin.EDITED_INTERNAL)
+                loadImageFromUri(croppedUri, false)
+                Toast.makeText(this, "Image cropped successfully", Toast.LENGTH_SHORT).show()
+            }
+        } else if (result.resultCode == UCrop.RESULT_ERROR) {
+            val cropError = UCrop.getError(result.data!!)
+            Toast.makeText(this, "Crop error: ${cropError?.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -411,21 +429,25 @@ class MainActivity : AppCompatActivity() {
             currentCropMode?.isSelected = false
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
+            startCropActivity(null) // Freeform crop
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
+            startCropActivity(1f) // Square crop (1:1 aspect ratio)
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
+            startCropActivity(9f/16f) // Portrait crop (9:16 aspect ratio)
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
+            startCropActivity(16f/9f) // Landscape crop (16:9 aspect ratio)
         }
 
         // Initialize Adjust Options (no logic yet)
@@ -1357,6 +1379,38 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             throw Exception("Failed to compress image: ${e.message}")
         }
+    }
+
+    // UCrop activity launcher
+    private fun startCropActivity(aspectRatio: Float?) {
+        val imageInfo = currentImageInfo ?: run {
+            Toast.makeText(this, "No image to crop", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val options = UCrop.Options().apply {
+            // Customize UCrop appearance
+            setToolbarColor(ContextCompat.getColor(this@MainActivity, R.color.primary_color))
+            setStatusBarColor(ContextCompat.getColor(this@MainActivity, R.color.primary_dark_color))
+            setActiveWidgetColor(ContextCompat.getColor(this@MainActivity, R.color.accent_color))
+            setToolbarTitle("Crop Image")
+            setHideBottomControls(false)
+            setFreeStyleCropEnabled(true)
+            setCircleDimmedLayer(false)
+            setShowCropFrame(true)
+            setShowCropGrid(true)
+            setCropGridStrokeWidth(2f)
+            setCropGridColor(Color.WHITE)
+            setDimmedLayerColor(Color.parseColor("#80000000"))
+        }
+
+        val sourceUri = imageInfo.uri
+        val destinationUri = Uri.fromFile(File(cacheDir, "cropped_${System.currentTimeMillis()}.jpg"))
+
+        UCrop.of(sourceUri, destinationUri)
+            .withAspectRatio(aspectRatio ?: 0f, 1f) // 0f means free aspect ratio
+            .withOptions(options)
+            .start(this, cropImageLauncher)
     }
 
     // Helper to get display name from URI
