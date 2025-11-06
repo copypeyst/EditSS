@@ -60,6 +60,13 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
         private val handleSize = 60f
         private val edgeThickness = 40f
         private val centerSize = 120f
+        
+        // Image bounds for proper constraint checking
+        private var imageBounds = RectF()
+        private var originalCenterX = 0f
+        private var originalCenterY = 0f
+        private var originalWidth = 0f
+        private var originalHeight = 0f
 
         init {
             // Main marquee border
@@ -101,6 +108,17 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
             val effectiveWidth = if (viewWidth == 0f) 1000f else viewWidth
             val effectiveHeight = if (viewHeight == 0f) 1000f else viewHeight
             
+            // Set image bounds based on effective dimensions (or use actual image bounds if available)
+            if (imageBounds.width() == 0f || imageBounds.height() == 0f) {
+                imageBounds = RectF(0f, 0f, effectiveWidth, effectiveHeight)
+            }
+            
+            // Store original center for aspect ratio constraints
+            originalCenterX = (imageBounds.left + imageBounds.right) / 2
+            originalCenterY = (imageBounds.top + imageBounds.bottom) / 2
+            originalWidth = imageBounds.width()
+            originalHeight = imageBounds.height()
+            
             // Calculate initial crop rectangle based on mode
             initialCropRect = when (currentCropMode) {
                 CropMode.SQUARE -> {
@@ -135,6 +153,13 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
         fun setCropMode(cropMode: CropMode) {
             currentCropMode = cropMode
             // Always reset to initial position fitted to image
+            initializeCropRectangle()
+            invalidate()
+        }
+        
+        fun setImageBounds(imageRect: RectF) {
+            imageBounds = RectF(imageRect)
+            // Reinitialize with new image bounds
             initializeCropRectangle()
             invalidate()
         }
@@ -310,89 +335,59 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
             
             when (currentCropMode) {
                 CropMode.SQUARE -> {
-                    // 1:1 aspect ratio - maintain size and center position
-                    val size = Math.min(newRect.width(), newRect.height())
+                    // 1:1 aspect ratio - calculate size based on center and aspect ratio
                     val centerX = (newRect.left + newRect.right) / 2
                     val centerY = (newRect.top + newRect.bottom) / 2
+                    val size = Math.min(newRect.width(), newRect.height())
+                    
+                    // Apply 1:1 aspect ratio centered at the center point
                     newRect.left = centerX - size / 2
                     newRect.right = centerX + size / 2
                     newRect.top = centerY - size / 2
                     newRect.bottom = centerY + size / 2
                 }
                 CropMode.PORTRAIT -> {
-                    // 9:16 aspect ratio - maintain width and center vertically
-                    val width = newRect.width()
-                    val height = width * (16f / 9f)
+                    // 9:16 aspect ratio (width:height)
+                    val centerX = (newRect.left + newRect.right) / 2
                     val centerY = (newRect.top + newRect.bottom) / 2
+                    val width = newRect.width()
+                    val height = width * (16f / 9f) // Height = width * (16/9) for 9:16 ratio
+                    
+                    // Apply aspect ratio centered at center point
+                    newRect.left = centerX - width / 2
+                    newRect.right = centerX + width / 2
                     newRect.top = centerY - height / 2
                     newRect.bottom = centerY + height / 2
                 }
                 CropMode.LANDSCAPE -> {
-                    // 16:9 aspect ratio - maintain height and center horizontally
-                    val height = newRect.height()
-                    val width = height * (16f / 9f)
+                    // 16:9 aspect ratio (width:height)
                     val centerX = (newRect.left + newRect.right) / 2
+                    val centerY = (newRect.top + newRect.bottom) / 2
+                    val height = newRect.height()
+                    val width = height * (16f / 9f) // Width = height * (16/9) for 16:9 ratio
+                    
+                    // Apply aspect ratio centered at center point
                     newRect.left = centerX - width / 2
                     newRect.right = centerX + width / 2
+                    newRect.top = centerY - height / 2
+                    newRect.bottom = centerY + height / 2
                 }
-                else -> { /* FREEFORM - no constraints */ }
+                else -> { /* FREEFORM - no aspect ratio constraints */ }
             }
             
-            // Constrain to view bounds, but preserve aspect ratio by adjusting position
-            val maxWidth = Math.min(viewWidth, viewHeight * (16f / 9f))
-            val maxHeight = maxWidth * (9f / 16f)
-            
-            // Calculate allowed bounds for each mode
-            when (currentCropMode) {
-                CropMode.SQUARE -> {
-                    val allowedSize = Math.min(maxWidth, maxHeight)
-                    val centerX = (newRect.left + newRect.right) / 2
-                    val centerY = (newRect.top + newRect.bottom) / 2
-                    
-                    newRect.left = centerX - allowedSize / 2
-                    newRect.right = centerX + allowedSize / 2
-                    newRect.top = centerY - allowedSize / 2
-                    newRect.bottom = centerY + allowedSize / 2
-                    
-                    // Final bounds check
-                    newRect.left = Math.max(0f, Math.min(newRect.left, viewWidth))
-                    newRect.top = Math.max(0f, Math.min(newRect.top, viewHeight))
-                    newRect.right = Math.max(0f, Math.min(newRect.right, viewWidth))
-                    newRect.bottom = Math.max(0f, Math.min(newRect.bottom, viewHeight))
-                }
-                CropMode.PORTRAIT -> {
-                    val allowedHeight = Math.min(maxHeight, viewHeight)
-                    val allowedWidth = allowedHeight * (9f / 16f)
-                    val centerX = (newRect.left + newRect.right) / 2
-                    
-                    newRect.left = centerX - allowedWidth / 2
-                    newRect.right = centerX + allowedWidth / 2
-                    
-                    newRect.left = Math.max(0f, Math.min(newRect.left, viewWidth))
-                    newRect.top = Math.max(0f, Math.min(newRect.top, viewHeight))
-                    newRect.right = Math.max(0f, Math.min(newRect.right, viewWidth))
-                    newRect.bottom = Math.max(0f, Math.min(newRect.bottom, viewHeight))
-                }
-                CropMode.LANDSCAPE -> {
-                    val allowedWidth = Math.min(maxWidth, viewWidth)
-                    val allowedHeight = allowedWidth * (9f / 16f)
-                    val centerY = (newRect.top + newRect.bottom) / 2
-                    
-                    newRect.top = centerY - allowedHeight / 2
-                    newRect.bottom = centerY + allowedHeight / 2
-                    
-                    newRect.left = Math.max(0f, Math.min(newRect.left, viewWidth))
-                    newRect.top = Math.max(0f, Math.min(newRect.top, viewHeight))
-                    newRect.right = Math.max(0f, Math.min(newRect.right, viewWidth))
-                    newRect.bottom = Math.max(0f, Math.min(newRect.bottom, viewHeight))
-                }
-                else -> {
-                    // FREEFORM - simple bounds check
-                    newRect.left = Math.max(0f, Math.min(newRect.left, viewWidth))
-                    newRect.top = Math.max(0f, Math.min(newRect.top, viewHeight))
-                    newRect.right = Math.max(0f, Math.min(newRect.right, viewWidth))
-                    newRect.bottom = Math.max(0f, Math.min(newRect.bottom, viewHeight))
-                }
+            // Constrain to image bounds (not just canvas bounds)
+            if (imageBounds.width() > 0 && imageBounds.height() > 0) {
+                // Use actual image bounds
+                newRect.left = Math.max(imageBounds.left, Math.min(newRect.left, imageBounds.right))
+                newRect.top = Math.max(imageBounds.top, Math.min(newRect.top, imageBounds.bottom))
+                newRect.right = Math.max(imageBounds.left, Math.min(newRect.right, imageBounds.right))
+                newRect.bottom = Math.max(imageBounds.top, Math.min(newRect.bottom, imageBounds.bottom))
+            } else {
+                // Fallback to canvas bounds if no image bounds available
+                newRect.left = Math.max(0f, Math.min(newRect.left, viewWidth))
+                newRect.top = Math.max(0f, Math.min(newRect.top, viewHeight))
+                newRect.right = Math.max(0f, Math.min(newRect.right, viewWidth))
+                newRect.bottom = Math.max(0f, Math.min(newRect.bottom, viewHeight))
             }
         }
 
