@@ -43,6 +43,7 @@ import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
+import com.yalantis.ucrop.UCrop
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -118,6 +119,21 @@ class MainActivity : AppCompatActivity() {
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
+
+    // UCrop result launcher
+    private val ucropLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val resultUri = UCrop.getOutput(result.data!!)
+            if (resultUri != null) {
+                loadImageFromUri(resultUri, true)
+            } else {
+                Toast.makeText(this, getString(R.string.crop_failed), Toast.LENGTH_SHORT).show()
+            }
+        } else if (result.resultCode == UCrop.RESULT_ERROR) {
+            val cropError = UCrop.getError(result.data!!)
+            Toast.makeText(this, getString(R.string.crop_error, cropError?.message), Toast.LENGTH_SHORT).show()
+        }
+    }
 
     private val importImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -282,14 +298,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         toolCrop.setOnClickListener {
-            cropOptionsLayout.visibility = View.VISIBLE
-            drawOptionsLayout.visibility = View.GONE
-            adjustOptionsLayout.visibility = View.GONE
-            savePanel.visibility = View.GONE // Hide save panel
-            drawingView.visibility = View.GONE // Hide drawing overlay
-            currentActiveTool?.isSelected = false
-            toolCrop.isSelected = true
-            currentActiveTool = toolCrop
+            val imageInfo = currentImageInfo
+            if (imageInfo != null) {
+                startUCrop(imageInfo.uri)
+            } else {
+                Toast.makeText(this, getString(R.string.no_image_to_crop), Toast.LENGTH_SHORT).show()
+            }
         }
 
         toolAdjust.setOnClickListener {
@@ -1421,4 +1435,28 @@ class MainActivity : AppCompatActivity() {
         return uri
     }
     // --- END: ADDED FOR OVERWRITE FIX ---
+
+    // UCrop functionality
+    private fun startUCrop(sourceUri: Uri) {
+        val destinationUri = Uri.fromFile(File(cacheDir, "cropped_${System.currentTimeMillis()}.jpg"))
+        
+        val options = UCrop.Options().apply {
+            setCompressionFormat(Bitmap.CompressFormat.JPEG)
+            setCompressionQuality(90)
+            setMaxBitmapSize(5120 * 5120) // 5MP max
+            setMaxScaleMultiplier(5f)
+            setImageToCropRatioAnimDurationMs(300)
+            setDimmedLayerColor(getColor(R.color.scrim_background))
+            setCropFrameColor(getColor(R.color.white))
+            setCropGridColor(getColor(R.color.white))
+            setCropGridColumnCount(2)
+            setCropGridRowCount(2)
+            setShowCropFrame(true)
+            setShowCropGrid(true)
+        }
+        
+        UCrop.of(sourceUri, destinationUri)
+            .withOptions(options)
+            .start(this, ucropLauncher)
+    }
 }

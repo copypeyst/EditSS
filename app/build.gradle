@@ -57,6 +57,7 @@ dependencies {
     implementation libs.coil
     implementation libs.coil.gif
     implementation libs.coil.svg
+    implementation libs.ucrop
 
     testImplementation libs.junit
     androidTestImplementation libs.androidx.junit
