@@ -120,21 +120,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var drawOpacitySlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
 
-    // UCrop result launcher
-    private val ucropLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val resultUri = UCrop.getOutput(result.data!!)
-            if (resultUri != null) {
-                loadImageFromUri(resultUri, true)
-            } else {
-                Toast.makeText(this, getString(R.string.crop_failed), Toast.LENGTH_SHORT).show()
-            }
-        } else if (result.resultCode == UCrop.RESULT_ERROR) {
-            val cropError = UCrop.getError(result.data!!)
-            Toast.makeText(this, getString(R.string.crop_error, cropError?.message), Toast.LENGTH_SHORT).show()
-        }
-    }
-
     private val importImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             val uri = result.data?.data
@@ -647,6 +632,24 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        
+        if (requestCode == UCrop.REQUEST_CROP) {
+            if (resultCode == RESULT_OK) {
+                val resultUri = UCrop.getOutput(data!!)
+                if (resultUri != null) {
+                    loadImageFromUri(resultUri, true)
+                } else {
+                    Toast.makeText(this, getString(R.string.crop_failed), Toast.LENGTH_SHORT).show()
+                }
+            } else if (resultCode == UCrop.RESULT_ERROR) {
+                val cropError = UCrop.getError(data!!)
+                Toast.makeText(this, getString(R.string.crop_error, cropError?.message), Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun handleIntent(intent: Intent) {
@@ -1457,6 +1460,6 @@ class MainActivity : AppCompatActivity() {
         
         UCrop.of(sourceUri, destinationUri)
             .withOptions(options)
-            .start(this, ucropLauncher)
+            .start(this)
     }
 }
