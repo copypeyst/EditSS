@@ -43,6 +43,11 @@ import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
+import com.canhub.cropper.CropImage
+import com.canhub.cropper.CropImageContract
+import com.canhub.cropper.CropImageContractOptions
+import com.canhub.cropper.CropImageOptions
+
 // import com.tamad.editss.CropMode // Removed - no longer needed
 
 // Step 8: Image origin tracking enum
@@ -174,6 +179,33 @@ class MainActivity : AppCompatActivity() {
         } else {
             showPermissionDeniedDialog()
         }
+    }
+
+    private val cropImageLauncher = registerForActivityResult(CropImageContract()) { result ->
+        if (result.isSuccessful) {
+            val uri = result.uriContent
+            if (uri != null) {
+                loadImageFromUri(uri, true)
+            }
+        } else {
+            val exception = result.error
+            Toast.makeText(this, "Cropping failed: ${exception?.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun startCrop(aspectRatioX: Int, aspectRatioY: Int) {
+        currentImageInfo?.uri?.let { uri ->
+            val options = CropImageContractOptions(
+                uri = uri,
+                cropImageOptions = CropImageOptions(
+                    fixAspectRatio = aspectRatioX > 0 && aspectRatioY > 0,
+                    aspectRatioX = aspectRatioX,
+                    aspectRatioY = aspectRatioY,
+                    guidelines = com.canhub.cropper.CropImageView.Guidelines.ON
+                )
+            )
+            cropImageLauncher.launch(options)
+        } ?: Toast.makeText(this, "No image to crop", Toast.LENGTH_SHORT).show()
     }
 
 
@@ -423,25 +455,25 @@ class MainActivity : AppCompatActivity() {
             currentCropMode?.isSelected = false
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
-            // cropView.setCropMode(CropMode.FREEFORM) // Removed - no functionality
+            startCrop(0, 0) // Freeform
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
-            // cropView.setCropMode(CropMode.SQUARE) // Removed - no functionality
+            startCrop(1, 1) // Square
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
-            // cropView.setCropMode(CropMode.PORTRAIT) // Removed - no functionality
+            startCrop(9, 16) // Portrait
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
-            // cropView.setCropMode(CropMode.LANDSCAPE) // Removed - no functionality
+            startCrop(16, 9) // Landscape
         }
 
         // Initialize Adjust Options (no logic yet)
