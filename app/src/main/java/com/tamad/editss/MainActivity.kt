@@ -219,10 +219,18 @@ class MainActivity : AppCompatActivity() {
         // Initialize EditViewModel
         editViewModel = ViewModelProvider(this)[EditViewModel::class.java]
 
-        // Create Drawing, Crop, and Adjust views
-        drawingView = DrawingView(this, null)
-        cropView = CropView(this, null)
-        adjustView = AdjustView(this, null)
+        // Create Drawing, Crop, and Adjust views with proper AttributeSet
+        val drawAttrs = android.util.AttributeSet.obtain(0, 0, 0, 0)
+        val cropAttrs = android.util.AttributeSet.obtain(0, 0, 0, 0)
+        val adjustAttrs = android.util.AttributeSet.obtain(0, 0, 0, 0)
+
+        drawingView = DrawingView(this, drawAttrs)
+        cropView = CropView(this, cropAttrs)
+        adjustView = AdjustView(this, adjustAttrs)
+
+        drawAttrs.recycle()
+        cropAttrs.recycle()
+        adjustAttrs.recycle()
 
         // Set EditViewModel for each view
         drawingView.setEditViewModel(editViewModel)

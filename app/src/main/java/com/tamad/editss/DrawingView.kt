@@ -73,6 +73,14 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
         drawingCanvas.replayActions(actions)
     }
 
+    fun undo() {
+        drawingCanvas.undo()
+    }
+
+    fun redo(path: Path, paint: Paint) {
+        drawingCanvas.redo(path, paint)
+    }
+
     private inner class DrawingCanvas(context: Context) : View(context) {
 
         private val paint = Paint()
