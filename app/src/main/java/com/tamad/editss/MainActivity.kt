@@ -42,13 +42,6 @@ import coil.memory.MemoryCache
 import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
-import com.tamad.editss.DrawMode
-import com.canhub.cropper.CropImage
-import com.canhub.cropper.CropImageContract
-import com.canhub.cropper.CropImageContractOptions
-import com.canhub.cropper.CropImageOptions
-
-// import com.tamad.editss.CropMode // Removed - no longer needed
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -116,17 +109,6 @@ class MainActivity : AppCompatActivity() {
     private var pendingOverwriteUri: Uri? = null
     // --- END: ADDED FOR OVERWRITE FIX ---
 
-    // Drawing tools ViewModel for shared state
-    private lateinit var editViewModel: EditViewModel
-    
-    // Drawing-related UI elements
-    private lateinit var drawingView: DrawingView
-    // private lateinit var cropView: CropView // Removed - no functionality
-    private lateinit var adjustView: AdjustView
-    private lateinit var drawSizeSlider: SeekBar
-    private lateinit var drawOpacitySlider: SeekBar
-    // --- END: ADDED FOR OVERWRITE FIX ---
-
     private val importImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             val uri = result.data?.data
@@ -181,33 +163,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val cropImageLauncher = registerForActivityResult(CropImageContract()) { result ->
-        if (result.isSuccessful) {
-            val uri = result.uriContent
-            if (uri != null) {
-                loadImageFromUri(uri, true)
-            }
-        } else {
-            val exception = result.error
-            Toast.makeText(this, "Cropping failed: ${exception?.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun startCrop(aspectRatioX: Int, aspectRatioY: Int) {
-        currentImageInfo?.uri?.let { uri ->
-            val options = CropImageContractOptions(
-                uri = uri,
-                cropImageOptions = CropImageOptions(
-                    fixAspectRatio = aspectRatioX > 0 && aspectRatioY > 0,
-                    aspectRatioX = aspectRatioX,
-                    aspectRatioY = aspectRatioY,
-                    guidelines = com.canhub.cropper.CropImageView.Guidelines.ON
-                )
-            )
-            cropImageLauncher.launch(options)
-        } ?: Toast.makeText(this, "No image to crop", Toast.LENGTH_SHORT).show()
-    }
-
 
     // Coil image loader for efficient image handling
     private val imageLoader by lazy {
@@ -231,9 +186,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Initialize ViewModel for shared drawing state
-        editViewModel = EditViewModel()
-
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
         canvasImageView = findViewById(R.id.canvas)
@@ -247,30 +199,11 @@ class MainActivity : AppCompatActivity() {
 
         savePanel = findViewById(R.id.save_panel)
         toolOptionsLayout = findViewById(R.id.tool_options)
-        scrim = findViewById(R.id.scrim)
-        transparencyWarningText = findViewById(R.id.transparency_warning_text)
-
-        // Initialize drawing controls
-        drawSizeSlider = findViewById(R.id.draw_size_slider)
-        drawOpacitySlider = findViewById(R.id.draw_opacity_slider)
         drawOptionsLayout = findViewById(R.id.draw_options)
         cropOptionsLayout = findViewById(R.id.crop_options)
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         scrim = findViewById(R.id.scrim)
         transparencyWarningText = findViewById(R.id.transparency_warning_text)
-        
-        // Initialize DrawingView and connect to ViewModel
-        drawingView = findViewById(R.id.drawing_view)
-        drawingView.setupDrawingState(editViewModel)
-        
-        // Initialize AdjustView (CropView removed)
-        adjustView = findViewById(R.id.adjust_view)
-
-        // Initialize sliders with default values (25% size, 100% opacity)
-        val defaultSize = 25 // 25% of slider range
-        val defaultOpacity = 100 // 100% of slider range
-        drawSizeSlider.progress = defaultSize
-        drawOpacitySlider.progress = defaultOpacity
 
         // Save Panel Logic
         buttonSave.setOnClickListener {
@@ -313,9 +246,6 @@ class MainActivity : AppCompatActivity() {
             cropOptionsLayout.visibility = View.GONE
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
-            drawingView.visibility = View.VISIBLE // Show drawing view
-            // cropView.visibility = View.GONE // Removed - no functionality
-            adjustView.visibility = View.GONE // Hide adjust view
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
@@ -326,9 +256,6 @@ class MainActivity : AppCompatActivity() {
             drawOptionsLayout.visibility = View.GONE
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
-            drawingView.visibility = View.GONE // Hide drawing view
-            // cropView.visibility = View.VISIBLE // Removed - no functionality
-            adjustView.visibility = View.GONE // Hide adjust view
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
@@ -339,9 +266,6 @@ class MainActivity : AppCompatActivity() {
             drawOptionsLayout.visibility = View.GONE
             cropOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
-            drawingView.visibility = View.GONE // Hide drawing view
-            // cropView.visibility = View.GONE // Removed - no functionality
-            adjustView.visibility = View.VISIBLE // Show adjust view
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
@@ -398,6 +322,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Initialize Draw Options
+        findViewById<SeekBar>(R.id.draw_size_slider)
+        findViewById<SeekBar>(R.id.draw_opacity_slider)
         val drawModePen: ImageView = findViewById(R.id.draw_mode_pen)
         val drawModeCircle: ImageView = findViewById(R.id.draw_mode_circle)
         val drawModeSquare: ImageView = findViewById(R.id.draw_mode_square)
@@ -406,44 +332,17 @@ class MainActivity : AppCompatActivity() {
             currentDrawMode?.isSelected = false
             drawModePen.isSelected = true
             currentDrawMode = drawModePen
-            drawingView.setDrawMode(DrawMode.PEN)
         }
         drawModeCircle.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModeCircle.isSelected = true
             currentDrawMode = drawModeCircle
-            drawingView.setDrawMode(DrawMode.CIRCLE)
         }
         drawModeSquare.setOnClickListener {
             currentDrawMode?.isSelected = false
             drawModeSquare.isSelected = true
             currentDrawMode = drawModeSquare
-            drawingView.setDrawMode(DrawMode.SQUARE)
         }
-        
-        // Initialize slider listeners for shared drawing state
-        drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    val size = (progress + 1).toFloat() // Convert to 1-101 range as Float
-                    editViewModel.updateDrawingSize(size)
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-        
-        drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    // Convert progress (1-101) to opacity (0-255) for proper alpha mapping
-                    val opacity = ((progress - 1) * 2.55).toInt().coerceIn(0, 255)
-                    editViewModel.updateDrawingOpacity(opacity)
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
 
         // Initialize Crop Options
         val cropModeFreeform: ImageView = findViewById(R.id.crop_mode_freeform)
@@ -455,25 +354,21 @@ class MainActivity : AppCompatActivity() {
             currentCropMode?.isSelected = false
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
-            startCrop(0, 0) // Freeform
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
-            startCrop(1, 1) // Square
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
-            startCrop(9, 16) // Portrait
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
-            startCrop(16, 9) // Landscape
         }
 
         // Initialize Adjust Options (no logic yet)
@@ -496,21 +391,6 @@ class MainActivity : AppCompatActivity() {
             val border = v.findViewWithTag<View>("border")
             border?.visibility = View.VISIBLE
             currentSelectedColor = v as FrameLayout
-            
-            // Update shared drawing state in ViewModel
-            val selectedColor = when (v.id) {
-                R.id.color_black_container -> android.graphics.Color.BLACK
-                R.id.color_white_container -> android.graphics.Color.WHITE
-                R.id.color_red_container -> android.graphics.Color.RED
-                R.id.color_green_container -> android.graphics.Color.GREEN
-                R.id.color_blue_container -> android.graphics.Color.BLUE
-                R.id.color_yellow_container -> android.graphics.Color.YELLOW
-                R.id.color_orange_container -> android.graphics.Color.rgb(255, 165, 0) // Orange
-                R.id.color_pink_container -> android.graphics.Color.rgb(255, 192, 203) // Pink
-                else -> android.graphics.Color.RED // Default fallback
-            }
-            
-            editViewModel.updateDrawingColor(selectedColor)
         }
 
         colorBlackContainer.setOnClickListener(colorClickListener)
@@ -525,11 +405,9 @@ class MainActivity : AppCompatActivity() {
         // Set default selections
         drawModePen.isSelected = true
         currentDrawMode = drawModePen
-        drawingView.setDrawMode(DrawMode.PEN) // Initialize the drawing canvas with pen mode
 
         cropModeFreeform.isSelected = true
         currentCropMode = cropModeFreeform
-        // cropView.setCropMode(CropMode.FREEFORM) // Removed - no functionality
 
         colorRedContainer.performClick()
 
@@ -800,8 +678,6 @@ class MainActivity : AppCompatActivity() {
                             canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
                             canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                             
-                            // CropView removed - no image sync needed
-
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
                             
                             // Update UI based on canOverwrite
