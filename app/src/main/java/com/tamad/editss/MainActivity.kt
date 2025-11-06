@@ -43,7 +43,7 @@ import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
-import com.tamad.editss.CropMode
+// import com.tamad.editss.CropMode // Removed - no longer needed
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -116,7 +116,7 @@ class MainActivity : AppCompatActivity() {
     
     // Drawing-related UI elements
     private lateinit var drawingView: DrawingView
-    private lateinit var cropView: CropView
+    // private lateinit var cropView: CropView // Removed - no functionality
     private lateinit var adjustView: AdjustView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
@@ -231,8 +231,7 @@ class MainActivity : AppCompatActivity() {
         drawingView = findViewById(R.id.drawing_view)
         drawingView.setupDrawingState(editViewModel)
         
-        // Initialize CropView and AdjustView
-        cropView = findViewById(R.id.crop_view)
+        // Initialize AdjustView (CropView removed)
         adjustView = findViewById(R.id.adjust_view)
 
         // Initialize sliders with default values (25% size, 100% opacity)
@@ -283,7 +282,7 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Show drawing view
-            cropView.visibility = View.GONE // Hide crop view
+            // cropView.visibility = View.GONE // Removed - no functionality
             adjustView.visibility = View.GONE // Hide adjust view
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
@@ -296,7 +295,7 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.GONE // Hide drawing view
-            cropView.visibility = View.VISIBLE // Show crop view
+            // cropView.visibility = View.VISIBLE // Removed - no functionality
             adjustView.visibility = View.GONE // Hide adjust view
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
@@ -309,7 +308,7 @@ class MainActivity : AppCompatActivity() {
             cropOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.GONE // Hide drawing view
-            cropView.visibility = View.GONE // Hide crop view
+            // cropView.visibility = View.GONE // Removed - no functionality
             adjustView.visibility = View.VISIBLE // Show adjust view
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
@@ -424,25 +423,25 @@ class MainActivity : AppCompatActivity() {
             currentCropMode?.isSelected = false
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
-            cropView.setCropMode(CropMode.FREEFORM) // Connect to CropView
+            // cropView.setCropMode(CropMode.FREEFORM) // Removed - no functionality
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
-            cropView.setCropMode(CropMode.SQUARE) // Connect to CropView
+            // cropView.setCropMode(CropMode.SQUARE) // Removed - no functionality
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
-            cropView.setCropMode(CropMode.PORTRAIT) // Connect to CropView
+            // cropView.setCropMode(CropMode.PORTRAIT) // Removed - no functionality
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
-            cropView.setCropMode(CropMode.LANDSCAPE) // Connect to CropView
+            // cropView.setCropMode(CropMode.LANDSCAPE) // Removed - no functionality
         }
 
         // Initialize Adjust Options (no logic yet)
@@ -498,7 +497,7 @@ class MainActivity : AppCompatActivity() {
 
         cropModeFreeform.isSelected = true
         currentCropMode = cropModeFreeform
-        cropView.setCropMode(CropMode.FREEFORM) // Initialize CropView with default mode
+        // cropView.setCropMode(CropMode.FREEFORM) // Removed - no functionality
 
         colorRedContainer.performClick()
 
@@ -769,10 +768,7 @@ class MainActivity : AppCompatActivity() {
                             canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
                             canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                             
-                            // Sync the image to CropView as well
-                            cropView.getImageView().setImageDrawable(drawable)
-                            cropView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
-                            cropView.getImageView().setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            // CropView removed - no image sync needed
 
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
                             
