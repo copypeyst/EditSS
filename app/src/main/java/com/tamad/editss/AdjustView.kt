@@ -39,7 +39,35 @@ class AdjustView(context: Context, attrs: AttributeSet) : FrameLayout(context, a
         adjustOverlay.setSaturation(value)
     }
 
-    private class AdjustOverlay(context: Context) : View(context) {
+    fun setEditViewModel(viewModel: EditViewModel) {
+        adjustOverlay.setEditViewModel(viewModel)
+    }
+
+    fun getCurrentAdjustments(): Triple<Float, Float, Float> {
+        return adjustOverlay.getCurrentAdjustments()
+    }
+
+    fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
+        adjustOverlay.setAdjustments(brightness, contrast, saturation)
+    }
+
+    fun clearAdjustments() {
+        adjustOverlay.clearAdjustments()
+    }
+
+    fun undo() {
+        adjustOverlay.undo()
+    }
+
+    fun redo(brightness: Float, contrast: Float, saturation: Float) {
+        adjustOverlay.redo(brightness, contrast, saturation)
+    }
+
+    fun replayActions(actions: List<EditAction.Adjust>) {
+        adjustOverlay.replayActions(actions)
+    }
+
+    private inner class AdjustOverlay(context: Context) : View(context) {
 
         private val paint = Paint()
         private val colorMatrix = ColorMatrix()
@@ -47,22 +75,82 @@ class AdjustView(context: Context, attrs: AttributeSet) : FrameLayout(context, a
         private var contrast = 1f
         private var saturation = 1f
 
+        private var editViewModel: EditViewModel? = null
+        private val adjustmentHistory = mutableListOf<Triple<Float, Float, Float>>()
+
+        fun setEditViewModel(viewModel: EditViewModel) {
+            editViewModel = viewModel
+        }
+
+        fun getCurrentAdjustments(): Triple<Float, Float, Float> {
+            return Triple(brightness, contrast, saturation)
+        }
+
+        fun setAdjustments(b: Float, c: Float, s: Float) {
+            brightness = b
+            contrast = c
+            saturation = s
+            updateColorFilter()
+        }
+
+        fun clearAdjustments() {
+            brightness = 0f
+            contrast = 1f
+            saturation = 1f
+            adjustmentHistory.clear()
+            updateColorFilter()
+        }
+
+        fun undo() {
+            if (adjustmentHistory.isNotEmpty()) {
+                adjustmentHistory.removeLast()
+                if (adjustmentHistory.isNotEmpty()) {
+                    val (lastBrightness, lastContrast, lastSaturation) = adjustmentHistory.last()
+                    setAdjustments(lastBrightness, lastContrast, lastSaturation)
+                } else {
+                    clearAdjustments()
+                }
+            }
+        }
+
+        fun redo(b: Float, c: Float, s: Float) {
+            setAdjustments(b, c, s)
+            adjustmentHistory.add(Triple(b, c, s))
+        }
+
+        fun replayActions(actions: List<EditAction.Adjust>) {
+            adjustmentHistory.clear()
+            if (actions.isNotEmpty()) {
+                val lastAction = actions.last()
+                setAdjustments(lastAction.brightness, lastAction.contrast, lastAction.saturation)
+                adjustmentHistory.addAll(actions.map { Triple(it.brightness, it.contrast, it.saturation) })
+            } else {
+                clearAdjustments()
+            }
+        }
+
         init {
             paint.isAntiAlias = true
         }
 
         fun setBrightness(value: Float) {
             brightness = value
+            adjustmentHistory.add(Triple(brightness, contrast, saturation))
+            editViewModel?.pushAction(EditAction.Adjust(brightness, contrast, saturation))
             updateColorFilter()
         }
 
         fun setContrast(value: Float) {
             contrast = value
+            adjustmentHistory.add(Triple(brightness, contrast, saturation))
+            editViewModel?.pushAction(EditAction.Adjust(brightness, contrast, saturation))
             updateColorFilter()
         }
 
         fun setSaturation(value: Float) {
             saturation = value
+            adjustmentHistory.add(Triple(brightness, contrast, saturation))
+            editViewModel?.pushAction(EditAction.Adjust(brightness, contrast, saturation))
             updateColorFilter()
         }
 

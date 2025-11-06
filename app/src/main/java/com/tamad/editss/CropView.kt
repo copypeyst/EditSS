@@ -43,7 +43,31 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
         return cropOverlay.getCroppedRect()
     }
 
-    private class CropOverlay(context: Context) : View(context) {
+    fun setEditViewModel(viewModel: EditViewModel) {
+        cropOverlay.setEditViewModel(viewModel)
+    }
+
+    fun clearCrop() {
+        cropOverlay.clearCrop()
+    }
+
+    fun getCurrentMode(): CropMode {
+        return cropOverlay.getCurrentMode()
+    }
+
+    fun undo() {
+        cropOverlay.undo()
+    }
+
+    fun redo(rect: RectF, mode: CropMode) {
+        cropOverlay.redo(rect, mode)
+    }
+
+    fun replayActions(actions: List<EditAction.Crop>) {
+        cropOverlay.replayActions(actions)
+    }
+
+    private inner class CropOverlay(context: Context) : View(context) {
 
         private val paint = Paint()
         private val cornerPaint = Paint()
@@ -51,6 +75,57 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
         private var currentCropMode = CropMode.FREEFORM
         private val matrixValues = FloatArray(9)
         private var imageMatrix = Matrix()
+
+        private var editViewModel: EditViewModel? = null
+        private val cropHistory = mutableListOf<Pair<RectF, CropMode>>()
+
+        fun setEditViewModel(viewModel: EditViewModel) {
+            editViewModel = viewModel
+        }
+
+        fun clearCrop() {
+            cropRect = RectF()
+            cropHistory.clear()
+            invalidate()
+        }
+
+        fun getCurrentMode(): CropMode {
+            return currentCropMode
+        }
+
+        fun undo() {
+            if (cropHistory.isNotEmpty()) {
+                cropHistory.removeLast()
+                if (cropHistory.isNotEmpty()) {
+                    val (lastRect, lastMode) = cropHistory.last()
+                    cropRect = RectF(lastRect)
+                    currentCropMode = lastMode
+                } else {
+                    cropRect = RectF()
+                }
+                invalidate()
+            }
+        }
+
+        fun redo(rect: RectF, mode: CropMode) {
+            cropRect = RectF(rect)
+            currentCropMode = mode
+            cropHistory.add(Pair(RectF(rect), mode))
+            invalidate()
+        }
+
+        fun replayActions(actions: List<EditAction.Crop>) {
+            cropHistory.clear()
+            if (actions.isNotEmpty()) {
+                val lastAction = actions.last()
+                cropRect = RectF(lastAction.rect)
+                currentCropMode = lastAction.mode
+                cropHistory.addAll(actions.map { Pair(RectF(it.rect), it.mode) })
+            } else {
+                cropRect = RectF()
+            }
+            invalidate()
+        }
 
         init {
             paint.isAntiAlias = true
@@ -102,6 +177,10 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
                     invalidate()
                 }
                 MotionEvent.ACTION_UP -> {
+                    if (cropRect.width() > 10 && cropRect.height() > 10) {
+                        cropHistory.add(Pair(RectF(cropRect), currentCropMode))
+                        editViewModel?.pushAction(EditAction.Crop(RectF(cropRect), currentCropMode))
+                    }
                     invalidate()
                 }
                 else -> return false

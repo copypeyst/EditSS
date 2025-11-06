@@ -33,6 +33,7 @@ import android.content.ContentValues
 import android.media.MediaScannerConnection
 import kotlinx.coroutines.*
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.ViewModelProvider
 import java.io.File
 import java.io.OutputStream
 import coil.ImageLoader
@@ -81,26 +82,34 @@ class MainActivity : AppCompatActivity() {
     private var currentDrawMode: ImageView? = null
     private var currentCropMode: ImageView? = null
     private var currentSelectedColor: FrameLayout? = null
-    
+
+    // EditViewModel for undo/redo functionality
+    private lateinit var editViewModel: EditViewModel
+
+    // Drawing, Crop, and Adjust views
+    private lateinit var drawingView: DrawingView
+    private lateinit var cropView: CropView
+    private lateinit var adjustView: AdjustView
+
     // Step 8: Track current image information
     private var currentImageInfo: ImageInfo? = null
-    
+
     // Step 23: Track selected save format for proper naming
     private var selectedSaveFormat: String = "image/jpeg" // Default to JPEG
-    
+
     // Track if current image has transparency
     private var currentImageHasTransparency = false
-    
+
     // Step 13: Store camera capture URI temporarily
     private var currentCameraUri: Uri? = null
-    
+
     // Fix: Add loading state to prevent crashes
     private var isImageLoading = false
-    
+
     // Coil-based image loading state
     private var isImageLoadAttempted = false
     private var lastImageLoadFailed = false
-    
+
     // --- START: ADDED FOR OVERWRITE FIX ---
     // Handles the result of the delete confirmation dialog
     private lateinit var deleteRequestLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.IntentSenderRequest>
@@ -196,6 +205,8 @@ class MainActivity : AppCompatActivity() {
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
+        val buttonUndo: ImageView = findViewById(R.id.button_undo)
+        val buttonRedo: ImageView = findViewById(R.id.button_redo)
 
         savePanel = findViewById(R.id.save_panel)
         toolOptionsLayout = findViewById(R.id.tool_options)
@@ -204,6 +215,42 @@ class MainActivity : AppCompatActivity() {
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         scrim = findViewById(R.id.scrim)
         transparencyWarningText = findViewById(R.id.transparency_warning_text)
+
+        // Initialize EditViewModel
+        editViewModel = ViewModelProvider(this)[EditViewModel::class.java]
+
+        // Create Drawing, Crop, and Adjust views
+        drawingView = DrawingView(this, null)
+        cropView = CropView(this, null)
+        adjustView = AdjustView(this, null)
+
+        // Set EditViewModel for each view
+        drawingView.setEditViewModel(editViewModel)
+        cropView.setEditViewModel(editViewModel)
+        adjustView.setEditViewModel(editViewModel)
+
+        // Add views to root layout, positioning them over the canvas
+        val layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        rootLayout.addView(drawingView, layoutParams)
+        rootLayout.addView(cropView, layoutParams)
+        rootLayout.addView(adjustView, layoutParams)
+
+        // Initially hide all tool views
+        drawingView.visibility = View.GONE
+        cropView.visibility = View.GONE
+        adjustView.visibility = View.GONE
+
+        // Undo/Redo Button Logic
+        buttonUndo.setOnClickListener {
+            handleUndo()
+        }
+
+        buttonRedo.setOnClickListener {
+            handleRedo()
+        }
 
         // Save Panel Logic
         buttonSave.setOnClickListener {
@@ -249,6 +296,11 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
+
+            // Show drawing view, hide others
+            drawingView.visibility = View.VISIBLE
+            cropView.visibility = View.GONE
+            adjustView.visibility = View.GONE
         }
 
         toolCrop.setOnClickListener {
@@ -259,6 +311,11 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
+
+            // Show crop view, hide others
+            cropView.visibility = View.VISIBLE
+            drawingView.visibility = View.GONE
+            adjustView.visibility = View.GONE
         }
 
         toolAdjust.setOnClickListener {
@@ -269,6 +326,11 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
+
+            // Show adjust view, hide others
+            adjustView.visibility = View.VISIBLE
+            drawingView.visibility = View.GONE
+            cropView.visibility = View.GONE
         }
 
         // Initialize Save Panel buttons
@@ -450,6 +512,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
         // --- END: ADDED FOR OVERWRITE FIX ---
+
+        // Set default selections and clear history
+        toolDraw.performClick()
+        editViewModel.clearHistory()
     }
 
     // Step 1 & 2: Implement sharing functionality
@@ -672,12 +738,26 @@ class MainActivity : AppCompatActivity() {
                             val originalMimeType = contentResolver.getType(uri) ?: "image/jpeg"
                             
                             currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
-                            
+
                             // Display the loaded image
                             canvasImageView.setImageDrawable(drawable)
                             canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
                             canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                            
+
+                            // Also load the image into all three tool views
+                            drawingView.getImageView().setImageDrawable(drawable)
+                            drawingView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
+                            cropView.getImageView().setImageDrawable(drawable)
+                            cropView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
+                            adjustView.getImageView().setImageDrawable(drawable)
+                            adjustView.getImageView().setScaleType(ImageView.ScaleType.FIT_CENTER)
+
+                            // Clear edit history for new image
+                            editViewModel.clearHistory()
+                            drawingView.clearDrawing()
+                            cropView.clearCrop()
+                            adjustView.clearAdjustments()
+
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
                             
                             // Update UI based on canOverwrite
@@ -1348,4 +1428,37 @@ class MainActivity : AppCompatActivity() {
         return uri
     }
     // --- END: ADDED FOR OVERWRITE FIX ---
+
+    // Undo/Redo handler methods
+    private fun handleUndo() {
+        val action = editViewModel.undo() ?: return
+
+        when (action) {
+            is EditAction.Draw -> {
+                drawingView.undo()
+            }
+            is EditAction.Crop -> {
+                cropView.undo()
+            }
+            is EditAction.Adjust -> {
+                adjustView.undo()
+            }
+        }
+    }
+
+    private fun handleRedo() {
+        val action = editViewModel.redo() ?: return
+
+        when (action) {
+            is EditAction.Draw -> {
+                drawingView.redo(action.path, action.paint)
+            }
+            is EditAction.Crop -> {
+                cropView.redo(action.rect, action.mode)
+            }
+            is EditAction.Adjust -> {
+                adjustView.redo(action.brightness, action.contrast, action.saturation)
+            }
+        }
+    }
 }
