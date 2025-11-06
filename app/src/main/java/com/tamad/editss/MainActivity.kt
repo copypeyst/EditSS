@@ -728,7 +728,7 @@ class MainActivity : AppCompatActivity() {
                             currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
 
                             // Convert drawable to bitmap and set it
-                            val bitmap = (it as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                            val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
                             if (bitmap != null) {
                                 canvasImageView.setImage(bitmap)
                             }
@@ -743,9 +743,9 @@ class MainActivity : AppCompatActivity() {
                             
                             // Detect transparency for warning system (simplified approach)
                             try {
-                                val loadedDrawable = canvasImageView.drawable
-                                if (loadedDrawable != null && loadedDrawable.intrinsicWidth > 0 && loadedDrawable.intrinsicHeight > 0) {
-                                    currentImageHasTransparency = detectImageTransparencyFromDrawable(loadedDrawable)
+                                val loadedBitmap = canvasImageView.getBitmap()
+                                if (loadedBitmap != null && loadedBitmap.width > 0 && loadedBitmap.height > 0) {
+                                    currentImageHasTransparency = detectImageTransparencyFromDrawable(canvasImageView.baseImageView.drawable)
                                     updateTransparencyWarning()
                                 }
                             } catch (e: Exception) {

@@ -51,6 +51,30 @@ class ImageCanvasView @JvmOverloads constructor(
     }
 
     /**
+     * Set image bitmap (alias for setImage for compatibility)
+     */
+    fun setImageBitmap(bitmap: Bitmap?) {
+        if (bitmap != null) {
+            setImage(bitmap)
+        } else {
+            currentBitmap = null
+            baseImageView.setImageBitmap(null)
+        }
+    }
+
+    /**
+     * Set background color
+     */
+    fun setBackgroundColor(color: Int) {
+        baseImageView.setBackgroundColor(color)
+    }
+
+    /**
+     * Get the base image view (for compatibility)
+     */
+    val baseImageView: ImageView get() = this.baseImageView
+
+    /**
      * Get the current image bitmap (with modifications applied)
      */
     fun getBitmap(): Bitmap? {
@@ -75,21 +99,21 @@ class ImageCanvasView @JvmOverloads constructor(
             }
             Tool.DRAW -> {
                 // Create and add DrawingView
-                val drawingView = DrawingView(context, attrs)
+                val drawingView = DrawingView(context, null)
                 setupDrawingView(drawingView)
                 addView(drawingView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                 toolView = drawingView
             }
             Tool.CROP -> {
                 // Create and add CropView
-                val cropView = CropView(context, attrs)
+                val cropView = CropView(context, null)
                 setupCropView(cropView)
                 addView(cropView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                 toolView = cropView
             }
             Tool.ADJUST -> {
                 // Create and add AdjustView
-                val adjustView = AdjustView(context, attrs)
+                val adjustView = AdjustView(context, null)
                 setupAdjustView(adjustView)
                 addView(adjustView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                 toolView = adjustView
