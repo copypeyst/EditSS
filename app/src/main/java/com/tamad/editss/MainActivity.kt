@@ -275,6 +275,7 @@ class MainActivity : AppCompatActivity() {
             cropOptionsLayout.visibility = View.GONE
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
+            drawingView.visibility = View.VISIBLE // Show drawing overlay
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
@@ -285,6 +286,7 @@ class MainActivity : AppCompatActivity() {
             drawOptionsLayout.visibility = View.GONE
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
+            drawingView.visibility = View.GONE // Hide drawing overlay
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
@@ -295,6 +297,7 @@ class MainActivity : AppCompatActivity() {
             drawOptionsLayout.visibility = View.GONE
             cropOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
+            drawingView.visibility = View.GONE // Hide drawing overlay
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust

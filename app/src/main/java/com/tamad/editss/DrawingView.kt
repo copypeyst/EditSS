@@ -12,6 +12,8 @@ import android.widget.ImageView
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import androidx.appcompat.app.AppCompatActivity
+import kotlin.math.minOf
+import kotlin.math.maxOf
 
 enum class DrawMode {
     PEN,
@@ -95,16 +97,30 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
+            
+            // Get the image bounds from the imageView
+            val imageBounds = getImageBounds()
+            
             canvas.save()
             canvas.scale(scaleFactor, scaleFactor, midPointX, midPointY)
             when (currentDrawMode) {
-                DrawMode.PEN -> canvas.drawPath(path, paint)
+                DrawMode.PEN -> {
+                    // Clip drawing to image bounds for pen tool
+                    canvas.clipRect(imageBounds)
+                    canvas.drawPath(path, paint)
+                }
                 DrawMode.CIRCLE -> {
-                    val radius = Math.sqrt(Math.pow((startX - endX).toDouble(), 2.0) + Math.pow((startY - endY).toDouble(), 2.0)).toFloat()
-                    canvas.drawCircle(startX, startY, radius, paint)
+                    // Only draw if circle is within image bounds
+                    if (isShapeWithinBounds(startX, startY, endX, endY, imageBounds)) {
+                        val radius = Math.sqrt(Math.pow((startX - endX).toDouble(), 2.0) + Math.pow((startY - endY).toDouble(), 2.0)).toFloat()
+                        canvas.drawCircle(startX, startY, radius, paint)
+                    }
                 }
                 DrawMode.SQUARE -> {
-                    canvas.drawRect(startX, startY, endX, endY, paint)
+                    // Only draw if rectangle is within image bounds
+                    if (isShapeWithinBounds(startX, startY, endX, endY, imageBounds)) {
+                        canvas.drawRect(startX, startY, endX, endY, paint)
+                    }
                 }
             }
             canvas.restore()
@@ -113,18 +129,23 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
         override fun onTouchEvent(event: MotionEvent): Boolean {
             val x = event.x
             val y = event.y
+            val imageBounds = getImageBounds()
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    activePointerId = event.getPointerId(0)
-                    startX = x
-                    startY = y
-                    endX = x
-                    endY = y
-                    if (currentDrawMode == DrawMode.PEN) {
-                        path.moveTo(x, y)
+                    // Only start drawing if touch is within image bounds
+                    if (isPointWithinBounds(x, y, imageBounds)) {
+                        activePointerId = event.getPointerId(0)
+                        startX = x
+                        startY = y
+                        endX = x
+                        endY = y
+                        if (currentDrawMode == DrawMode.PEN) {
+                            path.moveTo(x, y)
+                        }
+                        return true
                     }
-                    return true
+                    return false
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> {
                     // Cancel drawing if a second finger is added mid-stroke
@@ -141,7 +162,10 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
                         endX = x
                         endY = y
                         if (currentDrawMode == DrawMode.PEN) {
-                            path.lineTo(x, y)
+                            // Only allow line drawing if touch is within bounds
+                            if (isPointWithinBounds(x, y, imageBounds)) {
+                                path.lineTo(x, y)
+                            }
                         }
                     } else if (event.pointerCount == 2) {
                         // Two-finger gesture for zoom/pan
@@ -175,6 +199,49 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
             val x = event.getX(0) - event.getX(1)
             val y = event.getY(0) - event.getY(1)
             return Math.sqrt((x * x + y * y).toDouble()).toFloat()
+        }
+        
+        private fun getImageBounds(): android.graphics.Rect {
+            val imageDrawable = imageView.drawable
+            return if (imageDrawable != null) {
+                val imageRect = android.graphics.Rect()
+                imageDrawable.getBounds(imageRect)
+                
+                // Account for the image's position and scale within the ImageView
+                val imageViewRect = android.graphics.Rect()
+                imageView.getGlobalVisibleRect(imageViewRect)
+                
+                val drawingViewRect = android.graphics.Rect()
+                getGlobalVisibleRect(drawingViewRect)
+                
+                // Calculate the actual image bounds on screen
+                val scaleX = imageView.scaleX
+                val scaleY = imageView.scaleY
+                
+                android.graphics.Rect(
+                    imageViewRect.left,
+                    imageViewRect.top,
+                    imageViewRect.right,
+                    imageViewRect.bottom
+                )
+            } else {
+                // If no image, return empty rect
+                android.graphics.Rect()
+            }
+        }
+        
+        private fun isShapeWithinBounds(startX: Float, startY: Float, endX: Float, endY: Float, bounds: android.graphics.Rect): Boolean {
+            val left = minOf(startX, endX)
+            val top = minOf(startY, endY)
+            val right = maxOf(startX, endX)
+            val bottom = maxOf(startY, endY)
+            
+            return bounds.left <= left && bounds.top <= top &&
+                   bounds.right >= right && bounds.bottom >= bottom
+        }
+        
+        private fun isPointWithinBounds(x: Float, y: Float, bounds: android.graphics.Rect): Boolean {
+            return x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom
         }
     }
 }
