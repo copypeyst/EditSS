@@ -75,21 +75,21 @@ class ImageCanvasView @JvmOverloads constructor(
             }
             Tool.DRAW -> {
                 // Create and add DrawingView
-                val drawingView = DrawingView(context, null)
+                val drawingView = DrawingView(context, attrs)
                 setupDrawingView(drawingView)
                 addView(drawingView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                 toolView = drawingView
             }
             Tool.CROP -> {
                 // Create and add CropView
-                val cropView = CropView(context, null)
+                val cropView = CropView(context, attrs)
                 setupCropView(cropView)
                 addView(cropView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                 toolView = cropView
             }
             Tool.ADJUST -> {
                 // Create and add AdjustView
-                val adjustView = AdjustView(context, null)
+                val adjustView = AdjustView(context, attrs)
                 setupAdjustView(adjustView)
                 addView(adjustView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                 toolView = adjustView

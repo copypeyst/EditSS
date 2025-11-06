@@ -728,7 +728,7 @@ class MainActivity : AppCompatActivity() {
                             currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
 
                             // Convert drawable to bitmap and set it
-                            val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                            val bitmap = (it as? android.graphics.drawable.BitmapDrawable)?.bitmap
                             if (bitmap != null) {
                                 canvasImageView.setImage(bitmap)
                             }
