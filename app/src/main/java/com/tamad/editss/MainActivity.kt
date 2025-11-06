@@ -1448,7 +1448,6 @@ class MainActivity : AppCompatActivity() {
             setCompressionQuality(90)
             setMaxBitmapSize(5120 * 5120) // 5MP max
             setMaxScaleMultiplier(5f)
-            setImageToCropRatioAnimDurationMs(300)
             setDimmedLayerColor(getColor(R.color.scrim_background))
             setCropFrameColor(getColor(R.color.white))
             setCropGridColor(getColor(R.color.white))
