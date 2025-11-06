@@ -34,7 +34,7 @@ class ImageCanvasView @JvmOverloads constructor(
     private var currentPaintColor: Int = android.graphics.Color.RED
     private var currentPaintSize: Float = 10f
     private var currentPaintOpacity: Int = 255
-    private var currentDrawMode: DrawMode = DrawMode.PEN
+    private var currentDrawMode: DrawMode? = null
 
     init {
         // Create the base ImageView that holds the image
@@ -168,7 +168,7 @@ class ImageCanvasView @JvmOverloads constructor(
         drawingView.setPaintColor(currentPaintColor)
         drawingView.setPaintSize(currentPaintSize)
         drawingView.setPaintOpacity(currentPaintOpacity)
-        drawingView.setDrawMode(currentDrawMode)
+        currentDrawMode?.let { drawingView.setDrawMode(it) }
     }
 
     private fun setupCropView(cropView: CropView) {
