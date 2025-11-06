@@ -119,8 +119,8 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    // Only start drawing if touch is within the view bounds and has image
-                    if (hasImageContent() && isWithinCanvas(x, y)) {
+                    // Only start drawing if touch is within canvas bounds
+                    if (isWithinCanvas(x, y)) {
                         activePointerId = event.getPointerId(0)
                         startX = x
                         startY = y
@@ -182,53 +182,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
             val x = event.getX(0) - event.getX(1)
             val y = event.getY(0) - event.getY(1)
             return Math.sqrt((x * x + y * y).toDouble()).toFloat()
-        }
-        
-        private fun getImageBounds(): android.graphics.Rect {
-            val imageDrawable = imageView.drawable
-            return if (imageDrawable != null) {
-                val imageRect = android.graphics.Rect()
-                imageDrawable.getBounds(imageRect)
-                
-                // Account for the image's position and scale within the ImageView
-                val imageViewRect = android.graphics.Rect()
-                imageView.getGlobalVisibleRect(imageViewRect)
-                
-                val drawingViewRect = android.graphics.Rect()
-                getGlobalVisibleRect(drawingViewRect)
-                
-                // Calculate the actual image bounds on screen
-                val scaleX = imageView.scaleX
-                val scaleY = imageView.scaleY
-                
-                android.graphics.Rect(
-                    imageViewRect.left,
-                    imageViewRect.top,
-                    imageViewRect.right,
-                    imageViewRect.bottom
-                )
-            } else {
-                // If no image, return empty rect
-                android.graphics.Rect()
-            }
-        }
-        
-        private fun isShapeWithinBounds(startX: Float, startY: Float, endX: Float, endY: Float, bounds: android.graphics.Rect): Boolean {
-            val left = Math.min(startX, endX)
-            val top = Math.min(startY, endY)
-            val right = Math.max(startX, endX)
-            val bottom = Math.max(startY, endY)
-            
-            return bounds.left <= left && bounds.top <= top &&
-                   bounds.right >= right && bounds.bottom >= bottom
-        }
-        
-        private fun isPointWithinBounds(x: Float, y: Float, bounds: android.graphics.Rect): Boolean {
-            return x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom
-        }
-        
-        private fun hasImageContent(): Boolean {
-            return imageView.drawable != null
         }
         
         private fun isWithinCanvas(x: Float, y: Float): Boolean {
