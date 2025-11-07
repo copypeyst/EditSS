@@ -17,6 +17,7 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
 
     private var baseBitmap: Bitmap? = null
     private var paths = listOf<DrawingAction>()
+    private val imageMatrix = android.graphics.Matrix()
 
     private var currentDrawMode = DrawMode.PEN
     private var startX = 0f
@@ -42,6 +43,7 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
 
     fun setBitmap(bitmap: Bitmap?) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        updateImageMatrix()
         invalidate()
     }
 
@@ -55,22 +57,26 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
         val resultBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(resultBitmap)
 
-        val scaleX = resultBitmap.width / width.toFloat()
-        val scaleY = resultBitmap.height / height.toFloat()
+        val inverseMatrix = android.graphics.Matrix()
+        imageMatrix.invert(inverseMatrix)
 
         for (action in paths) {
-            val scaledPath = Path()
-            action.path.transform(android.graphics.Matrix().apply { postScale(scaleX, scaleY) }, scaledPath)
-            canvas.drawPath(scaledPath, action.paint)
+            val transformedPath = Path()
+            action.path.transform(inverseMatrix, transformedPath)
+            canvas.drawPath(transformedPath, action.paint)
         }
 
         return resultBitmap
     }
 
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            super.onSizeChanged(w, h, oldw, oldh)
+            updateImageMatrix()
+        }
+    
+         override fun onDraw(canvas: Canvas) {        super.onDraw(canvas)
         baseBitmap?.let {
-            canvas.drawBitmap(it, 0f, 0f, null)
+            canvas.drawBitmap(it, imageMatrix, null)
         }
 
         for (action in paths) {
@@ -79,6 +85,30 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
 
         if (isDrawing) {
             canvas.drawPath(currentPath, paint)
+        }
+    }
+
+    private fun updateImageMatrix() {
+        baseBitmap?.let {
+            val viewWidth = width.toFloat()
+            val viewHeight = height.toFloat()
+            val bitmapWidth = it.width.toFloat()
+            val bitmapHeight = it.height.toFloat()
+
+            val scale: Float
+            var dx = 0f
+            var dy = 0f
+
+            if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
+                scale = viewWidth / bitmapWidth
+                dy = (viewHeight - bitmapHeight * scale) * 0.5f
+            } else {
+                scale = viewHeight / bitmapHeight
+                dx = (viewWidth - bitmapWidth * scale) * 0.5f
+            }
+
+            imageMatrix.setScale(scale, scale)
+            imageMatrix.postTranslate(dx, dy)
         }
     }
 

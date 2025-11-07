@@ -82,6 +82,7 @@ class MainActivity : AppCompatActivity() {
 
     private var currentCropMode: ImageView? = null
     private var currentSelectedColor: FrameLayout? = null
+    private var currentDrawMode: ImageView? = null
     
     // Step 8: Track current image information
     private var currentImageInfo: ImageInfo? = null
@@ -359,12 +360,15 @@ class MainActivity : AppCompatActivity() {
 
         drawModePen.setOnClickListener {
             editViewModel.updateDrawMode(DrawMode.PEN)
+            updateDrawModeSelection(drawModePen)
         }
         drawModeCircle.setOnClickListener {
             editViewModel.updateDrawMode(DrawMode.CIRCLE)
+            updateDrawModeSelection(drawModeCircle)
         }
         drawModeSquare.setOnClickListener {
             editViewModel.updateDrawMode(DrawMode.SQUARE)
+            updateDrawModeSelection(drawModeSquare)
         }
         
         // Initialize slider listeners for shared drawing state
@@ -465,7 +469,7 @@ class MainActivity : AppCompatActivity() {
         colorPinkContainer.setOnClickListener(colorClickListener)
 
         // Set default selections
-        drawModePen.isSelected = true
+        updateDrawModeSelection(drawModePen)
 
         // Connect DrawingView to ViewModel
         drawingView.onNewPath = {
@@ -971,6 +975,12 @@ class MainActivity : AppCompatActivity() {
     private fun updateSavePanelUI() {
         updateSaveButtonsState() // Consolidate logic into one function
         updateSaveButtonText() // Update button text based on image origin
+    }
+
+    private fun updateDrawModeSelection(selectedMode: ImageView) {
+        currentDrawMode?.isSelected = false
+        selectedMode.isSelected = true
+        currentDrawMode = selectedMode
     }
     
     // Update save button text based on image origin (camera vs import)
