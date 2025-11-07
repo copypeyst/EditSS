@@ -47,10 +47,11 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
     fun setBitmap(bitmap: Bitmap?) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
         if (baseBitmap?.hasAlpha() == true) {
-            background = CheckerDrawable()
+            background = null
         } else {
             background = resources.getDrawable(R.drawable.subtle_pattern, null)
         }
+
         updateImageMatrix()
         invalidate()
     }
@@ -86,6 +87,13 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
         baseBitmap?.let {
             canvas.save()
             canvas.clipRect(imageBounds)
+            if (it.hasAlpha()) {
+                val checker = CheckerDrawable()
+                val rect = android.graphics.Rect()
+                imageBounds.roundOut(rect) // Convert RectF to Rect
+                checker.bounds = rect
+                checker.draw(canvas)
+            }
             canvas.drawBitmap(it, imageMatrix, null)
         }
 
