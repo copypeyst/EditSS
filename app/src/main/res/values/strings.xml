@@ -69,5 +69,8 @@
     <string name="sharing_image">Sharing image...</string>
     <string name="share_image">Share Image</string>
     <string name="share_failed">Share failed: %1$s</string>
+    <string name="discard_changes_title">Discard Changes?</string>
+    <string name="discard_changes_message">You have unsaved drawings. Do you want to discard them and load a new image?</string>
+    <string name="confirm">Confirm</string>
 
 </resources>

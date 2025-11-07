@@ -70,4 +70,12 @@ class EditViewModel : ViewModel() {
     fun updateDrawMode(drawMode: DrawMode) {
         _drawingState.value = _drawingState.value.copy(drawMode = drawMode)
     }
+
+    fun clearDrawings() {
+        _undoStack.value = emptyList()
+        _redoStack.value = emptyList()
+    }
+
+    val hasDrawings: Boolean
+        get() = _undoStack.value.isNotEmpty()
 }

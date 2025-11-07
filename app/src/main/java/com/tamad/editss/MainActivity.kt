@@ -252,10 +252,29 @@ class MainActivity : AppCompatActivity() {
 
         // Import Button Logic
         buttonImport.setOnClickListener {
-            if (hasImagePermission()) {
-                openImagePicker()
+            if (editViewModel.hasDrawings) {
+                AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.discard_changes_title))
+                    .setMessage(getString(R.string.discard_changes_message))
+                    .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
+                        editViewModel.clearDrawings()
+                        if (hasImagePermission()) {
+                            openImagePicker()
+                        } else {
+                            requestImagePermission()
+                        }
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton(getString(R.string.cancel)) { dialog, _ ->
+                        dialog.dismiss()
+                    }
+                    .show()
             } else {
-                requestImagePermission()
+                if (hasImagePermission()) {
+                    openImagePicker()
+                } else {
+                    requestImagePermission()
+                }
             }
         }
 
@@ -721,6 +740,9 @@ class MainActivity : AppCompatActivity() {
 
     // Simple Coil-based image loading - replaces all complex crash prevention logic
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
+        // Clear any existing drawings when a new image is loaded
+        editViewModel.clearDrawings()
+
         // Prevent loading while already loading
         if (isImageLoading) {
             Toast.makeText(this, getString(R.string.image_is_still_loading), Toast.LENGTH_SHORT).show()
