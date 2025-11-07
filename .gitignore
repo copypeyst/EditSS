@@ -24,6 +24,7 @@ GitHubActions.md
 # Development tools and utilities
 .kilocode/
 platform-tools/
+.claude/
 
 # Development and debugging artifacts
 screenshots/
