@@ -10,6 +10,8 @@ import android.view.MotionEvent
 import android.view.View
 import com.tamad.editss.DrawMode
 
+import android.graphics.RectF
+
 class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private val paint = Paint()
@@ -18,6 +20,7 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
     private var baseBitmap: Bitmap? = null
     private var paths = listOf<DrawingAction>()
     private val imageMatrix = android.graphics.Matrix()
+    private val imageBounds = RectF()
 
     private var currentDrawMode = DrawMode.PEN
     private var startX = 0f
@@ -43,6 +46,11 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
 
     fun setBitmap(bitmap: Bitmap?) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        if (baseBitmap?.hasAlpha() == true) {
+            background = CheckerDrawable()
+        } else {
+            background = resources.getDrawable(R.drawable.subtle_pattern, null)
+        }
         updateImageMatrix()
         invalidate()
     }
@@ -76,6 +84,8 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
     
          override fun onDraw(canvas: Canvas) {        super.onDraw(canvas)
         baseBitmap?.let {
+            canvas.save()
+            canvas.clipRect(imageBounds)
             canvas.drawBitmap(it, imageMatrix, null)
         }
 
@@ -85,6 +95,10 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
 
         if (isDrawing) {
             canvas.drawPath(currentPath, paint)
+        }
+
+        baseBitmap?.let {
+            canvas.restore()
         }
     }
 
@@ -109,6 +123,9 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
 
             imageMatrix.setScale(scale, scale)
             imageMatrix.postTranslate(dx, dy)
+
+            imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
+            imageMatrix.mapRect(imageBounds)
         }
     }
 
