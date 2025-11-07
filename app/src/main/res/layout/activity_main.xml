@@ -393,23 +393,11 @@
     </LinearLayout>
 
     <!-- Canvas -->
-    <ImageView
-        android:id="@+id/canvas"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="@color/canvas_background"
-        app:layout_constraintTop_toBottomOf="@id/action_bar"
-        app:layout_constraintBottom_toTopOf="@id/tool_options"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:contentDescription="@string/canvas" />
-        
-    <!-- Drawing Overlay -->
     <com.tamad.editss.DrawingView
         android:id="@+id/drawing_view"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:visibility="visible"
+        android:background="@color/canvas_background"
         app:layout_constraintTop_toBottomOf="@id/action_bar"
         app:layout_constraintBottom_toTopOf="@id/tool_options"
         app:layout_constraintStart_toStartOf="parent"

@@ -4,33 +4,35 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
-sealed class EditAction {
-    data class Draw(val path: android.graphics.Path, val paint: android.graphics.Paint) : EditAction()
-    data class Crop(val rect: android.graphics.RectF) : EditAction()
-    data class Adjust(val brightness: Float, val contrast: Float, val saturation: Float) : EditAction()
-}
+import android.graphics.Path
+import android.graphics.Paint
 
 // Shared drawing state for Draw, Circle, and Square tools only
 data class DrawingState(
-    val color: Int = android.graphics.Color.BLACK,
+    val color: Int = android.graphics.Color.RED,
     val size: Float = 26f, // Default to position 25 on slider (matches (25 + 1))
-    val opacity: Int = 252 // Default to position 100 on slider (matches ((100 - 1) * 2.55))
+    val opacity: Int = 252, // Default to position 100 on slider (matches ((100 - 1) * 2.55))
+    val drawMode: DrawMode = DrawMode.PEN
+)
+
+data class DrawingAction(
+    val path: Path,
+    val paint: Paint
 )
 
 class EditViewModel : ViewModel() {
 
-    private val _undoStack = MutableStateFlow<List<EditAction>>(emptyList())
-    val undoStack: StateFlow<List<EditAction>> = _undoStack
+    private val _undoStack = MutableStateFlow<List<DrawingAction>>(emptyList())
+    val undoStack: StateFlow<List<DrawingAction>> = _undoStack.asStateFlow()
 
-    private val _redoStack = MutableStateFlow<List<EditAction>>(emptyList())
-    val redoStack: StateFlow<List<EditAction>> = _redoStack
+    private val _redoStack = MutableStateFlow<List<DrawingAction>>(emptyList())
+    val redoStack: StateFlow<List<DrawingAction>> = _redoStack.asStateFlow()
 
     // Shared drawing state for Draw/Circle/Square tools
     private val _drawingState = MutableStateFlow(DrawingState())
     val drawingState: StateFlow<DrawingState> = _drawingState.asStateFlow()
 
-    fun pushAction(action: EditAction) {
+    fun pushAction(action: DrawingAction) {
         _undoStack.value = _undoStack.value + action
         _redoStack.value = emptyList()
     }
@@ -40,7 +42,6 @@ class EditViewModel : ViewModel() {
             val lastAction = _undoStack.value.last()
             _undoStack.value = _undoStack.value.dropLast(1)
             _redoStack.value = _redoStack.value + lastAction
-            // TODO: Apply undo logic in the views
         }
     }
 
@@ -49,7 +50,6 @@ class EditViewModel : ViewModel() {
             val lastAction = _redoStack.value.last()
             _redoStack.value = _redoStack.value.dropLast(1)
             _undoStack.value = _undoStack.value + lastAction
-            // TODO: Apply redo logic in the views
         }
     }
 
@@ -64,5 +64,9 @@ class EditViewModel : ViewModel() {
 
     fun updateDrawingOpacity(opacity: Int) {
         _drawingState.value = _drawingState.value.copy(opacity = opacity)
+    }
+
+    fun updateDrawMode(drawMode: DrawMode) {
+        _drawingState.value = _drawingState.value.copy(drawMode = drawMode)
     }
 }

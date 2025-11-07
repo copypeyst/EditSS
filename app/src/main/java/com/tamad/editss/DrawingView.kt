@@ -1,180 +1,133 @@
 package com.tamad.editss
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
-import android.widget.FrameLayout
-import android.widget.ImageView
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
-import androidx.appcompat.app.AppCompatActivity
 
-enum class DrawMode {
-    PEN,
-    CIRCLE,
-    SQUARE
-}
+class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
-class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, attrs) {
+    private val paint = Paint()
+    private val currentPath = Path()
 
-    private val imageView: ImageView
-    private val drawingCanvas: DrawingCanvas
+    private var baseBitmap: Bitmap? = null
+    private var paths = listOf<DrawingAction>()
+
+    private var currentDrawMode = DrawMode.PEN
+    private var startX = 0f
+    private var startY = 0f
+
+    private var isDrawing = false
+
+    var onNewPath: ((DrawingAction) -> Unit)? = null
 
     init {
-        imageView = ImageView(context)
-        drawingCanvas = DrawingCanvas(context)
-
-        addView(imageView)
-        addView(drawingCanvas)
+        paint.isAntiAlias = true
+        paint.style = Paint.Style.STROKE
+        paint.strokeJoin = Paint.Join.ROUND
+        paint.strokeCap = Paint.Cap.ROUND
     }
 
-    fun getImageView(): ImageView {
-        return imageView
+    fun setDrawingState(drawingState: DrawingState) {
+        paint.color = drawingState.color
+        paint.strokeWidth = drawingState.size
+        paint.alpha = drawingState.opacity
+        currentDrawMode = drawingState.drawMode
     }
 
-    fun setupDrawingState(viewModel: EditViewModel) {
-        drawingCanvas.setupDrawingState(viewModel)
+    fun setBitmap(bitmap: Bitmap?) {
+        baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        invalidate()
     }
 
-    fun setDrawMode(drawMode: DrawMode) {
-        drawingCanvas.setDrawMode(drawMode)
+    fun setPaths(paths: List<DrawingAction>) {
+        this.paths = paths
+        invalidate()
     }
 
-    private inner class DrawingCanvas(context: Context) : View(context) {
+    fun getDrawing(): Bitmap? {
+        if (baseBitmap == null) return null
+        val resultBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(resultBitmap)
 
-        private val paint = Paint()
-        private val path = Path()
-        private var currentDrawMode = DrawMode.PEN
-        private var startX = 0f
-        private var startY = 0f
-        private var endX = 0f
-        private var endY = 0f
+        val scaleX = resultBitmap.width / width.toFloat()
+        val scaleY = resultBitmap.height / height.toFloat()
 
-        private var scaleFactor = 1f
-        private var previousDistance = 0f
-        private var midPointX = 0f
-        private var midPointY = 0f
-
-        private var activePointerId = MotionEvent.INVALID_POINTER_ID
-
-        private var viewModel: EditViewModel? = null
-
-        init {
-            paint.isAntiAlias = true
-            paint.style = Paint.Style.STROKE
-            paint.strokeJoin = Paint.Join.ROUND
-            paint.strokeCap = Paint.Cap.ROUND
+        for (action in paths) {
+            val scaledPath = Path()
+            action.path.transform(android.graphics.Matrix().apply { postScale(scaleX, scaleY) }, scaledPath)
+            canvas.drawPath(scaledPath, action.paint)
         }
 
-        fun setupDrawingState(viewModel: EditViewModel) {
-            this.viewModel = viewModel
-            
-            // Subscribe to drawing state changes
-            // Note: This will be called when the DrawingView is attached to an Activity
-            // The Activity's lifecycleScope will handle the coroutine properly
-            if (context is androidx.appcompat.app.AppCompatActivity) {
-                val activity = context as androidx.appcompat.app.AppCompatActivity
-                activity.lifecycleScope.launch {
-                    viewModel.drawingState.collect { drawingState ->
-                        paint.color = drawingState.color
-                        paint.strokeWidth = drawingState.size
-                        paint.alpha = drawingState.opacity
-                        invalidate() // Redraw when state changes
-                    }
+        return resultBitmap
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        baseBitmap?.let {
+            canvas.drawBitmap(it, 0f, 0f, null)
+        }
+
+        for (action in paths) {
+            canvas.drawPath(action.path, action.paint)
+        }
+
+        if (isDrawing) {
+            canvas.drawPath(currentPath, paint)
+        }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val x = event.x
+        val y = event.y
+
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                isDrawing = true
+                startX = x
+                startY = y
+                currentPath.reset()
+                if (currentDrawMode == DrawMode.PEN) {
+                    currentPath.moveTo(x, y)
                 }
+                return true
             }
-        }
-
-        fun setDrawMode(drawMode: DrawMode) {
-            currentDrawMode = drawMode
-        }
-
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
-            canvas.save()
-            canvas.scale(scaleFactor, scaleFactor, midPointX, midPointY)
-            when (currentDrawMode) {
-                DrawMode.PEN -> canvas.drawPath(path, paint)
-                DrawMode.CIRCLE -> {
-                    val radius = Math.sqrt(Math.pow((startX - endX).toDouble(), 2.0) + Math.pow((startY - endY).toDouble(), 2.0)).toFloat()
-                    canvas.drawCircle(startX, startY, radius, paint)
-                }
-                DrawMode.SQUARE -> {
-                    canvas.drawRect(startX, startY, endX, endY, paint)
-                }
-            }
-            canvas.restore()
-        }
-
-        override fun onTouchEvent(event: MotionEvent): Boolean {
-            val x = event.x
-            val y = event.y
-
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    activePointerId = event.getPointerId(0)
-                    startX = x
-                    startY = y
-                    endX = x
-                    endY = y
-                    if (currentDrawMode == DrawMode.PEN) {
-                        path.moveTo(x, y)
-                    }
-                    return true
-                }
-                MotionEvent.ACTION_POINTER_DOWN -> {
-                    // Cancel drawing if a second finger is added mid-stroke
-                    if (currentDrawMode == DrawMode.PEN) {
-                        path.reset()
-                    }
-                    previousDistance = getPointerDistance(event)
-                    midPointX = (event.getX(0) + event.getX(1)) / 2
-                    midPointY = (event.getY(0) + event.getY(1)) / 2
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (event.pointerCount == 1) {
-                        // One-finger gesture for drawing/shape placement
-                        endX = x
-                        endY = y
-                        if (currentDrawMode == DrawMode.PEN) {
-                            path.lineTo(x, y)
+            MotionEvent.ACTION_MOVE -> {
+                if (!isDrawing) return false
+                if (currentDrawMode == DrawMode.PEN) {
+                    currentPath.lineTo(x, y)
+                } else {
+                    currentPath.reset()
+                    when (currentDrawMode) {
+                        DrawMode.CIRCLE -> {
+                            val radius = Math.sqrt(Math.pow((startX - x).toDouble(), 2.0) + Math.pow((startY - y).toDouble(), 2.0)).toFloat()
+                            currentPath.addCircle(startX, startY, radius, Path.Direction.CW)
                         }
-                    } else if (event.pointerCount == 2) {
-                        // Two-finger gesture for zoom/pan
-                        val newDistance = getPointerDistance(event)
-                        if (previousDistance != 0f) {
-                            scaleFactor *= newDistance / previousDistance
+                        DrawMode.SQUARE -> {
+                            currentPath.addRect(startX, startY, x, y, Path.Direction.CW)
                         }
-                        previousDistance = newDistance
+                        else -> {}
                     }
-                    invalidate()
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
-                    endX = x
-                    endY = y
-                    if (currentDrawMode != DrawMode.PEN) {
-                        invalidate()
-                    }
-                    previousDistance = 0f
-                    activePointerId = MotionEvent.INVALID_POINTER_ID
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    activePointerId = MotionEvent.INVALID_POINTER_ID
-                }
-                else -> return false
+                invalidate()
             }
+            MotionEvent.ACTION_UP -> {
+                if (!isDrawing) return false
+                isDrawing = false
 
-            return true
-        }
+                val newPaint = Paint(paint)
+                val newPath = Path(currentPath)
+                onNewPath?.invoke(DrawingAction(newPath, newPaint))
 
-        private fun getPointerDistance(event: MotionEvent): Float {
-            val x = event.getX(0) - event.getX(1)
-            val y = event.getY(0) - event.getY(1)
-            return Math.sqrt((x * x + y * y).toDouble()).toFloat()
+                currentPath.reset()
+                invalidate()
+            }
+            else -> return false
         }
+        return true
     }
 }

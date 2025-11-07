@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var rootLayout: FrameLayout
-    private lateinit var canvasImageView: ImageView
+
     private lateinit var savePanel: View
     private lateinit var toolOptionsLayout: LinearLayout
     private lateinit var drawOptionsLayout: LinearLayout
@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var transparencyWarningText: TextView
 
     private var currentActiveTool: ImageView? = null
-    private var currentDrawMode: ImageView? = null
+
     private var currentCropMode: ImageView? = null
     private var currentSelectedColor: FrameLayout? = null
     
@@ -146,13 +146,11 @@ class MainActivity : AppCompatActivity() {
         if (result.resultCode == RESULT_OK) {
             val cameraUri = currentCameraUri
             if (cameraUri != null) {
-                canvasImageView.post {
-                    try {
-                        loadImageFromUri(cameraUri, false)
-                    } catch (e: Exception) {
-                        Toast.makeText(this, getString(R.string.error_loading_camera_image, e.message), Toast.LENGTH_SHORT).show()
-                        cleanupCameraFile(cameraUri)
-                    }
+                try {
+                    loadImageFromUri(cameraUri, false)
+                } catch (e: Exception) {
+                    Toast.makeText(this, getString(R.string.error_loading_camera_image, e.message), Toast.LENGTH_SHORT).show()
+                    cleanupCameraFile(cameraUri)
                 }
                 currentCameraUri = null
             }
@@ -201,7 +199,8 @@ class MainActivity : AppCompatActivity() {
 
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
-        canvasImageView = findViewById(R.id.canvas)
+        val buttonUndo: ImageView = findViewById(R.id.button_undo)
+        val buttonRedo: ImageView = findViewById(R.id.button_redo)
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val buttonImport: ImageView = findViewById(R.id.button_import)
         val buttonCamera: ImageView = findViewById(R.id.button_camera)
@@ -359,22 +358,13 @@ class MainActivity : AppCompatActivity() {
         val drawModeSquare: ImageView = findViewById(R.id.draw_mode_square)
 
         drawModePen.setOnClickListener {
-            currentDrawMode?.isSelected = false
-            drawModePen.isSelected = true
-            currentDrawMode = drawModePen
-            drawingView.setDrawMode(DrawMode.PEN)
+            editViewModel.updateDrawMode(DrawMode.PEN)
         }
         drawModeCircle.setOnClickListener {
-            currentDrawMode?.isSelected = false
-            drawModeCircle.isSelected = true
-            currentDrawMode = drawModeCircle
-            drawingView.setDrawMode(DrawMode.CIRCLE)
+            editViewModel.updateDrawMode(DrawMode.CIRCLE)
         }
         drawModeSquare.setOnClickListener {
-            currentDrawMode?.isSelected = false
-            drawModeSquare.isSelected = true
-            currentDrawMode = drawModeSquare
-            drawingView.setDrawMode(DrawMode.SQUARE)
+            editViewModel.updateDrawMode(DrawMode.SQUARE)
         }
         
         // Initialize slider listeners for shared drawing state
@@ -476,8 +466,31 @@ class MainActivity : AppCompatActivity() {
 
         // Set default selections
         drawModePen.isSelected = true
-        currentDrawMode = drawModePen
-        drawingView.setDrawMode(DrawMode.PEN) // Initialize the drawing canvas with pen mode
+
+        // Connect DrawingView to ViewModel
+        drawingView.onNewPath = {
+            editViewModel.pushAction(it)
+        }
+
+        lifecycleScope.launch {
+            editViewModel.drawingState.collect {
+                drawingView.setDrawingState(it)
+            }
+        }
+
+        lifecycleScope.launch {
+            editViewModel.undoStack.collect {
+                drawingView.setPaths(it)
+            }
+        }
+
+        buttonUndo.setOnClickListener {
+            editViewModel.undo()
+        }
+
+        buttonRedo.setOnClickListener {
+            editViewModel.redo()
+        }
 
         cropModeFreeform.isSelected = true
         currentCropMode = cropModeFreeform
@@ -537,13 +550,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 // Get bitmap from Coil
-                val request = ImageRequest.Builder(this@MainActivity)
-                    .data(imageInfo.uri)
-                    .allowHardware(false) // Important for sharing: ensures we get a software bitmap
-                    .build()
-                
-                val result = imageLoader.execute(request).drawable
-                val bitmapToShare = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                val bitmapToShare = drawingView.getDrawing()
 
                 if (bitmapToShare != null) {
                     var shareUri: Uri? = null
@@ -747,9 +754,8 @@ class MainActivity : AppCompatActivity() {
                             currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
                             
                             // Display the loaded image
-                            canvasImageView.setImageDrawable(drawable)
-                            canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
-                            canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            val bitmap = (drawable as android.graphics.drawable.BitmapDrawable).bitmap
+                            drawingView.setBitmap(bitmap)
                             
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
                             
@@ -761,11 +767,8 @@ class MainActivity : AppCompatActivity() {
                             
                             // Detect transparency for warning system (simplified approach)
                             try {
-                                val loadedDrawable = canvasImageView.drawable
-                                if (loadedDrawable != null && loadedDrawable.intrinsicWidth > 0 && loadedDrawable.intrinsicHeight > 0) {
-                                    currentImageHasTransparency = detectImageTransparencyFromDrawable(loadedDrawable)
-                                    updateTransparencyWarning()
-                                }
+                                currentImageHasTransparency = bitmap.hasAlpha()
+                                updateTransparencyWarning()
                             } catch (e: Exception) {
                                 // Fallback: assume no transparency if detection fails
                                 currentImageHasTransparency = false
@@ -811,8 +814,8 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             try {
                 // Clear canvas on failed load
-                canvasImageView.setImageBitmap(null)
-                canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                drawingView.setImageBitmap(null)
+                drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 Toast.makeText(this, getString(R.string.could_not_load_image, errorMessage), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message}")
@@ -1028,14 +1031,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Step 1: Ask Coil to get the Bitmap directly from the image URI.
-                val request = ImageRequest.Builder(this@MainActivity)
-                    .data(imageInfo.uri)
-                    .allowHardware(false) // Important for saving: ensures we get a software bitmap
-                    .build()
-                
-                val result = imageLoader.execute(request).drawable
-                val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                val bitmapToSave = drawingView.getDrawing()
 
                 if (bitmapToSave != null) {
                     // Generate filename based on image origin
@@ -1123,13 +1119,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Step 1: Get the bitmap to save (same as before)
-                val request = ImageRequest.Builder(this@MainActivity)
-                    .data(imageInfo.uri)
-                    .allowHardware(false)
-                    .build()
-                val result = imageLoader.execute(request).drawable
-                val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                val bitmapToSave = drawingView.getDrawing()
                     ?: throw Exception("Could not get image to overwrite")
                 
                 // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
