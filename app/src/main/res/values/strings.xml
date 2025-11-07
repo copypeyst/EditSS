@@ -65,9 +65,5 @@
     <string name="detected_format">Detected format: %1$s</string>
     <string name="original_file_deleted">Original file deleted.</string>
     <string name="original_file_was_not_deleted">Original file was not deleted.</string>
-    <string name="no_image_to_share">No image to share</string>
-    <string name="sharing_image">Sharing image...</string>
-    <string name="share_image">Share Image</string>
-    <string name="share_failed">Share failed: %1$s</string>
 
 </resources>

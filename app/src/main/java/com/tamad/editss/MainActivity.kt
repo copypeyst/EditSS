@@ -192,7 +192,6 @@ class MainActivity : AppCompatActivity() {
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val buttonImport: ImageView = findViewById(R.id.button_import)
         val buttonCamera: ImageView = findViewById(R.id.button_camera)
-        val buttonShare: ImageView = findViewById(R.id.button_share)
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
@@ -233,11 +232,6 @@ class MainActivity : AppCompatActivity() {
         // Camera Button Logic - Step 13: Create writable URI in MediaStore for camera capture
         buttonCamera.setOnClickListener {
             captureImageFromCamera()
-        }
-
-        // Step 1 & 2: Share Button Logic - Content URI sharing for saved images, cache-based for unsaved edits
-        buttonShare.setOnClickListener {
-            shareCurrentImage()
         }
 
         // Tool Buttons Logic
@@ -450,105 +444,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         // --- END: ADDED FOR OVERWRITE FIX ---
-    }
-
-    // Step 1 & 2: Implement sharing functionality
-    // Item 1: Content URI sharing for saved images
-    // Item 2: Cache-based sharing for unsaved edits
-    private fun shareCurrentImage() {
-        val imageInfo = currentImageInfo ?: run {
-            Toast.makeText(this, getString(R.string.no_image_to_share), Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                // Get bitmap from Coil
-                val request = ImageRequest.Builder(this@MainActivity)
-                    .data(imageInfo.uri)
-                    .allowHardware(false) // Important for sharing: ensures we get a software bitmap
-                    .build()
-                
-                val result = imageLoader.execute(request).drawable
-                val bitmapToShare = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
-
-                if (bitmapToShare != null) {
-                    var shareUri: Uri? = null
-
-                    // Determine sharing strategy based on image origin
-                    when (imageInfo.origin) {
-                        ImageOrigin.EDITED_INTERNAL, ImageOrigin.CAMERA_CAPTURED -> {
-                            // Item 2: Cache-based sharing for unsaved edits
-                            // Create temporary file in cache directory
-                            val cacheDir = cacheDir
-                            val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
-                            val tempFile = File(cacheDir, fileName)
-
-                            contentResolver.openOutputStream(Uri.fromFile(tempFile))?.use { outputStream ->
-                                compressBitmapToStream(bitmapToShare, outputStream, selectedSaveFormat)
-                            }
-
-                            shareUri = androidx.core.content.FileProvider.getUriForFile(
-                                this@MainActivity,
-                                "${packageName}.fileprovider",
-                                tempFile
-                            )
-
-                            // Schedule cleanup after sharing (in 5 minutes to be safe)
-                            lifecycleScope.launch {
-                                delay(5 * 60 * 1000) // 5 minutes
-                                if (tempFile.exists()) {
-                                    tempFile.delete()
-                                }
-                            }
-                        }
-                        else -> {
-                            // Item 1: Content URI sharing for saved images
-                            // Use the original content URI with read permission
-                            shareUri = imageInfo.uri
-                        }
-                    }
-
-                    // Create and launch share intent
-                    if (shareUri != null) {
-                        withContext(Dispatchers.Main) {
-                            try {
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = selectedSaveFormat
-                                    putExtra(Intent.EXTRA_STREAM, shareUri)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                
-                                val chooser = Intent.createChooser(shareIntent, getString(R.string.share_image))
-                                startActivity(chooser)
-
-                                Toast.makeText(this@MainActivity, getString(R.string.sharing_image), Toast.LENGTH_SHORT).show()
-                            } catch (e: Exception) {
-                                Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    } else {
-                        throw Exception("Failed to create share URI")
-                    }
-                } else {
-                    throw Exception("No image to share")
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    // Helper function to get file extension from MIME type
-    private fun getExtensionFromMimeType(mimeType: String): String {
-        return when (mimeType) {
-            "image/jpeg" -> "jpg"
-            "image/png" -> "png"
-            "image/webp" -> "webp"
-            else -> "jpg"
-        }
     }
 
     override fun onResume() {
