@@ -70,7 +70,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var rootLayout: FrameLayout
-    private lateinit var canvasImageView: ImageView
+    private lateinit var canvasImageView: com.burhanrashid52.photoeditor.PhotoEditorView
+    private lateinit var photoEditor: com.burhanrashid52.photoeditor.PhotoEditor
     private lateinit var savePanel: View
     private lateinit var toolOptionsLayout: LinearLayout
     private lateinit var drawOptionsLayout: LinearLayout
@@ -191,10 +192,13 @@ class MainActivity : AppCompatActivity() {
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
         canvasImageView = findViewById(R.id.canvas)
+        photoEditor = com.burhanrashid52.photoeditor.PhotoEditor.Builder(this, canvasImageView).build()
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val buttonImport: ImageView = findViewById(R.id.button_import)
         val buttonCamera: ImageView = findViewById(R.id.button_camera)
         val buttonShare: ImageView = findViewById(R.id.button_share)
+        val buttonUndo: ImageView = findViewById(R.id.button_undo)
+        val buttonRedo: ImageView = findViewById(R.id.button_redo)
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
@@ -242,6 +246,15 @@ class MainActivity : AppCompatActivity() {
             shareCurrentImage()
         }
 
+        // Undo/Redo Button Logic
+        buttonUndo.setOnClickListener {
+            photoEditor.undo()
+        }
+
+        buttonRedo.setOnClickListener {
+            photoEditor.redo()
+        }
+
         // Tool Buttons Logic
         toolDraw.setOnClickListener {
             drawOptionsLayout.visibility = View.VISIBLE
@@ -251,6 +264,9 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
+
+            // Enable brush mode for drawing
+            photoEditor.setBrushDrawingMode(true)
         }
 
         toolCrop.setOnClickListener {
@@ -261,6 +277,9 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
+
+            // Enable crop mode
+            photoEditor.setCropRatio(16, 9) // Default 16:9 ratio, or use without ratio for freeform
         }
 
         toolAdjust.setOnClickListener {
@@ -493,9 +512,7 @@ class MainActivity : AppCompatActivity() {
         // --- END: ADDED FOR OVERWRITE FIX ---
     }
 
-    // Step 1 & 2: Implement sharing functionality
-    // Item 1: Content URI sharing for saved images
-    // Item 2: Cache-based sharing for unsaved edits
+    // Share the edited image
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, getString(R.string.no_image_to_share), Toast.LENGTH_SHORT).show()
@@ -504,49 +521,32 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Get bitmap from Coil
-                val request = ImageRequest.Builder(this@MainActivity)
-                    .data(imageInfo.uri)
-                    .allowHardware(false) // Important for sharing: ensures we get a software bitmap
-                    .build()
-
-                val result = imageLoader.execute(request).drawable
-                val bitmapToShare = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                // Get the edited image from PhotoEditor
+                val bitmapToShare = photoEditor.saveAsBitmap()
 
                 if (bitmapToShare != null) {
                     var shareUri: Uri? = null
 
-                    // Determine sharing strategy based on image origin
-                    when (imageInfo.origin) {
-                        ImageOrigin.EDITED_INTERNAL, ImageOrigin.CAMERA_CAPTURED -> {
-                            // Item 2: Cache-based sharing for unsaved edits
-                            // Create temporary file in cache directory
-                            val cacheDir = cacheDir
-                            val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
-                            val tempFile = File(cacheDir, fileName)
+                    // Create temporary file in cache directory
+                    val cacheDir = cacheDir
+                    val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
+                    val tempFile = File(cacheDir, fileName)
 
-                            contentResolver.openOutputStream(Uri.fromFile(tempFile))?.use { outputStream ->
-                                compressBitmapToStream(bitmapToShare, outputStream, selectedSaveFormat)
-                            }
+                    contentResolver.openOutputStream(Uri.fromFile(tempFile))?.use { outputStream ->
+                        compressBitmapToStream(bitmapToShare, outputStream, selectedSaveFormat)
+                    }
 
-                            shareUri = androidx.core.content.FileProvider.getUriForFile(
-                                this@MainActivity,
-                                "${packageName}.fileprovider",
-                                tempFile
-                            )
+                    shareUri = androidx.core.content.FileProvider.getUriForFile(
+                        this@MainActivity,
+                        "${packageName}.fileprovider",
+                        tempFile
+                    )
 
-                            // Schedule cleanup after sharing (in 5 minutes to be safe)
-                            lifecycleScope.launch {
-                                delay(5 * 60 * 1000) // 5 minutes
-                                if (tempFile.exists()) {
-                                    tempFile.delete()
-                                }
-                            }
-                        }
-                        else -> {
-                            // Item 1: Content URI sharing for saved images
-                            // Use the original content URI with read permission
-                            shareUri = imageInfo.uri
+                    // Schedule cleanup after sharing (in 5 minutes to be safe)
+                    lifecycleScope.launch {
+                        delay(5 * 60 * 1000) // 5 minutes
+                        if (tempFile.exists()) {
+                            tempFile.delete()
                         }
                     }
 
@@ -717,11 +717,11 @@ class MainActivity : AppCompatActivity() {
                             // Convert drawable to bitmap and set it
                             val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
                             if (bitmap != null) {
-                                canvasImageView.setImageBitmap(bitmap)
+                                canvasImageView.source.setImageBitmap(bitmap)
                             }
-                            
+
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
-                            
+
                             // Update UI based on canOverwrite
                             updateSavePanelUI()
                             
@@ -988,7 +988,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Updated function to save a copy using Coil to fetch the bitmap reliably.
+    // Updated function to save the edited image
     private fun saveImageAsCopy() {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, getString(R.string.no_image_to_save), Toast.LENGTH_SHORT).show()
@@ -997,14 +997,8 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Step 1: Ask Coil to get the Bitmap directly from the image URI.
-                val request = ImageRequest.Builder(this@MainActivity)
-                    .data(imageInfo.uri)
-                    .allowHardware(false) // Important for saving: ensures we get a software bitmap
-                    .build()
-
-                val result = imageLoader.execute(request).drawable
-                val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                // Get the edited image from PhotoEditor
+                val bitmapToSave = photoEditor.saveAsBitmap()
 
                 if (bitmapToSave != null) {
                     // Generate filename based on image origin

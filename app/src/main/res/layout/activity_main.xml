@@ -393,7 +393,7 @@
     </LinearLayout>
 
     <!-- Canvas -->
-    <ImageView
+    <com.burhanrashid52.photoeditor.PhotoEditorView
         android:id="@+id/canvas"
         android:layout_width="0dp"
         android:layout_height="0dp"

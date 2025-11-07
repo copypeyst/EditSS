@@ -58,6 +58,9 @@ dependencies {
     implementation libs.coil.gif
     implementation libs.coil.svg
 
+    // Android Image Editor - Free open source library
+    implementation 'com.github.burhanrashid52:PhotoEditor:3.0.1'
+
     testImplementation libs.junit
     androidTestImplementation libs.androidx.junit
     androidTestImplementation libs.androidx.espresso.core
