@@ -158,9 +158,9 @@ class ImageCanvasView @JvmOverloads constructor(
             drawingView.getImageView().setImageBitmap(bitmap)
         }
         // Set up drawing completion listener to commit to bitmap
-        drawingView.setCompletionListener(object : DrawingCompletionListener {
+        drawingView.setCompletionListener(object : DrawingView.DrawingCompletionListener {
             override fun onDrawingCompleted() {
-                commitDrawing(drawingView.getDrawingCanvasView())
+                commitDrawing(drawingView.getDrawingCanvas())
             }
         })
 

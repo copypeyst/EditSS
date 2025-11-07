@@ -49,7 +49,22 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
         drawingCanvas.setDrawMode(drawMode)
     }
 
-    private class DrawingCanvas(context: Context) : View(context) {
+    // Listener for when a drawing action is completed
+    interface DrawingCompletionListener {
+        fun onDrawingCompleted()
+    }
+
+    private var completionListener: DrawingCompletionListener? = null
+
+    fun setCompletionListener(listener: DrawingCompletionListener) {
+        this.completionListener = listener
+    }
+
+    fun getDrawingCanvas(): DrawingCanvas {
+        return drawingCanvas
+    }
+
+    private inner class DrawingCanvas(context: Context) : View(context) {
 
         private val paint = Paint()
         private val path = Path()
@@ -157,6 +172,8 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
                     }
                     previousDistance = 0f
                     activePointerId = MotionEvent.INVALID_POINTER_ID
+                    // Notify listener that drawing is completed
+                    (this@DrawingView).completionListener?.onDrawingCompleted()
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     activePointerId = MotionEvent.INVALID_POINTER_ID
