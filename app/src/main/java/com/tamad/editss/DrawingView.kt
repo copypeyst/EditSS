@@ -84,16 +84,16 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
         }
     
          override fun onDraw(canvas: Canvas) {        super.onDraw(canvas)
+
+        if (baseBitmap?.hasAlpha() == true) {
+            val checker = CheckerDrawable()
+            checker.bounds = canvas.clipBounds // Set checkerboard to fill the entire canvas
+            checker.draw(canvas)
+        }
+
         baseBitmap?.let {
             canvas.save()
             canvas.clipRect(imageBounds)
-            if (it.hasAlpha()) {
-                val checker = CheckerDrawable()
-                val rect = android.graphics.Rect()
-                imageBounds.roundOut(rect) // Convert RectF to Rect
-                checker.bounds = rect
-                checker.draw(canvas)
-            }
             canvas.drawBitmap(it, imageMatrix, null)
         }
 
