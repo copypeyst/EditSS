@@ -1,42 +1,48 @@
+# =======================================
+#  Standard Android / IntelliJ ignores
+# =======================================
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+/.idea/
+.gradle/
 local.properties
 
-# Project documentation and auxiliary files
+# =======================================
+#  Build artifacts
+# =======================================
+/build/
+/captures/
+*.apk
+*.aab
+
+# =======================================
+#  Native Build
+# =======================================
+.externalNativeBuild/
+.cxx/
+
+# =======================================
+#  Temporary files and logs
+# =======================================
+*.log
+*.tmp
+*.swp
+*~
+
+# =======================================
+#  OS-specific files
+# =======================================
+.DS_Store
+
+# =======================================
+#  User-specific files and directories
+# =======================================
 PLAN.md
 heirarchy.md
 LICENSE
 preview.html
 GitHubActions.md
-
-# Development tools and utilities
 .kilocode/
 platform-tools/
 .claude/
-
-# Development and debugging artifacts
 screenshots/
 HISTORY.md
-
-# Temporary files and logs
-*.log
-*.tmp
-*.swp
-*~
-.DS_Store
-
-# Android specific
-*.apk
-*.aab
