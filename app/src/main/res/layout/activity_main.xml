@@ -393,8 +393,8 @@
     </LinearLayout>
 
     <!-- Canvas -->
-    <FrameLayout
-        android:id="@+id/canvas_container"
+    <ImageView
+        android:id="@+id/canvas"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:background="@color/canvas_background"
@@ -402,15 +402,7 @@
         app:layout_constraintBottom_toTopOf="@id/tool_options"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:contentDescription="@string/canvas">
-
-        <ImageView
-            android:id="@+id/canvas"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_gravity="center"
-            android:scaleType="fitCenter" />
-    </FrameLayout>
+        android:contentDescription="@string/canvas" />
 
 
     </androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,8 +1,6 @@
 package com.tamad.editss
 
 import androidx.activity.result.contract.ActivityResultContracts
-import com.tamad.editss.Tool
-import com.tamad.editss.DrawMode
 import android.util.Log
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -71,11 +69,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var rootLayout: FrameLayout
     private lateinit var canvasImageView: ImageView
-    private lateinit var canvasContainer: FrameLayout
     private lateinit var savePanel: View
-
-    // Current mutable bitmap for editing
-    private var currentMutableBitmap: Bitmap? = null
     private lateinit var toolOptionsLayout: LinearLayout
     private lateinit var drawOptionsLayout: LinearLayout
     private lateinit var cropOptionsLayout: LinearLayout
@@ -195,13 +189,10 @@ class MainActivity : AppCompatActivity() {
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
         canvasImageView = findViewById(R.id.canvas)
-        canvasContainer = findViewById(R.id.canvas_container)
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val buttonImport: ImageView = findViewById(R.id.button_import)
         val buttonCamera: ImageView = findViewById(R.id.button_camera)
         val buttonShare: ImageView = findViewById(R.id.button_share)
-        val buttonUndo: ImageView = findViewById(R.id.button_undo)
-        val buttonRedo: ImageView = findViewById(R.id.button_redo)
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
@@ -249,15 +240,6 @@ class MainActivity : AppCompatActivity() {
             shareCurrentImage()
         }
 
-        // Undo/Redo Button Logic
-        buttonUndo.setOnClickListener {
-            // TODO: Implement undo for custom views
-        }
-
-        buttonRedo.setOnClickListener {
-            // TODO: Implement redo for custom views
-        }
-
         // Tool Buttons Logic
         toolDraw.setOnClickListener {
             drawOptionsLayout.visibility = View.VISIBLE
@@ -267,9 +249,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
-
-            // Show DrawingView overlay
-            showDrawingOverlay()
         }
 
         toolCrop.setOnClickListener {
@@ -280,8 +259,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
-
-            // TODO: Show CropView overlay
         }
 
         toolAdjust.setOnClickListener {
@@ -292,8 +269,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
-
-            // TODO: Show AdjustView overlay
         }
 
         // Initialize Save Panel buttons
@@ -347,34 +322,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Initialize Draw Options
-        val drawSizeSlider = findViewById<SeekBar>(R.id.draw_size_slider)
-        val drawOpacitySlider = findViewById<SeekBar>(R.id.draw_opacity_slider)
-
-        // Set up size slider (default: 10)
-        drawSizeSlider.progress = 10
-        drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    val size = progress.toFloat()
-                    // TODO: Apply to current drawing tool
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        // Set up opacity slider (default: 255)
-        drawOpacitySlider.progress = 255
-        drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    val opacity = progress
-                    // TODO: Apply to current drawing tool
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
+        findViewById<SeekBar>(R.id.draw_size_slider)
+        findViewById<SeekBar>(R.id.draw_opacity_slider)
         val drawModePen: ImageView = findViewById(R.id.draw_mode_pen)
         val drawModeCircle: ImageView = findViewById(R.id.draw_mode_circle)
         val drawModeSquare: ImageView = findViewById(R.id.draw_mode_square)
@@ -442,19 +391,6 @@ class MainActivity : AppCompatActivity() {
             val border = v.findViewWithTag<View>("border")
             border?.visibility = View.VISIBLE
             currentSelectedColor = v as FrameLayout
-
-            // TODO: Set the color for drawing tool
-            val color = when (v.id) {
-                R.id.color_red_container -> android.graphics.Color.RED
-                R.id.color_green_container -> android.graphics.Color.GREEN
-                R.id.color_blue_container -> android.graphics.Color.BLUE
-                R.id.color_yellow_container -> android.graphics.Color.YELLOW
-                R.id.color_orange_container -> android.graphics.Color.rgb(255, 165, 0)
-                R.id.color_pink_container -> android.graphics.Color.rgb(255, 192, 203)
-                R.id.color_black_container -> android.graphics.Color.BLACK
-                R.id.color_white_container -> android.graphics.Color.WHITE
-                else -> android.graphics.Color.RED
-            }
         }
 
         colorBlackContainer.setOnClickListener(colorClickListener)
@@ -532,7 +468,7 @@ class MainActivity : AppCompatActivity() {
                     .data(imageInfo.uri)
                     .allowHardware(false) // Important for sharing: ensures we get a software bitmap
                     .build()
-
+                
                 val result = imageLoader.execute(request).drawable
                 val bitmapToShare = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
 
@@ -582,7 +518,7 @@ class MainActivity : AppCompatActivity() {
                                     putExtra(Intent.EXTRA_STREAM, shareUri)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-
+                                
                                 val chooser = Intent.createChooser(shareIntent, getString(R.string.share_image))
                                 startActivity(chooser)
 
@@ -734,19 +670,16 @@ class MainActivity : AppCompatActivity() {
 
                             // MODIFIED: Get and store original MIME type
                             val originalMimeType = contentResolver.getType(uri) ?: "image/jpeg"
-
+                            
                             currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
-
-                            // Convert drawable to bitmap and set it
-                            val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                            if (bitmap != null) {
-                                // Create mutable copy for editing
-                                currentMutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-                                canvasImageView.setImageBitmap(currentMutableBitmap)
-                            }
-
+                            
+                            // Display the loaded image
+                            canvasImageView.setImageDrawable(drawable)
+                            canvasImageView.setScaleType(ImageView.ScaleType.FIT_CENTER)
+                            canvasImageView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
-
+                            
                             // Update UI based on canOverwrite
                             updateSavePanelUI()
                             
@@ -1027,7 +960,7 @@ class MainActivity : AppCompatActivity() {
                     .data(imageInfo.uri)
                     .allowHardware(false) // Important for saving: ensures we get a software bitmap
                     .build()
-
+                
                 val result = imageLoader.execute(request).drawable
                 val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
 
@@ -1050,17 +983,17 @@ class MainActivity : AppCompatActivity() {
                         put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/EditSS")
                         put(MediaStore.Images.Media.IS_PENDING, 1)
                     }
-
+                    
                     val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
                     if (uri != null) {
                         contentResolver.openOutputStream(uri)?.use { outputStream ->
                             compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
                         }
-
+                        
                         values.clear()
                         values.put(MediaStore.Images.Media.IS_PENDING, 0)
                         contentResolver.update(uri, values, null, null)
-
+                        
                         // Step 26: MediaScannerConnection for Android 9 and older
                         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
                             try {
@@ -1077,7 +1010,7 @@ class MainActivity : AppCompatActivity() {
                                 // MediaScannerConnection is not critical, just log the error
                             }
                         }
-
+                        
                         withContext(Dispatchers.Main) {
                             Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
@@ -1108,7 +1041,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, getString(R.string.cannot_overwrite_this_image), Toast.LENGTH_SHORT).show()
             return
         }
-
+        
         // Double-check that format hasn't changed, as a safeguard.
         if (selectedSaveFormat != imageInfo.originalMimeType) {
             Toast.makeText(this, getString(R.string.format_changed_please_save_a_copy), Toast.LENGTH_LONG).show()
@@ -1125,12 +1058,12 @@ class MainActivity : AppCompatActivity() {
                 val result = imageLoader.execute(request).drawable
                 val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
                     ?: throw Exception("Could not get image to overwrite")
-
+                
                 // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
                 contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
                     compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
                 }
-
+                
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
                     savePanel.visibility = View.GONE
@@ -1415,50 +1348,4 @@ class MainActivity : AppCompatActivity() {
         return uri
     }
     // --- END: ADDED FOR OVERWRITE FIX ---
-
-    // --- DRAWING OVERLAY FUNCTIONS ---
-
-    private fun showDrawingOverlay() {
-        currentMutableBitmap?.let { bitmap ->
-            // Remove any existing DrawingView
-            removeDrawingOverlay()
-
-            // Create and add DrawingView to the container
-            val drawingView = DrawingView(this, null)
-            drawingView.tag = "DrawingView" // Use tag instead of ID
-            drawingView.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-
-            // Set the bitmap in the DrawingView
-            drawingView.getImageView().setImageBitmap(bitmap)
-
-            // Set up drawing completion listener
-            drawingView.setCompletionListener(object : DrawingCompletionListener {
-                override fun onDrawingCompleted() {
-                    // Get the bitmap with drawings and update our mutable bitmap
-                    currentMutableBitmap?.let { currentBitmap ->
-                        val canvas = android.graphics.Canvas(currentBitmap)
-                        drawingView.getDrawingCanvasView().draw(canvas)
-                        canvasImageView.setImageBitmap(currentBitmap)
-                    }
-                }
-            })
-
-            // Add to container (on top of the base ImageView)
-            canvasContainer.addView(drawingView)
-        }
-    }
-
-    private fun removeDrawingOverlay() {
-        // Find and remove any DrawingView from the container
-        for (i in 0 until canvasContainer.childCount) {
-            val child = canvasContainer.getChildAt(i)
-            if (child is DrawingView && child.tag == "DrawingView") {
-                canvasContainer.removeView(child)
-                break
-            }
-        }
-    }
 }

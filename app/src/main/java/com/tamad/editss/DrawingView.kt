@@ -16,15 +16,10 @@ enum class DrawMode {
     SQUARE
 }
 
-interface DrawingCompletionListener {
-    fun onDrawingCompleted()
-}
-
-class DrawingView(context: Context, attrs: AttributeSet?) : FrameLayout(context, attrs) {
+class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, attrs) {
 
     private val imageView: ImageView
     private val drawingCanvas: DrawingCanvas
-    private var completionListener: DrawingCompletionListener? = null
 
     init {
         imageView = ImageView(context)
@@ -32,11 +27,6 @@ class DrawingView(context: Context, attrs: AttributeSet?) : FrameLayout(context,
 
         addView(imageView)
         addView(drawingCanvas)
-    }
-
-    fun setCompletionListener(listener: DrawingCompletionListener) {
-        completionListener = listener
-        drawingCanvas.setCompletionListener(listener)
     }
 
     fun getImageView(): ImageView {
@@ -59,13 +49,6 @@ class DrawingView(context: Context, attrs: AttributeSet?) : FrameLayout(context,
         drawingCanvas.setDrawMode(drawMode)
     }
 
-    /**
-     * Get the drawing canvas view to commit to bitmap
-     */
-    fun getDrawingCanvasView(): View {
-        return drawingCanvas
-    }
-
     private class DrawingCanvas(context: Context) : View(context) {
 
         private val paint = Paint()
@@ -82,17 +65,12 @@ class DrawingView(context: Context, attrs: AttributeSet?) : FrameLayout(context,
         private var midPointY = 0f
 
         private var activePointerId = MotionEvent.INVALID_POINTER_ID
-        private var completionListener: DrawingCompletionListener? = null
 
         init {
             paint.isAntiAlias = true
             paint.style = Paint.Style.STROKE
             paint.strokeJoin = Paint.Join.ROUND
             paint.strokeCap = Paint.Cap.ROUND
-        }
-
-        fun setCompletionListener(listener: DrawingCompletionListener) {
-            completionListener = listener
         }
 
         fun setPaintColor(color: Int) {
@@ -176,10 +154,6 @@ class DrawingView(context: Context, attrs: AttributeSet?) : FrameLayout(context,
                     endY = y
                     if (currentDrawMode != DrawMode.PEN) {
                         invalidate()
-                        completionListener?.onDrawingCompleted()
-                    } else {
-                        // For pen mode, notify when finger is lifted
-                        completionListener?.onDrawingCompleted()
                     }
                     previousDistance = 0f
                     activePointerId = MotionEvent.INVALID_POINTER_ID
