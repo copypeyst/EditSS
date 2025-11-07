@@ -46,7 +46,7 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
 
     fun setBitmap(bitmap: Bitmap?) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
-        background = resources.getDrawable(R.drawable.subtle_pattern, null)
+        background = resources.getDrawable(R.drawable.outer_bounds, null)
 
         updateImageMatrix()
         invalidate()
