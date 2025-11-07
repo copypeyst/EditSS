@@ -70,9 +70,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var rootLayout: FrameLayout
-    private lateinit var canvasImageView: com.burhanrashid52.photoeditor.PhotoEditorView
-    private lateinit var photoEditor: com.burhanrashid52.photoeditor.PhotoEditor
+    private lateinit var canvasImageView: ImageView
+    private lateinit var canvasContainer: FrameLayout
     private lateinit var savePanel: View
+
+    // Current mutable bitmap for editing
+    private var currentMutableBitmap: Bitmap? = null
     private lateinit var toolOptionsLayout: LinearLayout
     private lateinit var drawOptionsLayout: LinearLayout
     private lateinit var cropOptionsLayout: LinearLayout
@@ -192,7 +195,7 @@ class MainActivity : AppCompatActivity() {
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
         canvasImageView = findViewById(R.id.canvas)
-        photoEditor = com.burhanrashid52.photoeditor.PhotoEditor.Builder(this, canvasImageView).build()
+        canvasContainer = findViewById(R.id.canvas_container)
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val buttonImport: ImageView = findViewById(R.id.button_import)
         val buttonCamera: ImageView = findViewById(R.id.button_camera)
@@ -248,11 +251,11 @@ class MainActivity : AppCompatActivity() {
 
         // Undo/Redo Button Logic
         buttonUndo.setOnClickListener {
-            photoEditor.undo()
+            // TODO: Implement undo for custom views
         }
 
         buttonRedo.setOnClickListener {
-            photoEditor.redo()
+            // TODO: Implement redo for custom views
         }
 
         // Tool Buttons Logic
@@ -265,8 +268,8 @@ class MainActivity : AppCompatActivity() {
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
 
-            // Enable brush mode for drawing
-            photoEditor.setBrushDrawingMode(true)
+            // Show DrawingView overlay
+            showDrawingOverlay()
         }
 
         toolCrop.setOnClickListener {
@@ -278,8 +281,7 @@ class MainActivity : AppCompatActivity() {
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
 
-            // Enable crop mode
-            photoEditor.setCropRatio(16, 9) // Default 16:9 ratio, or use without ratio for freeform
+            // TODO: Show CropView overlay
         }
 
         toolAdjust.setOnClickListener {
@@ -290,6 +292,8 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
+
+            // TODO: Show AdjustView overlay
         }
 
         // Initialize Save Panel buttons
@@ -512,7 +516,9 @@ class MainActivity : AppCompatActivity() {
         // --- END: ADDED FOR OVERWRITE FIX ---
     }
 
-    // Share the edited image
+    // Step 1 & 2: Implement sharing functionality
+    // Item 1: Content URI sharing for saved images
+    // Item 2: Cache-based sharing for unsaved edits
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, getString(R.string.no_image_to_share), Toast.LENGTH_SHORT).show()
@@ -521,32 +527,49 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Get the edited image from PhotoEditor
-                val bitmapToShare = photoEditor.saveAsBitmap()
+                // Get bitmap from Coil
+                val request = ImageRequest.Builder(this@MainActivity)
+                    .data(imageInfo.uri)
+                    .allowHardware(false) // Important for sharing: ensures we get a software bitmap
+                    .build()
+
+                val result = imageLoader.execute(request).drawable
+                val bitmapToShare = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
 
                 if (bitmapToShare != null) {
                     var shareUri: Uri? = null
 
-                    // Create temporary file in cache directory
-                    val cacheDir = cacheDir
-                    val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
-                    val tempFile = File(cacheDir, fileName)
+                    // Determine sharing strategy based on image origin
+                    when (imageInfo.origin) {
+                        ImageOrigin.EDITED_INTERNAL, ImageOrigin.CAMERA_CAPTURED -> {
+                            // Item 2: Cache-based sharing for unsaved edits
+                            // Create temporary file in cache directory
+                            val cacheDir = cacheDir
+                            val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
+                            val tempFile = File(cacheDir, fileName)
 
-                    contentResolver.openOutputStream(Uri.fromFile(tempFile))?.use { outputStream ->
-                        compressBitmapToStream(bitmapToShare, outputStream, selectedSaveFormat)
-                    }
+                            contentResolver.openOutputStream(Uri.fromFile(tempFile))?.use { outputStream ->
+                                compressBitmapToStream(bitmapToShare, outputStream, selectedSaveFormat)
+                            }
 
-                    shareUri = androidx.core.content.FileProvider.getUriForFile(
-                        this@MainActivity,
-                        "${packageName}.fileprovider",
-                        tempFile
-                    )
+                            shareUri = androidx.core.content.FileProvider.getUriForFile(
+                                this@MainActivity,
+                                "${packageName}.fileprovider",
+                                tempFile
+                            )
 
-                    // Schedule cleanup after sharing (in 5 minutes to be safe)
-                    lifecycleScope.launch {
-                        delay(5 * 60 * 1000) // 5 minutes
-                        if (tempFile.exists()) {
-                            tempFile.delete()
+                            // Schedule cleanup after sharing (in 5 minutes to be safe)
+                            lifecycleScope.launch {
+                                delay(5 * 60 * 1000) // 5 minutes
+                                if (tempFile.exists()) {
+                                    tempFile.delete()
+                                }
+                            }
+                        }
+                        else -> {
+                            // Item 1: Content URI sharing for saved images
+                            // Use the original content URI with read permission
+                            shareUri = imageInfo.uri
                         }
                     }
 
@@ -717,7 +740,9 @@ class MainActivity : AppCompatActivity() {
                             // Convert drawable to bitmap and set it
                             val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
                             if (bitmap != null) {
-                                canvasImageView.source.setImageBitmap(bitmap)
+                                // Create mutable copy for editing
+                                currentMutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                                canvasImageView.setImageBitmap(currentMutableBitmap)
                             }
 
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
@@ -988,7 +1013,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Updated function to save the edited image
+    // Updated function to save a copy using Coil to fetch the bitmap reliably.
     private fun saveImageAsCopy() {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, getString(R.string.no_image_to_save), Toast.LENGTH_SHORT).show()
@@ -997,8 +1022,14 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Get the edited image from PhotoEditor
-                val bitmapToSave = photoEditor.saveAsBitmap()
+                // Step 1: Ask Coil to get the Bitmap directly from the image URI.
+                val request = ImageRequest.Builder(this@MainActivity)
+                    .data(imageInfo.uri)
+                    .allowHardware(false) // Important for saving: ensures we get a software bitmap
+                    .build()
+
+                val result = imageLoader.execute(request).drawable
+                val bitmapToSave = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
 
                 if (bitmapToSave != null) {
                     // Generate filename based on image origin
@@ -1384,4 +1415,47 @@ class MainActivity : AppCompatActivity() {
         return uri
     }
     // --- END: ADDED FOR OVERWRITE FIX ---
+
+    // --- DRAWING OVERLAY FUNCTIONS ---
+
+    private fun showDrawingOverlay() {
+        currentMutableBitmap?.let { bitmap ->
+            // Remove any existing DrawingView
+            removeDrawingOverlay()
+
+            // Create and add DrawingView to the container
+            val drawingView = DrawingView(this, null)
+            drawingView.id = R.id.drawing_view // Set ID so we can find it later
+            drawingView.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+
+            // Set the bitmap in the DrawingView
+            drawingView.getImageView().setImageBitmap(bitmap)
+
+            // Set up drawing completion listener
+            drawingView.setCompletionListener(object : DrawingCompletionListener {
+                override fun onDrawingCompleted() {
+                    // Get the bitmap with drawings and update our mutable bitmap
+                    currentMutableBitmap?.let { currentBitmap ->
+                        val canvas = android.graphics.Canvas(currentBitmap)
+                        drawingView.getDrawingCanvasView().draw(canvas)
+                        canvasImageView.setImageBitmap(currentBitmap)
+                    }
+                }
+            })
+
+            // Add to container (on top of the base ImageView)
+            canvasContainer.addView(drawingView)
+        }
+    }
+
+    private fun removeDrawingOverlay() {
+        // Find and remove any DrawingView from the container
+        val drawingView = canvasContainer.findViewById<DrawingView>(R.id.drawing_view)
+        if (drawingView != null) {
+            canvasContainer.removeView(drawingView)
+        }
+    }
 }
