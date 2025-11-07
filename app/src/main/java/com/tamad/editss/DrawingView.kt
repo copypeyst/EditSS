@@ -84,22 +84,16 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
     
             baseBitmap?.let {
                 canvas.save()
-                canvas.clipRect(imageBounds)
-    
+                canvas.concat(imageMatrix) // Apply the image matrix to the canvas
                 if (it.hasAlpha()) {
-                    checkerDrawable.setBounds(
-                        imageBounds.left.toInt(),
-                        imageBounds.top.toInt(),
-                        imageBounds.right.toInt(),
-                        imageBounds.bottom.toInt()
-                    )
+                    checkerDrawable.setBounds(0, 0, it.width, it.height) // Set bounds relative to bitmap
                     checkerDrawable.draw(canvas)
                 }
-    
-                canvas.drawBitmap(it, imageMatrix, null)
+                canvas.drawBitmap(it, 0f, 0f, null) // Draw bitmap at 0,0 after matrix is applied
                 canvas.restore()
             }
-    
+
+            // Clip drawing to image bounds
             canvas.save()
             canvas.clipRect(imageBounds)
     
@@ -113,7 +107,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
     
             canvas.restore()
         }
-    }
 
     private fun updateImageMatrix() {
         baseBitmap?.let {
