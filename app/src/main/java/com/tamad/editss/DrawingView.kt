@@ -9,6 +9,9 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import androidx.appcompat.app.AppCompatActivity
 
 enum class DrawMode {
     PEN,
@@ -33,38 +36,15 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
         return imageView
     }
 
-    fun setPaintColor(color: Int) {
-        drawingCanvas.setPaintColor(color)
-    }
-
-    fun setPaintSize(size: Float) {
-        drawingCanvas.setPaintSize(size)
-    }
-
-    fun setPaintOpacity(opacity: Int) {
-        drawingCanvas.setPaintOpacity(opacity)
+    fun setupDrawingState(viewModel: EditViewModel) {
+        drawingCanvas.setupDrawingState(viewModel)
     }
 
     fun setDrawMode(drawMode: DrawMode) {
         drawingCanvas.setDrawMode(drawMode)
     }
 
-    // Listener for when a drawing action is completed
-    interface DrawingCompletionListener {
-        fun onDrawingCompleted()
-    }
-
-    private var completionListener: DrawingCompletionListener? = null
-
-    fun setCompletionListener(listener: DrawingCompletionListener) {
-        this.completionListener = listener
-    }
-
-    fun getDrawingCanvas(): DrawingCanvas {
-        return drawingCanvas
-    }
-
-    private inner class DrawingCanvas(context: Context) : View(context) {
+    private class DrawingCanvas(context: Context) : View(context) {
 
         private val paint = Paint()
         private val path = Path()
@@ -81,6 +61,8 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
 
         private var activePointerId = MotionEvent.INVALID_POINTER_ID
 
+        private var viewModel: EditViewModel? = null
+
         init {
             paint.isAntiAlias = true
             paint.style = Paint.Style.STROKE
@@ -88,16 +70,23 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
             paint.strokeCap = Paint.Cap.ROUND
         }
 
-        fun setPaintColor(color: Int) {
-            paint.color = color
-        }
-
-        fun setPaintSize(size: Float) {
-            paint.strokeWidth = size
-        }
-
-        fun setPaintOpacity(opacity: Int) {
-            paint.alpha = opacity
+        fun setupDrawingState(viewModel: EditViewModel) {
+            this.viewModel = viewModel
+            
+            // Subscribe to drawing state changes
+            // Note: This will be called when the DrawingView is attached to an Activity
+            // The Activity's lifecycleScope will handle the coroutine properly
+            if (context is androidx.appcompat.app.AppCompatActivity) {
+                val activity = context as androidx.appcompat.app.AppCompatActivity
+                activity.lifecycleScope.launch {
+                    viewModel.drawingState.collect { drawingState ->
+                        paint.color = drawingState.color
+                        paint.strokeWidth = drawingState.size
+                        paint.alpha = drawingState.opacity
+                        invalidate() // Redraw when state changes
+                    }
+                }
+            }
         }
 
         fun setDrawMode(drawMode: DrawMode) {
@@ -172,8 +161,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : FrameLayout(context, 
                     }
                     previousDistance = 0f
                     activePointerId = MotionEvent.INVALID_POINTER_ID
-                    // Notify listener that drawing is completed
-                    (this@DrawingView).completionListener?.onDrawingCompleted()
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     activePointerId = MotionEvent.INVALID_POINTER_ID
