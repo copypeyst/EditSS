@@ -253,7 +253,7 @@ class MainActivity : AppCompatActivity() {
         // Import Button Logic
         buttonImport.setOnClickListener {
             if (editViewModel.hasDrawings) {
-                AlertDialog.Builder(this)
+                AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
                     .setTitle(getString(R.string.discard_changes_title))
                     .setMessage(getString(R.string.discard_changes_message))
                     .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
