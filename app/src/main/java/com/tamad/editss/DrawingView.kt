@@ -21,6 +21,8 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
     private var paths = listOf<DrawingAction>()
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
+    private val checkerDrawable = CheckerDrawable()
+
 
     private var currentDrawMode = DrawMode.PEN
     private var startX = 0f
@@ -46,11 +48,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
 
     fun setBitmap(bitmap: Bitmap?) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
-        if (baseBitmap?.hasAlpha() == true) {
-            background = CheckerDrawable()
-        } else {
-            background = resources.getDrawable(R.drawable.subtle_pattern, null)
-        }
         updateImageMatrix()
         invalidate()
     }
@@ -82,22 +79,38 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
             updateImageMatrix()
         }
     
-         override fun onDraw(canvas: Canvas) {        super.onDraw(canvas)
-        baseBitmap?.let {
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+    
+            baseBitmap?.let {
+                canvas.save()
+                canvas.clipRect(imageBounds)
+    
+                if (it.hasAlpha()) {
+                    checkerDrawable.setBounds(
+                        imageBounds.left.toInt(),
+                        imageBounds.top.toInt(),
+                        imageBounds.right.toInt(),
+                        imageBounds.bottom.toInt()
+                    )
+                    checkerDrawable.draw(canvas)
+                }
+    
+                canvas.drawBitmap(it, imageMatrix, null)
+                canvas.restore()
+            }
+    
             canvas.save()
             canvas.clipRect(imageBounds)
-            canvas.drawBitmap(it, imageMatrix, null)
-        }
-
-        for (action in paths) {
-            canvas.drawPath(action.path, action.paint)
-        }
-
-        if (isDrawing) {
-            canvas.drawPath(currentPath, paint)
-        }
-
-        baseBitmap?.let {
+    
+            for (action in paths) {
+                canvas.drawPath(action.path, action.paint)
+            }
+    
+            if (isDrawing) {
+                canvas.drawPath(currentPath, paint)
+            }
+    
             canvas.restore()
         }
     }
