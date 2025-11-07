@@ -225,7 +225,7 @@ class MainActivity : AppCompatActivity() {
         
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
-        drawingView.setupDrawingState(editViewModel)
+
 
         // Initialize sliders with default values (25% size, 100% opacity)
         val defaultSize = 25 // 25% of slider range
@@ -814,7 +814,7 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             try {
                 // Clear canvas on failed load
-                drawingView.setImageBitmap(null)
+                drawingView.setBitmap(null)
                 drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 Toast.makeText(this, getString(R.string.could_not_load_image, errorMessage), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {

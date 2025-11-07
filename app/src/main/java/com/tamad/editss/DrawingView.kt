@@ -8,6 +8,7 @@ import android.graphics.Path
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import com.tamad.editss.DrawMode
 
 class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 

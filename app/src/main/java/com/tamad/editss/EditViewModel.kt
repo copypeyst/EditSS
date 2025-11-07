@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import android.graphics.Path
 import android.graphics.Paint
+import com.tamad.editss.DrawMode
 
 // Shared drawing state for Draw, Circle, and Square tools only
 data class DrawingState(
