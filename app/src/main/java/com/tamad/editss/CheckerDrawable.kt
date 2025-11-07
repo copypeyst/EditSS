@@ -16,17 +16,14 @@ class CheckerDrawable : Drawable() {
         val width = bounds.width()
         val height = bounds.height()
 
-        val startX = bounds.left
-        val startY = bounds.top
-
         for (i in 0 until (width / squareSize + 1)) {
             for (j in 0 until (height / squareSize + 1)) {
                 paint.color = if ((i + j) % 2 == 0) Color.rgb(180, 180, 180) else Color.rgb(211, 211, 211)
                 canvas.drawRect(
-                    (startX + i * squareSize).toFloat(),
-                    (startY + j * squareSize).toFloat(),
-                    (startX + (i + 1) * squareSize).toFloat(),
-                    (startY + (j + 1) * squareSize).toFloat(),
+                    (i * squareSize).toFloat(),
+                    (j * squareSize).toFloat(),
+                    ((i + 1) * squareSize).toFloat(),
+                    ((j + 1) * squareSize).toFloat(),
                     paint
                 )
             }
