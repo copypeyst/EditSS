@@ -760,6 +760,8 @@ class MainActivity : AppCompatActivity() {
                             // Display the loaded image
                             val bitmap = (drawable as android.graphics.drawable.BitmapDrawable).bitmap
                             drawingView.setBitmap(bitmap)
+                            drawingView.requestLayout()
+                            drawingView.invalidate()
                             
                             Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
                             

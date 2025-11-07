@@ -184,8 +184,8 @@
                 android:layout_marginBottom="0dp"
                 android:layout_marginTop="0dp">
                 <ImageView android:id="@+id/draw_mode_pen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/penicon" android:contentDescription="@string/pen_mode" android:background="@drawable/tool_button_background" android:padding="2dp" android:layout_marginEnd="5dp" android:clickable="true" android:focusable="true"/>
-                <ImageView android:background="@drawable/tool_button_background" android:padding="2dp" android:layout_marginEnd="5dp" android:clickable="true" android:focusable="true"/>
-                android:background="@drawable/tool_button_background"
+                <ImageView android:id="@+id/draw_mode_circle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/circleicon" android:contentDescription="@string/circle_mode" android:background="@drawable/tool_button_background" android:padding="2dp" android:layout_marginEnd="5dp" android:clickable="true" android:focusable="true"/>
+                <ImageView android:id="@+id/draw_mode_square" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:src="@drawable/squareicon" android:contentDescription="@string/square_mode" android:background="@drawable/tool_button_background" android:padding="2dp" android:clickable="true" android:focusable="true"/>
             </LinearLayout>
 
             <!-- Colors -->
