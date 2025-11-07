@@ -1425,7 +1425,7 @@ class MainActivity : AppCompatActivity() {
 
             // Create and add DrawingView to the container
             val drawingView = DrawingView(this, null)
-            drawingView.id = R.id.drawing_view // Set ID so we can find it later
+            drawingView.tag = "DrawingView" // Use tag instead of ID
             drawingView.layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -1453,9 +1453,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun removeDrawingOverlay() {
         // Find and remove any DrawingView from the container
-        val drawingView = canvasContainer.findViewById<DrawingView>(R.id.drawing_view)
-        if (drawingView != null) {
-            canvasContainer.removeView(drawingView)
+        for (i in 0 until canvasContainer.childCount) {
+            val child = canvasContainer.getChildAt(i)
+            if (child is DrawingView && child.tag == "DrawingView") {
+                canvasContainer.removeView(child)
+                break
+            }
         }
     }
 }
