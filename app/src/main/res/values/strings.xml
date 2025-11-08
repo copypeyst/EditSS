@@ -60,6 +60,7 @@
     <string name="cannot_overwrite_this_image">Cannot overwrite this image</string>
     <string name="format_changed_please_save_a_copy">Format changed. Please save a copy.</string>
     <string name="image_overwritten_successfully">Image overwritten successfully</string>
+    <string name="image_saved_as_new_file">Image saved as a new file.</string>
     <string name="overwrite_failed">Overwrite failed: %1$s</string>
     <string name="jpg_does_not_support_transparency">JPG doesn\'t support transparency</string>
     <string name="detected_format">Detected format: %1$s</string>

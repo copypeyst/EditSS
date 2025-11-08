@@ -1137,7 +1137,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // FINAL, CORRECTED VERSION - This one avoids deletion and uses MediaStore update instead.
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, getString(R.string.no_image_to_overwrite), Toast.LENGTH_SHORT).show()
@@ -1160,15 +1159,68 @@ class MainActivity : AppCompatActivity() {
                 val bitmapToSave = drawingView.getDrawing()
                     ?: throw Exception("Could not get image to overwrite")
                 
-                // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
-                contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
-                    compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                // Case 1: Internal files (camera captured or app-edited internal)
+                // These can be directly overwritten as we control the file.
+                if (imageInfo.origin == ImageOrigin.CAMERA_CAPTURED || imageInfo.origin == ImageOrigin.EDITED_INTERNAL) {
+                    contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
+                        compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                    }
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
+                        savePanel.visibility = View.GONE
+                        scrim.visibility = View.GONE
+                    }
+                } 
+                // Case 2: Imported writable MediaStore URIs (from Photo Picker)
+                // These require a different approach due to MediaStore's security model.
+                else if (imageInfo.origin == ImageOrigin.IMPORTED_WRITABLE) {
+                    // First, save the edited image to a *new* temporary file in MediaStore.
+                    // This will be the "replacement" if the user confirms deletion of the original.
+                    val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
+                    val uniqueDisplayName = generateUniqueCopyName(getDisplayNameFromUri(imageInfo.uri) ?: "Image", picturesDirectory)
+
+                    val values = ContentValues().apply {
+                        put(MediaStore.Images.Media.DISPLAY_NAME, uniqueDisplayName)
+                        put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
+                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/EditSS")
+                        put(MediaStore.Images.Media.IS_PENDING, 1)
+                    }
+                    
+                    val newImageUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    if (newImageUri != null) {
+                        contentResolver.openOutputStream(newImageUri)?.use { outputStream ->
+                            compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                        }
+                        values.clear()
+                        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                        contentResolver.update(newImageUri, values, null, null)
+
+                        // Now, request deletion of the original file.
+                        // The deleteRequestLauncher will handle the result and update currentImageInfo.
+                        val originalMediaStoreUri = getMediaStoreUriWithId(imageInfo.uri)
+                        if (originalMediaStoreUri != null) {
+                            val deletePendingIntent = MediaStore.createDeleteRequest(contentResolver, listOf(originalMediaStoreUri))
+                            pendingOverwriteUri = newImageUri // Store the new URI for the launcher callback
+                            deleteRequestLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(deletePendingIntent.intentSender).build())
+                        } else {
+                            // If we can't get a MediaStore URI for deletion, just update to the new image.
+                            // This might happen if the original URI is not a standard MediaStore URI.
+                            currentImageInfo = imageInfo.copy(uri = newImageUri)
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@MainActivity, getString(R.string.image_saved_as_new_file), Toast.LENGTH_SHORT).show()
+                                savePanel.visibility = View.GONE
+                                scrim.visibility = View.GONE
+                            }
+                        }
+                    } else {
+                        throw Exception(getString(R.string.save_failed))
+                    }
                 }
-                
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
-                    savePanel.visibility = View.GONE
-                    scrim.visibility = View.GONE
+                else {
+                    // Should not happen if canOverwrite is true, but as a fallback
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, getString(R.string.cannot_overwrite_this_image), Toast.LENGTH_SHORT).show()
+                    }
                 }
 
             } catch (e: Exception) {
