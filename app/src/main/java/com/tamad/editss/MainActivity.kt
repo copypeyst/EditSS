@@ -122,10 +122,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var drawOpacitySlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
 
-    private val importImageLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
-        if (uri != null) {
-            // The modern Photo Picker handles access permissions automatically.
-            loadImageFromUri(uri, false)
+    private val importImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            result.data?.data?.let { uri ->
+                // Persist URI permissions for potential future write access
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                loadImageFromUri(uri, false)
+            }
         }
     }
 
@@ -906,13 +909,17 @@ class MainActivity : AppCompatActivity() {
     
     // Step 8: Helper method to determine image origin
     private fun determineImageOrigin(uri: Uri): ImageOrigin {
+        // Check if we have persistent write access to this URI
+        val hasPersistentWriteAccess = contentResolver.persistedUriPermissions.any {
+            it.uri == uri && it.isWritePermissionGranted
+        }
+
         return when {
-            // Check if this is a camera temp file (temporary cache file)
+            hasPersistentWriteAccess -> ImageOrigin.IMPORTED_WRITABLE // Explicitly writable via SAF
             uri.path?.contains("camera_temp_") == true -> ImageOrigin.CAMERA_CAPTURED
-            // Check if this is a FileProvider URI from our app (but not camera temp)
             uri.authority == "${packageName}.fileprovider" -> ImageOrigin.EDITED_INTERNAL
             uri.toString().contains("media") && !uri.toString().contains("persisted") -> {
-                // Imported via MediaStore, may or may not be writable depending on permission
+                // Fallback for MediaStore URIs that might be writable if general permission is there
                 if (hasImagePermission()) ImageOrigin.IMPORTED_WRITABLE else ImageOrigin.IMPORTED_READONLY
             }
             uri.toString().contains("camera") -> ImageOrigin.CAMERA_CAPTURED // Legacy support
@@ -951,10 +958,16 @@ class MainActivity : AppCompatActivity() {
     // Photo picker logic - Modern implementation using Photo Picker
     private fun openImagePicker() {
         try {
-            // Launch the modern photo picker for images only.
-            importImageLauncher.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "image/*"
+                // Request read and write permissions
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            }
+            importImageLauncher.launch(intent)
         } catch (e: Exception) {
-            Toast.makeText(this, getString(R.string.could_not_open_photo_picker, e.message), Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.could_not_open_document_picker, e.message), Toast.LENGTH_LONG).show()
         }
     }
 
