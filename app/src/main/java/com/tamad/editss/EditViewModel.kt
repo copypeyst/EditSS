@@ -29,6 +29,9 @@ class EditViewModel : ViewModel() {
     private val _redoStack = MutableStateFlow<List<DrawingAction>>(emptyList())
     val redoStack: StateFlow<List<DrawingAction>> = _redoStack.asStateFlow()
 
+    // Track the size of the undo stack at the point of the last save
+    private val _lastSavedDrawingCount = MutableStateFlow(0)
+
     // Shared drawing state for Draw/Circle/Square tools
     private val _drawingState = MutableStateFlow(DrawingState())
     val drawingState: StateFlow<DrawingState> = _drawingState.asStateFlow()
@@ -74,8 +77,15 @@ class EditViewModel : ViewModel() {
     fun clearDrawings() {
         _undoStack.value = emptyList()
         _redoStack.value = emptyList()
+        _lastSavedDrawingCount.value = 0 // Reset saved count when drawings are cleared
     }
 
+    // New function to mark current drawings as saved
+    fun markDrawingsAsSaved() {
+        _lastSavedDrawingCount.value = _undoStack.value.size
+    }
+
+    // hasDrawings now indicates if there are unsaved changes
     val hasDrawings: Boolean
-        get() = _undoStack.value.isNotEmpty()
+        get() = _undoStack.value.size > _lastSavedDrawingCount.value
 }
