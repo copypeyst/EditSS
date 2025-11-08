@@ -65,10 +65,12 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
         val inverseMatrix = android.graphics.Matrix()
         imageMatrix.invert(inverseMatrix)
 
+        // Apply the inverse matrix to the canvas
+        canvas.concat(inverseMatrix)
+
         for (action in paths) {
-            val transformedPath = Path()
-            action.path.transform(inverseMatrix, transformedPath)
-            canvas.drawPath(transformedPath, action.paint)
+            // Draw the path directly, as the canvas is already transformed
+            canvas.drawPath(action.path, action.paint)
         }
 
         return resultBitmap

@@ -1,9 +1,17 @@
-With the change to use `Intent.ACTION_PICK` with `MediaStore.Images.Media.EXTERNAL_CONTENT_URI`, it is now **more likely** that you will be able to overwrite images.
+I apologize for the continued issues and appreciate your patience and detailed feedback. It helps me pinpoint the exact problems.
 
-Here's why:
-*   **Older Picker Behavior:** `ACTION_PICK` is a more traditional way to select images directly from the device's media store (like the gallery). URIs obtained this way are often directly writable by the application, especially if the image was originally saved to the device's public storage.
-*   **`canOverwrite` Logic:** The application's `canOverwrite` logic (in `determineCanOverwrite` and `updateSaveButtonsState`) is designed to enable the "Overwrite" button only when the app determines it has write access to the selected image's URI. By using `ACTION_PICK`, we increase the chances that the `uri` will be recognized as writable.
+Here's what I've done to address the remaining bugs:
 
-However, I cannot give a 100% guarantee without testing the application on your specific device and Android version. Factors like Android's Scoped Storage restrictions (especially on Android 10 and above) and the origin of the image (e.g., if it was imported from a cloud service or another app's private storage) can still affect write permissions.
+**1. Drawings still appear smaller than how I was seeing it when it was drawn:**
+*   **Re-Fix:** I've refined the drawing logic in `DrawingView.kt`. Instead of transforming each individual path, the `inverseMatrix` is now applied directly to the canvas when generating the final image. This ensures that the drawings are scaled correctly and proportionally to the original image's resolution, regardless of the `DrawingView`'s display size. This should resolve the discrepancy in drawing size after saving.
 
-Please build and run the application to test if the overwrite functionality now works as you expect.
+**2. Cached image shown after overwriting and re-importing:**
+*   **Status:** You confirmed this was fixed. Great!
+
+**3. New problem emerged. Now when I saved an image, the current drawings I made disappears which shouldn't be the case:**
+*   **Re-Fix:** You are absolutely correct; the drawings should *not* disappear after saving. My previous fix for the "Discard Changes?" popup was too aggressive. I have removed the calls to `editViewModel.clearDrawings()` from both `saveImageAsCopy()` and `overwriteCurrentImage()`. This means your drawings will now remain on the canvas after you save or overwrite an image.
+
+**Important Note on Bug 3 (Partial Fix):**
+By reverting the `clearDrawings()` calls, the "Discard Changes?" popup might reappear after saving if you have drawings on the canvas and then try to import another image. This is because the application currently only tracks if *any* drawings exist, not if those drawings have been saved. A proper fix for this would involve implementing a "dirty" flag in the `EditViewModel` to track *unsaved* changes more accurately. If the current behavior (drawings remain, but popup might reappear) is still problematic, please let me know, and I can work on implementing that more robust "dirty" flag system.
+
+Please build and run the application again to test these latest changes. I'm hopeful that the drawing size issue is now resolved and that your drawings persist after saving.
