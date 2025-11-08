@@ -542,9 +542,6 @@ class MainActivity : AppCompatActivity() {
         
         // Handle incoming intents
         handleIntent(intent)
-        
-        // Step 6: Check if permissions were revoked while app was in background
-        checkPermissionRevocation()
 
         // --- START: ADDED FOR OVERWRITE FIX ---
         // Initialize the launcher that will handle the result of the delete request.
@@ -974,7 +971,6 @@ class MainActivity : AppCompatActivity() {
         // For Android 13+, check if READ_MEDIA_IMAGES was revoked
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (!hasImagePermission()) {
-                showPermissionRevokedDialog()
                 // Update canOverwrite flag if permission was revoked
                 currentImageInfo?.canOverwrite = false
             }
@@ -991,23 +987,6 @@ class MainActivity : AppCompatActivity() {
         if (wasOverwriteAvailable && (currentImageInfo?.canOverwrite == false)) {
             updateSavePanelUI()
         }
-    }
-
-    private fun showPermissionRevokedDialog() {
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.permission_revoked))
-            .setMessage(getString(R.string.permission_revoked_message))
-            .setPositiveButton("Settings") { _, _ ->
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                val uri = Uri.fromParts("package", packageName, null)
-                intent.data = uri
-                startActivity(intent)
-            }
-            .setNegativeButton("Cancel") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setCancelable(false)
-            .show()
     }
 
     // Step 9 & 10: Update save panel UI based on image origin and canOverwrite flag
