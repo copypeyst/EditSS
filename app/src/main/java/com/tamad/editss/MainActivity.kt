@@ -1140,7 +1140,6 @@ class MainActivity : AppCompatActivity() {
                             Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
-                            editViewModel.clearDrawings() // Reset drawing state after successful save
                         }
                     } else {
                         throw Exception(getString(R.string.save_failed))
@@ -1192,7 +1191,6 @@ class MainActivity : AppCompatActivity() {
                     // Invalidate Coil's cache for the overwritten URI to ensure a fresh load next time.
                     imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
                     imageLoader.diskCache?.remove(imageInfo.uri.toString())
-                    editViewModel.clearDrawings() // Reset drawing state after successful overwrite
                 }
 
             } catch (e: Exception) {
