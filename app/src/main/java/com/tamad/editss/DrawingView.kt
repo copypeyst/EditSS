@@ -74,6 +74,26 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
         return resultBitmap
     }
 
+    fun getDrawingOnTransparent(): Bitmap? {
+        if (baseBitmap == null) return null
+        // Create a new transparent bitmap with the same dimensions as the base bitmap.
+        val resultBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(resultBitmap)
+
+        // The paths are in screen coordinates, but the final bitmap should be in the original image's
+        // coordinate space. We use the same inverse matrix transformation as getDrawing().
+        val inverseMatrix = android.graphics.Matrix()
+        imageMatrix.invert(inverseMatrix)
+
+        for (action in paths) {
+            val transformedPath = Path()
+            action.path.transform(inverseMatrix, transformedPath)
+            canvas.drawPath(transformedPath, action.paint)
+        }
+
+        return resultBitmap
+    }
+
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
             updateImageMatrix()

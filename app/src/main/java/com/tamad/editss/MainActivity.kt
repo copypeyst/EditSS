@@ -32,6 +32,7 @@ import android.os.Environment
 import android.content.ContentValues
 import android.media.MediaScannerConnection
 import kotlinx.coroutines.*
+import androidx.core.view.doOnLayout
 import androidx.lifecycle.lifecycleScope
 import java.io.File
 import java.io.OutputStream
@@ -102,6 +103,7 @@ class MainActivity : AppCompatActivity() {
     // Coil-based image loading state
     private var isImageLoadAttempted = false
     private var lastImageLoadFailed = false
+    private var isSketchMode = false
     
     // --- START: ADDED FOR OVERWRITE FIX ---
     // Handles the result of the delete confirmation dialog
@@ -527,6 +529,33 @@ class MainActivity : AppCompatActivity() {
         // Handle incoming intents
         handleIntent(intent)
 
+        drawingView.doOnLayout { view ->
+            // This block runs once the view has been laid out and has dimensions.
+            // We only want to do this if no image has been loaded from an intent.
+            if (currentImageInfo == null) {
+                isSketchMode = true
+                val width = view.width
+                val height = view.height
+                
+                // Create a mutable white bitmap
+                val whiteBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(whiteBitmap)
+                canvas.drawColor(android.graphics.Color.WHITE)
+                
+                // Set it as the base for the drawing view
+                drawingView.setBitmap(whiteBitmap)
+                
+                // Create a dummy ImageInfo for sketch mode
+                currentImageInfo = ImageInfo(
+                    uri = Uri.EMPTY,
+                    origin = ImageOrigin.EDITED_INTERNAL,
+                    canOverwrite = false,
+                    originalMimeType = "image/png" // Default to PNG
+                )
+                updateSavePanelUI()
+            }
+        }
+
         // --- START: ADDED FOR OVERWRITE FIX ---
         // Initialize the launcher that will handle the result of the delete request.
         deleteRequestLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { result ->
@@ -736,6 +765,7 @@ class MainActivity : AppCompatActivity() {
 
     // Simple Coil-based image loading - replaces all complex crash prevention logic
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
+        isSketchMode = false
         // Clear any existing drawings when a new image is loaded
         editViewModel.clearDrawings()
 
@@ -1034,7 +1064,12 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val bitmapToSave = drawingView.getDrawing()
+                val bitmapToSave: Bitmap?
+                if (isSketchMode && (selectedSaveFormat == "image/png" || selectedSaveFormat == "image/webp")) {
+                    bitmapToSave = drawingView.getDrawingOnTransparent()
+                } else {
+                    bitmapToSave = drawingView.getDrawing()
+                }
 
                 if (bitmapToSave != null) {
                     // Generate filename based on image origin
