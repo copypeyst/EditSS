@@ -1140,6 +1140,7 @@ class MainActivity : AppCompatActivity() {
                             Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
+                            editViewModel.clearDrawings()
                         }
                     } else {
                         throw Exception(getString(R.string.save_failed))
@@ -1187,6 +1188,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
                     savePanel.visibility = View.GONE
                     scrim.visibility = View.GONE
+                    editViewModel.clearDrawings()
 
                     // Invalidate Coil's cache for the overwritten URI to ensure a fresh load next time.
                     imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
