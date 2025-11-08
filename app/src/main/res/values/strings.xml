@@ -44,7 +44,6 @@
     <string name="failed_to_create_temp_file">Failed to create temp file</string>
     <string name="camera_error">Camera error: %1$s</string>
     <string name="could_not_open_photo_picker">Could not open photo picker: %1$s</string>
-    <string name="could_not_open_document_picker">Could not open document picker: %1$s</string>
     <string name="multiple_images_not_supported_loading_first">Multiple images not supported. Loading first image only.</string>
     <string name="could_not_persist_access_to_image">Could not persist access to image</string>
     <string name="error_loading_camera_image">Error loading camera image: %1$s</string>
