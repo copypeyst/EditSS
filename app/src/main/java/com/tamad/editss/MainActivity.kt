@@ -125,6 +125,9 @@ class MainActivity : AppCompatActivity() {
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             result.data?.data?.let { uri ->
+                // Persist URI permissions for long-term access, crucial for overwriting.
+                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                contentResolver.takePersistableUriPermission(uri, takeFlags)
                 loadImageFromUri(uri, false)
             }
         }
@@ -907,13 +910,20 @@ class MainActivity : AppCompatActivity() {
     
     // Step 8: Helper method to determine image origin
     private fun determineImageOrigin(uri: Uri): ImageOrigin {
+        // Check if we have persisted write permission for this URI
+        val isPersistedWritable = contentResolver.persistedUriPermissions.any {
+            it.uri == uri && it.isWritePermission
+        }
+
         return when {
+            isPersistedWritable -> ImageOrigin.IMPORTED_WRITABLE
             // Check if this is a camera temp file (temporary cache file)
             uri.path?.contains("camera_temp_") == true -> ImageOrigin.CAMERA_CAPTURED
             // Check if this is a FileProvider URI from our app (but not camera temp)
             uri.authority == "${packageName}.fileprovider" -> ImageOrigin.EDITED_INTERNAL
-            uri.toString().contains("media") && !uri.toString().contains("persisted") -> {
+            uri.toString().contains("media") -> {
                 // Imported via MediaStore, may or may not be writable depending on permission
+                // For MediaStore URIs, we assume writability if we have general image permissions
                 if (hasImagePermission()) ImageOrigin.IMPORTED_WRITABLE else ImageOrigin.IMPORTED_READONLY
             }
             uri.toString().contains("camera") -> ImageOrigin.CAMERA_CAPTURED // Legacy support
@@ -952,12 +962,12 @@ class MainActivity : AppCompatActivity() {
     // Photo picker logic - Modern implementation using Photo Picker
     private fun openImagePicker() {
         try {
-            // Use ACTION_GET_CONTENT to allow users to pick an image from various sources,
-            // including file managers, which often slide in from the right and may provide
-            // URIs that are more amenable to overwriting compared to the modern photo picker.
-            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                type = "image/*"
+            // Use ACTION_OPEN_DOCUMENT as specified in the old notes. This intent is part of the
+            // Storage Access Framework and is designed to provide persistent access to documents,
+            // which is crucial for the overwrite functionality.
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
+                type = "image/*"
             }
             oldImagePickerLauncher.launch(Intent.createChooser(intent, getString(R.string.select_picture)))
         } catch (e: Exception) {
