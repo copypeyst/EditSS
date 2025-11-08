@@ -120,26 +120,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var drawOpacitySlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
 
-    private val importImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val uri = result.data?.data
-            if (uri != null) {
-                val clipData = result.data?.clipData
-                if (clipData != null && clipData.itemCount > 1) {
-                    Toast.makeText(this, getString(R.string.multiple_images_not_supported_loading_first), Toast.LENGTH_SHORT).show()
-                }
-                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
-                    try {
-                        contentResolver.takePersistableUriPermission(
-                            uri,
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                        )
-                    } catch (e: SecurityException) {
-                        Toast.makeText(this, getString(R.string.could_not_persist_access_to_image), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                loadImageFromUri(uri, false)
-            }
+    private val importImageLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+        if (uri != null) {
+            // The modern Photo Picker handles access permissions automatically.
+            loadImageFromUri(uri, false)
         }
     }
 
@@ -934,20 +918,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Photo picker logic - Simplified and reliable implementation
+    // Photo picker logic - Modern implementation using Photo Picker
     private fun openImagePicker() {
         try {
-            // Simplified approach: Use ACTION_OPEN_DOCUMENT with better error handling
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
-            intent.addCategory(Intent.CATEGORY_OPENABLE)
-            intent.type = "image/*"
-            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
-            
-            // Add safety flags
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-            
-            importImageLauncher.launch(intent)
+            // Launch the modern photo picker for images only.
+            importImageLauncher.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         } catch (e: Exception) {
             Toast.makeText(this, getString(R.string.could_not_open_photo_picker, e.message), Toast.LENGTH_LONG).show()
         }
