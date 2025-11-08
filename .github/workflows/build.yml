@@ -49,3 +49,5 @@ jobs:
           tag_name: ${{ github.run_number }}
           name: ${{ github.event.repository.name }} v${{ github.run_number }}
           files: app/build/outputs/apk/debug/EditSS.apk
+
+          
