@@ -14,14 +14,12 @@ import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.RadioGroup
 import android.widget.RadioButton
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
 import android.widget.Toast
-import android.provider.Settings
 import android.net.Uri
 import androidx.appcompat.app.AlertDialog
 import android.provider.MediaStore
@@ -1312,38 +1310,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
             
-    // Helper method to detect transparency from drawable (improved approach)
-    private fun detectImageTransparencyFromDrawable(drawable: android.graphics.drawable.Drawable): Boolean {
-        try {
-            // Get the current image info and detect format from the actual image
-            val currentImageInfo = this.currentImageInfo
-            if (currentImageInfo != null) {
-                // Try to get the MIME type from the actual image
-                val mimeType = contentResolver.getType(currentImageInfo.uri)
-                
-                return when (mimeType) {
-                    "image/png", "image/webp" -> {
-                        // PNG and WEBP can have transparency
-                        // For better detection, we'd need bitmap sampling, but this is safer
-                        true
-                    }
-                    else -> {
-                        // JPEG doesn't support transparency
-                        false
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            // If detection fails, assume no transparency for safety
-        }
-        
-        // Default fallback based on current selected format
-        return when (selectedSaveFormat) {
-            "image/png", "image/webp" -> true
-            else -> false
-        }
-    }
-    
     // Helper method to update format selection UI
     private fun updateFormatSelectionUI() {
         val radioJPG: RadioButton = findViewById(R.id.radio_jpg)
@@ -1454,36 +1420,5 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- START: ADDED FOR OVERWRITE FIX ---
-    // Helper function to convert a generic file URI to a specific MediaStore URI with an ID
-    private fun getMediaStoreUriWithId(uri: Uri): Uri? {
-        // We only need to do this for URIs that are not already in the correct format
-        if (uri.authority != "media") {
-            try {
-                // Query the generic URI to find its internal MediaStore ID
-                contentResolver.query(
-                    uri,
-                    arrayOf(MediaStore.Images.Media._ID),
-                    null,
-                    null,
-                    null
-                )?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val idColumn = cursor.getColumnIndex(MediaStore.Images.Media._ID)
-                        if (idColumn != -1) {
-                           val id = cursor.getLong(idColumn)
-                            // Once we have the ID, create the correct, permanent MediaStore URI
-                            return android.content.ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                // If the lookup fails for any reason, we can't get the specific URI
-                return null
-            }
-        }
-        // If the URI was already a MediaStore URI, just return it
-        return uri
-    }
     // --- END: ADDED FOR OVERWRITE FIX ---
 }
