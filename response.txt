@@ -1,5 +1,9 @@
-I have addressed the `Unresolved reference: select_picture` error by adding the missing string resource to `app/src/main/res/values/strings.xml`.
+With the change to use `Intent.ACTION_PICK` with `MediaStore.Images.Media.EXTERNAL_CONTENT_URI`, it is now **more likely** that you will be able to overwrite images.
 
-This, combined with the previous changes to revert the image picking mechanism, should resolve the build failure you encountered.
+Here's why:
+*   **Older Picker Behavior:** `ACTION_PICK` is a more traditional way to select images directly from the device's media store (like the gallery). URIs obtained this way are often directly writable by the application, especially if the image was originally saved to the device's public storage.
+*   **`canOverwrite` Logic:** The application's `canOverwrite` logic (in `determineCanOverwrite` and `updateSaveButtonsState`) is designed to enable the "Overwrite" button only when the app determines it has write access to the selected image's URI. By using `ACTION_PICK`, we increase the chances that the `uri` will be recognized as writable.
 
-Unfortunately, I am still unable to execute `gradlew.bat` directly using the `run_shell_command` tool in this environment, so I cannot confirm the build success directly. However, the code modifications have been made to fix the reported issue.
+However, I cannot give a 100% guarantee without testing the application on your specific device and Android version. Factors like Android's Scoped Storage restrictions (especially on Android 10 and above) and the origin of the image (e.g., if it was imported from a cloud service or another app's private storage) can still affect write permissions.
+
+Please build and run the application to test if the overwrite functionality now works as you expect.

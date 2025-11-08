@@ -952,9 +952,8 @@ class MainActivity : AppCompatActivity() {
     // Photo picker logic - Modern implementation using Photo Picker
     private fun openImagePicker() {
         try {
-            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI).apply {
                 type = "image/*"
-                addCategory(Intent.CATEGORY_OPENABLE)
             }
             oldImagePickerLauncher.launch(Intent.createChooser(intent, getString(R.string.select_picture)))
         } catch (e: Exception) {
