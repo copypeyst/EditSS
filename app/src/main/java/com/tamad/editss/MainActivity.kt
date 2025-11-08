@@ -125,8 +125,14 @@ class MainActivity : AppCompatActivity() {
     private val importImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             result.data?.data?.let { uri ->
+                Log.d("MainActivity", "Imported URI: $uri")
                 // Persist URI permissions for potential future write access
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                try {
+                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    Log.d("MainActivity", "takePersistableUriPermission successful for URI: $uri")
+                } catch (e: SecurityException) {
+                    Log.e("MainActivity", "takePersistableUriPermission failed for URI: $uri, error: ${e.message}")
+                }
                 loadImageFromUri(uri, false)
             }
         }
@@ -806,6 +812,7 @@ class MainActivity : AppCompatActivity() {
                             // MODIFIED: Get and store original MIME type
                             val originalMimeType = contentResolver.getType(uri) ?: "image/jpeg"
                             
+                            Log.d("MainActivity", "Image loaded: URI=$uri, Origin=${origin.name}, CanOverwrite=$canOverwrite")
                             currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
                             
                             // Display the loaded image
@@ -909,10 +916,12 @@ class MainActivity : AppCompatActivity() {
     
     // Step 8: Helper method to determine image origin
     private fun determineImageOrigin(uri: Uri): ImageOrigin {
+        Log.d("MainActivity", "determineImageOrigin called for URI: $uri")
         // Check if we have persistent write access to this URI
         val hasPersistentWriteAccess = contentResolver.persistedUriPermissions.any {
             it.uri == uri && it.isWritePermissionGranted
         }
+        Log.d("MainActivity", "URI: $uri, hasPersistentWriteAccess: $hasPersistentWriteAccess")
 
         return when {
             hasPersistentWriteAccess -> ImageOrigin.IMPORTED_WRITABLE // Explicitly writable via SAF
@@ -929,11 +938,13 @@ class MainActivity : AppCompatActivity() {
     
     // Step 8: Helper method to determine canOverwrite flag
     private fun determineCanOverwrite(origin: ImageOrigin): Boolean {
-        return when (origin) {
+        val canOverwrite = when (origin) {
             ImageOrigin.CAMERA_CAPTURED, ImageOrigin.EDITED_INTERNAL -> true
             ImageOrigin.IMPORTED_WRITABLE -> hasImagePermission()
             ImageOrigin.IMPORTED_READONLY -> false
         }
+        Log.d("MainActivity", "determineCanOverwrite called for Origin: $origin, Result: $canOverwrite")
+        return canOverwrite
     }
 
     // Permission checking methods - Step 4: Only check READ_MEDIA_IMAGES for Android 13+
@@ -1155,17 +1166,22 @@ class MainActivity : AppCompatActivity() {
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
             Toast.makeText(this, getString(R.string.no_image_to_overwrite), Toast.LENGTH_SHORT).show()
+            Log.d("MainActivity", "overwriteCurrentImage: No currentImageInfo available.")
             return
         }
 
+        Log.d("MainActivity", "overwriteCurrentImage: Attempting to overwrite. URI: ${imageInfo.uri}, CanOverwrite: ${imageInfo.canOverwrite}, SelectedSaveFormat: $selectedSaveFormat, OriginalMimeType: ${imageInfo.originalMimeType}")
+
         if (!imageInfo.canOverwrite) {
             Toast.makeText(this, getString(R.string.cannot_overwrite_this_image), Toast.LENGTH_SHORT).show()
+            Log.d("MainActivity", "overwriteCurrentImage: Cannot overwrite, canOverwrite is false.")
             return
         }
         
         // Double-check that format hasn't changed, as a safeguard.
         if (selectedSaveFormat != imageInfo.originalMimeType) {
             Toast.makeText(this, getString(R.string.format_changed_please_save_a_copy), Toast.LENGTH_LONG).show()
+            Log.d("MainActivity", "overwriteCurrentImage: Format changed. Selected: $selectedSaveFormat, Original: ${imageInfo.originalMimeType}")
             return
         }
 
@@ -1184,11 +1200,13 @@ class MainActivity : AppCompatActivity() {
                     savePanel.visibility = View.GONE
                     scrim.visibility = View.GONE
                     editViewModel.clearDrawings() // Clear drawings after successful overwrite
+                    Log.d("MainActivity", "overwriteCurrentImage: Image overwritten successfully.")
                 }
 
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, getString(R.string.overwrite_failed, e.message), Toast.LENGTH_SHORT).show()
+                    Log.e("MainActivity", "overwriteCurrentImage: Overwrite failed for URI: ${imageInfo.uri}, Error: ${e.message}", e)
                 }
             }
         }
