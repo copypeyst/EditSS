@@ -1122,7 +1122,6 @@ class MainActivity : AppCompatActivity() {
                             Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
-                            editViewModel.clearDrawings() // Clear drawings after successful save
                         }
                     } else {
                         throw Exception(getString(R.string.save_failed))
@@ -1170,7 +1169,6 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
                     savePanel.visibility = View.GONE
                     scrim.visibility = View.GONE
-                    editViewModel.clearDrawings() // Clear drawings after successful overwrite
                 }
 
             } catch (e: Exception) {
