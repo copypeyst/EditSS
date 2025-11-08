@@ -280,7 +280,22 @@ class MainActivity : AppCompatActivity() {
 
         // Camera Button Logic - Step 13: Create writable URI in MediaStore for camera capture
         buttonCamera.setOnClickListener {
-            captureImageFromCamera()
+            if (editViewModel.hasDrawings) {
+                AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
+                    .setTitle(getString(R.string.discard_changes_title))
+                    .setMessage(getString(R.string.discard_changes_message))
+                    .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
+                        editViewModel.clearDrawings()
+                        captureImageFromCamera()
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton(getString(R.string.cancel)) { dialog, _ ->
+                        dialog.dismiss()
+                    }
+                    .show()
+            } else {
+                captureImageFromCamera()
+            }
         }
 
         // Step 1 & 2: Share Button Logic - Content URI sharing for saved images, cache-based for unsaved edits
@@ -1118,6 +1133,7 @@ class MainActivity : AppCompatActivity() {
                             Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
+                            editViewModel.clearDrawings() // Clear drawings after successful save
                         }
                     } else {
                         throw Exception(getString(R.string.save_failed))
@@ -1165,6 +1181,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
                     savePanel.visibility = View.GONE
                     scrim.visibility = View.GONE
+                    editViewModel.clearDrawings() // Clear drawings after successful overwrite
                 }
 
             } catch (e: Exception) {
