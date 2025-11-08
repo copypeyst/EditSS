@@ -1174,33 +1174,46 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val bitmapToSave = drawingView.getDrawing()
-                    ?: throw Exception("Could not get image to overwrite")
-                
-                // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
-                contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
-                    compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
-                }
-                
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
-                    savePanel.visibility = View.GONE
-                    scrim.visibility = View.GONE
-                    editViewModel.markDrawingsAsSaved()
+        // Show confirmation dialog
+        AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
+            .setTitle(getString(R.string.overwrite_changes_title))
+            .setMessage(getString(R.string.overwrite_changes_message))
+            .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
+                // User confirmed, proceed with overwrite
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        val bitmapToSave = drawingView.getDrawing()
+                            ?: throw Exception("Could not get image to overwrite")
+                        
+                        // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
+                        contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
+                            compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                        }
+                        
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
+                            savePanel.visibility = View.GONE
+                            scrim.visibility = View.GONE
+                            editViewModel.markDrawingsAsSaved()
 
-                    // Invalidate Coil's cache for the overwritten URI to ensure a fresh load next time.
-                    imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
-                    imageLoader.diskCache?.remove(imageInfo.uri.toString())
-                }
+                            // Invalidate Coil's cache for the overwritten URI to ensure a fresh load next time.
+                            imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
+                            imageLoader.diskCache?.remove(imageInfo.uri.toString())
+                        }
 
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, getString(R.string.overwrite_failed, e.message), Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, getString(R.string.overwrite_failed, e.message), Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
+                dialog.dismiss()
             }
-        }
+            .setNegativeButton(getString(R.string.cancel)) { dialog, _ ->
+                // User cancelled, do nothing
+                dialog.dismiss()
+            }
+            .show()
     }
     
     // NEW: Robust function to generate Windows-style copy names.

@@ -73,5 +73,7 @@
     <string name="discard_changes_title">Discard Changes?</string>
     <string name="discard_changes_message">You have unsaved changes.</string>
     <string name="confirm">Confirm</string>
+    <string name="overwrite_changes_title">Overwrite Changes?</string>
+    <string name="overwrite_changes_message">The original image will be replaced.</string>
 
 </resources>
