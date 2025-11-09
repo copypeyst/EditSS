@@ -41,7 +41,7 @@ import coil.memory.MemoryCache
 import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
-import com.tamad.editss.DrawMode
+import com.tamad.editss.EditViewModel.DrawMode
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -115,7 +115,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var editViewModel: EditViewModel
     
     // Drawing-related UI elements
-    private lateinit var drawingView: DrawingView
+    private lateinit var drawingView: CanvasView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
@@ -298,7 +298,7 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Show drawing view
-            drawingView.setToolType(DrawingView.ToolType.DRAW) // Set draw mode
+            drawingView.setToolType(CanvasView.ToolType.DRAW) // Set draw mode
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
@@ -310,7 +310,7 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Keep drawing view visible for cropping
-            drawingView.setToolType(DrawingView.ToolType.CROP) // Set crop mode
+            drawingView.setToolType(CanvasView.ToolType.CROP) // Set crop mode
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop

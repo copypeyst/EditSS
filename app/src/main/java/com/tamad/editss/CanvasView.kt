@@ -6,10 +6,13 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
-import com.tamad.editss.DrawMode
 import android.graphics.RectF
+import com.tamad.editss.EditViewModel.DrawMode
+import com.tamad.editss.EditViewModel.DrawingState
+import com.tamad.editss.EditViewModel.DrawingAction
+import com.tamad.editss.EditViewModel.CropMode
 
-class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) {
+class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private val paint = Paint()
     private val currentPath = Path()

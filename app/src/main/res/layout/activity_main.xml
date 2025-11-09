@@ -425,7 +425,7 @@
     </LinearLayout>
 
     <!-- Canvas -->
-    <com.tamad.editss.DrawingView
+    <com.tamad.editss.CanvasView
         android:id="@+id/drawing_view"
         android:layout_width="0dp"
         android:layout_height="0dp"
