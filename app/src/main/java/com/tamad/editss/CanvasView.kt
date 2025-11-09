@@ -14,6 +14,8 @@ import com.tamad.editss.CropMode
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
+    var editViewModel: EditViewModel? = null // Add this line
+
     private val paint = Paint()
     private val currentPath = Path()
     private val cropPaint = Paint()
@@ -47,7 +49,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var cropStartRight = 0f
     private var cropStartBottom = 0f
 
-    var onNewPath: ((DrawingAction) -> Unit)? = null
+    var onNewPath: ((Action.Drawing) -> Unit)? = null // Changed to Action.Drawing
+    var onNewCropAction: ((Action.Crop) -> Unit)? = null // New callback for crop actions
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
 
@@ -65,7 +68,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.isAntiAlias = true
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
-        cropCornerPaint.alpha = 51 // 20% opacity
+        cropCornerPaint.alpha = 128 // 20% opacity
     }
 
     enum class ToolType {
@@ -206,6 +209,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             (bottom - top).toInt()
         )
 
+        val previousBitmap = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true) // Capture current bitmap for undo
+
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         cropRect.setEmpty()
 
@@ -213,6 +218,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         updateImageMatrix()
         invalidate()
         onCropApplied?.invoke(baseBitmap!!) // Invoke callback
+
+        // Push crop action to ViewModel for undo/redo
+        if (previousBitmap != null && baseBitmap != null) {
+            onNewCropAction?.invoke(Action.Crop(previousBitmap, baseBitmap!!))
+        }
 
         return baseBitmap
     }

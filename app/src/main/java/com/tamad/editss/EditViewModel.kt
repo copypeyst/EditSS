@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import android.graphics.Path
 import android.graphics.Paint
+import android.graphics.Bitmap // Import Bitmap
 
 // Drawing modes enum
 enum class DrawMode {
@@ -30,18 +31,19 @@ data class DrawingState(
     val drawMode: DrawMode = DrawMode.PEN
 )
 
-data class DrawingAction(
-    val path: Path,
-    val paint: Paint
-)
+// Sealed class to represent any action that can be undone/redone
+sealed class Action {
+    data class Drawing(val path: Path, val paint: Paint) : Action()
+    data class Crop(val previousBitmap: Bitmap, val croppedBitmap: Bitmap) : Action()
+}
 
 class EditViewModel : ViewModel() {
 
-    private val _undoStack = MutableStateFlow<List<DrawingAction>>(emptyList())
-    val undoStack: StateFlow<List<DrawingAction>> = _undoStack.asStateFlow()
+    private val _undoStack = MutableStateFlow<List<Action>>(emptyList())
+    val undoStack: StateFlow<List<Action>> = _undoStack.asStateFlow()
 
-    private val _redoStack = MutableStateFlow<List<DrawingAction>>(emptyList())
-    val redoStack: StateFlow<List<DrawingAction>> = _redoStack.asStateFlow()
+    private val _redoStack = MutableStateFlow<List<Action>>(emptyList())
+    val redoStack: StateFlow<List<Action>> = _redoStack.asStateFlow()
 
     // Track the size of the undo stack at the point of the last save
     private val _lastSavedDrawingCount = MutableStateFlow(0)
@@ -50,7 +52,11 @@ class EditViewModel : ViewModel() {
     private val _drawingState = MutableStateFlow(DrawingState())
     val drawingState: StateFlow<DrawingState> = _drawingState.asStateFlow()
 
-    fun pushAction(action: DrawingAction) {
+    // New StateFlow to communicate bitmap changes to CanvasView for crop undo/redo
+    private val _bitmapForCanvas = MutableStateFlow<Bitmap?>(null)
+    val bitmapForCanvas: StateFlow<Bitmap?> = _bitmapForCanvas.asStateFlow()
+
+    fun pushAction(action: Action) { // Changed parameter type to Action
         _undoStack.value = _undoStack.value + action
         _redoStack.value = emptyList()
     }
@@ -60,6 +66,15 @@ class EditViewModel : ViewModel() {
             val lastAction = _undoStack.value.last()
             _undoStack.value = _undoStack.value.dropLast(1)
             _redoStack.value = _redoStack.value + lastAction
+
+            when (lastAction) {
+                is Action.Drawing -> {
+                    // No direct bitmap change for drawing undo, CanvasView will re-draw paths
+                }
+                is Action.Crop -> {
+                    _bitmapForCanvas.value = lastAction.previousBitmap // Restore previous bitmap
+                }
+            }
         }
     }
 
@@ -68,6 +83,15 @@ class EditViewModel : ViewModel() {
             val lastAction = _redoStack.value.last()
             _redoStack.value = _redoStack.value.dropLast(1)
             _undoStack.value = _undoStack.value + lastAction
+
+            when (lastAction) {
+                is Action.Drawing -> {
+                    // No direct bitmap change for drawing redo, CanvasView will re-draw paths
+                }
+                is Action.Crop -> {
+                    _bitmapForCanvas.value = lastAction.croppedBitmap // Re-apply cropped bitmap
+                }
+            }
         }
     }
 
@@ -92,6 +116,7 @@ class EditViewModel : ViewModel() {
         _undoStack.value = emptyList()
         _redoStack.value = emptyList()
         _lastSavedDrawingCount.value = 0 // Reset saved count when drawings are cleared
+        _bitmapForCanvas.value = null // Clear any pending bitmap changes
     }
 
     // New function to mark current drawings as saved

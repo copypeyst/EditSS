@@ -214,6 +214,7 @@ class MainActivity : AppCompatActivity() {
         
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
+        drawingView.editViewModel = editViewModel // Pass ViewModel to CanvasView
 
 
         // Initialize sliders with default values (25% size, 100% opacity)
@@ -533,6 +534,10 @@ class MainActivity : AppCompatActivity() {
 
         // Connect DrawingView to ViewModel
         drawingView.onNewPath = {
+            editViewModel.pushAction(it) // It's already Action.Drawing
+        }
+
+        drawingView.onNewCropAction = {
             editViewModel.pushAction(it)
         }
 
@@ -544,7 +549,17 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             editViewModel.undoStack.collect {
-                drawingView.setPaths(it)
+                // Filter out Drawing actions for setPaths
+                val drawingActions = it.filterIsInstance<Action.Drawing>()
+                drawingView.setPaths(drawingActions.map { action -> DrawingAction(action.path, action.paint) })
+            }
+        }
+
+        lifecycleScope.launch {
+            editViewModel.bitmapForCanvas.collect { bitmap ->
+                bitmap?.let {
+                    drawingView.setBitmap(it)
+                }
             }
         }
 
