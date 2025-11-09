@@ -11,6 +11,8 @@ import com.tamad.editss.DrawMode
 import com.tamad.editss.DrawingState
 import com.tamad.editss.CropMode
 import com.tamad.editss.Action // Add this import
+import com.tamad.editss.Action.Drawing // Explicit import
+import com.tamad.editss.Action.Crop // Explicit import
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
