@@ -34,13 +34,6 @@ jobs:
       - name: Verify APK output
         run: ls -al app/build/outputs/apk/debug
 
-      - name: Upload APK with 1-day retention
-        uses: actions/upload-artifact@v4
-        with:
-          name: EditSS.apk
-          path: app/build/outputs/apk/debug/EditSS.apk
-          retention-days: 1
-
       - name: Release
         uses: softprops/action-gh-release@v1
         env:
