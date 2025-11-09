@@ -35,6 +35,10 @@ class CropView(context: Context, attrs: AttributeSet) : FrameLayout(context, att
         imageView.setImageBitmap(bitmap)
     }
 
+    fun setBitmap(bitmap: android.graphics.Bitmap) {
+        imageView.setImageBitmap(bitmap)
+    }
+
     fun getImageView(): ImageView {
         return imageView
     }
