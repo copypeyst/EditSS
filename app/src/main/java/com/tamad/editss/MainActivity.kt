@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
 
     private var currentActiveTool: ImageView? = null
 
-    private var currentCropMode: ImageView? = null
+    private var currentCropMode: View? = null
     private var currentSelectedColor: FrameLayout? = null
     private var currentDrawMode: ImageView? = null
     
@@ -421,10 +421,10 @@ class MainActivity : AppCompatActivity() {
         })
 
         // Initialize Crop Options
-        val cropModeFreeform: ImageView = findViewById(R.id.crop_mode_freeform)
-        val cropModeSquare: ImageView = findViewById(R.id.crop_mode_square)
-        val cropModePortrait: ImageView = findViewById(R.id.crop_mode_portrait)
-        val cropModeLandscape: ImageView = findViewById(R.id.crop_mode_landscape)
+        val cropModeFreeform: View = findViewById(R.id.crop_mode_freeform)
+        val cropModeSquare: View = findViewById(R.id.crop_mode_square)
+        val cropModePortrait: View = findViewById(R.id.crop_mode_portrait)
+        val cropModeLandscape: View = findViewById(R.id.crop_mode_landscape)
 
         cropModeFreeform.setOnClickListener {
             currentCropMode?.isSelected = false
