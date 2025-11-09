@@ -21,4 +21,5 @@
     <color name="color_pink">#FFFFC0CB</color>
     
     <color name="transparency_warning">#FFFFA500</color>
+    <color name="button_background">#FF666666</color>
 </resources>

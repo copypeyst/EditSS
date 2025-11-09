@@ -52,6 +52,7 @@
     <string name="permission_denied">Permission denied. Please allow access in Settings.</string>
     <string name="settings">Settings</string>
     <string name="cancel">Cancel</string>
+    <string name="apply">Apply</string>
     <string name="permission_revoked">Permission Revoked</string>
     <string name="permission_revoked_message">Permission has been revoked. Please reopen Settings to re-enable access.</string>
     <string name="no_image_to_save">No image to save</string>
