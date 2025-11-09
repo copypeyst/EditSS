@@ -70,7 +70,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.isAntiAlias = true
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
-        cropCornerPaint.alpha = 51 // 20% opacity
+        cropCornerPaint.alpha = 192 // 75% opacity
     }
 
     enum class ToolType {
