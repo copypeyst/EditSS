@@ -460,10 +460,8 @@ class MainActivity : AppCompatActivity() {
         buttonCropApply.setOnClickListener {
             val croppedBitmap = drawingView.applyCrop()
             if (croppedBitmap != null) {
-                // Image was cropped successfully
+                // Image was cropped successfully - stay in crop mode
                 Toast.makeText(this, "Image cropped successfully", Toast.LENGTH_SHORT).show()
-                // Automatically switch back to draw tool after crop
-                toolDraw.performClick()
             } else {
                 Toast.makeText(this, "No crop area selected", Toast.LENGTH_SHORT).show()
             }
@@ -471,8 +469,6 @@ class MainActivity : AppCompatActivity() {
 
         buttonCropCancel.setOnClickListener {
             drawingView.cancelCrop()
-            // Switch back to draw tool
-            toolDraw.performClick()
         }
 
         // Initialize Adjust Options (no logic yet)

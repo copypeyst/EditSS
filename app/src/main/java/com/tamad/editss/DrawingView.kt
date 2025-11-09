@@ -31,14 +31,18 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
     private var isCropping = false
     private var cropRect = RectF()
     private var isMovingCropRect = false
+    private var isResizingCropRect = false
+    private var resizeHandle: Int = 0 // 0=none, 1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right
 
-    // Gesture detection
-    private lateinit var scaleDetector: ScaleGestureDetector
+    // Gesture detection - REMOVED scale detector for crop mode
     private var lastTouchX = 0f
     private var lastTouchY = 0f
-    private var isScaling = false
     private var cropStartX = 0f
     private var cropStartY = 0f
+    private var cropStartLeft = 0f
+    private var cropStartTop = 0f
+    private var cropStartRight = 0f
+    private var cropStartBottom = 0f
 
     var onNewPath: ((DrawingAction) -> Unit)? = null
     var onCropApplied: ((Bitmap) -> Unit)? = null
@@ -58,21 +62,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
         cropCornerPaint.isAntiAlias = true
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
-
-        scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                if (currentTool != ToolType.CROP) return false
-
-                val scaleFactor = detector.scaleFactor
-                val focusX = detector.focusX
-                val focusY = detector.focusY
-
-                imageMatrix.postScale(scaleFactor, scaleFactor, focusX, focusY)
-                updateImageBounds()
-                invalidate()
-                return true
-            }
-        })
     }
 
     enum class ToolType {
@@ -133,20 +122,31 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
             val maxHeight = imageBounds.height() - (padding * 2)
 
             // Calculate dimensions based on aspect ratio
-            val ratio = when (currentCropMode) {
-                CropMode.SQUARE -> 1f
-                CropMode.PORTRAIT -> 9f / 16f // Height/Width for portrait
-                CropMode.LANDSCAPE -> 16f / 9f // Width/Height for landscape
-                else -> maxWidth / maxHeight // Use available space for freeform
-            }
+            var width = 0f
+            var height = 0f
 
-            var width = maxWidth
-            var height = width * ratio
-
-            // If height exceeds available space, adjust based on height
-            if (height > maxHeight) {
-                height = maxHeight
-                width = height / ratio
+            when (currentCropMode) {
+                CropMode.FREEFORM -> {
+                    // Fill maximum available space
+                    width = maxWidth
+                    height = maxHeight
+                }
+                CropMode.SQUARE -> {
+                    // 1:1 ratio - use the smaller dimension
+                    val size = Math.min(maxWidth, maxHeight)
+                    width = size
+                    height = size
+                }
+                CropMode.PORTRAIT -> {
+                    // 9:16 ratio (width:height) - taller image
+                    width = maxWidth.coerceAtMost(maxHeight * 9 / 16f)
+                    height = width * 16 / 9f
+                }
+                CropMode.LANDSCAPE -> {
+                    // 16:9 ratio (width:height) - wider image
+                    height = maxHeight.coerceAtMost(maxWidth * 9 / 16f)
+                    width = height * 16 / 9f
+                }
             }
 
             // Center the rectangle
@@ -186,12 +186,11 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
             (bottom - top).toInt()
         )
 
-        // Reset matrix and update bitmap
-        imageMatrix.reset()
-        updateImageMatrix()
-
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         cropRect.setEmpty()
+
+        // Update image matrix to center the new image (do NOT reset)
+        updateImageMatrix()
         invalidate()
 
         return baseBitmap
@@ -199,8 +198,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
 
     fun cancelCrop() {
         cropRect.setEmpty()
-        imageMatrix.reset()
-        updateImageMatrix()
         invalidate()
     }
 
@@ -255,10 +252,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
             updateImageMatrix()
-            // Re-initialize crop rectangle if in crop mode and it's not empty
-            if (currentTool == ToolType.CROP && !cropRect.isEmpty) {
-                initializeDefaultCropRect()
-            }
         }
     
          override fun onDraw(canvas: Canvas) {
@@ -334,9 +327,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Always let scale detector handle the event first for pinch gestures
-        scaleDetector.onTouchEvent(event)
-
         val x = event.x
         val y = event.y
 
@@ -354,14 +344,23 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
                         currentPath.moveTo(x, y)
                     }
                 } else if (currentTool == ToolType.CROP) {
-                    // Check if touch is inside the existing crop rectangle
-                    if (cropRect.contains(x, y)) {
-                        // Start moving the crop rectangle
+                    // Check if touch is on a corner (for resizing)
+                    resizeHandle = getResizeHandle(x, y)
+                    if (resizeHandle > 0) {
+                        isResizingCropRect = true
+                        cropStartLeft = cropRect.left
+                        cropStartTop = cropRect.top
+                        cropStartRight = cropRect.right
+                        cropStartBottom = cropRect.bottom
+                    }
+                    // Check if touch is inside the crop rectangle (for moving)
+                    else if (cropRect.contains(x, y)) {
                         isMovingCropRect = true
                         cropStartX = x
                         cropStartY = y
-                    } else {
-                        // Create new crop rectangle
+                    }
+                    // Otherwise create new crop rectangle
+                    else {
                         isCropping = true
                         startX = x
                         startY = y
@@ -374,47 +373,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                // Handle pan gestures in crop mode
-                if (currentTool == ToolType.CROP && !isScaling) {
-                    val dx = x - lastTouchX
-                    val dy = y - lastTouchY
-
-                    // Check if we're moving the crop rectangle
-                    if (isMovingCropRect) {
-                        cropRect.offset(dx, dy)
-                        // Keep crop rect within image bounds
-                        if (cropRect.left < imageBounds.left) {
-                            cropRect.offset(imageBounds.left - cropRect.left, 0f)
-                        }
-                        if (cropRect.right > imageBounds.right) {
-                            cropRect.offset(imageBounds.right - cropRect.right, 0f)
-                        }
-                        if (cropRect.top < imageBounds.top) {
-                            cropRect.offset(0f, imageBounds.top - cropRect.top)
-                        }
-                        if (cropRect.bottom > imageBounds.bottom) {
-                            cropRect.offset(0f, imageBounds.bottom - cropRect.bottom)
-                        }
-                        invalidate()
-                        lastTouchX = x
-                        lastTouchY = y
-                        return true
-                    }
-
-                    // Check if we're panning (image should move with finger)
-                    if (imageBounds.contains(x, y) && !isMovingCropRect) {
-                        imageMatrix.postTranslate(dx, dy)
-                        updateImageBounds()
-                        // Also move the crop rectangle with the image
-                        cropRect.offset(dx, dy)
-                        invalidate()
-                        lastTouchX = x
-                        lastTouchY = y
-                        return true
-                    }
-                }
-
-                // Handle drawing or crop rectangle creation
                 if (currentTool == ToolType.DRAW) {
                     if (!isDrawing) return false
                     if (currentDrawMode == DrawMode.PEN) {
@@ -434,7 +392,18 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
                     }
                     invalidate()
                 } else if (currentTool == ToolType.CROP) {
-                    if (isCropping) {
+                    if (isResizingCropRect) {
+                        resizeCropRect(x, y)
+                        invalidate()
+                    } else if (isMovingCropRect) {
+                        val dx = x - cropStartX
+                        val dy = y - cropStartY
+                        cropRect.left = cropStartLeft + dx
+                        cropRect.top = cropStartTop + dy
+                        cropRect.right = cropStartRight + dx
+                        cropRect.bottom = cropStartBottom + dy
+                        invalidate()
+                    } else if (isCropping) {
                         updateCropRect(x, y)
                         invalidate()
                     }
@@ -455,21 +424,65 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
                 } else if (currentTool == ToolType.CROP) {
                     isCropping = false
                     isMovingCropRect = false
+                    isResizingCropRect = false
+                    resizeHandle = 0
                 }
-                isScaling = false
-                return true
-            }
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                isScaling = true
-                return true
-            }
-            MotionEvent.ACTION_POINTER_UP -> {
-                isScaling = false
                 return true
             }
             else -> return false
         }
         return true
+    }
+
+    private fun getResizeHandle(x: Float, y: Float): Int {
+        val cornerSize = 40f
+        val left = cropRect.left
+        val top = cropRect.top
+        val right = cropRect.right
+        val bottom = cropRect.bottom
+
+        // Check top-left corner
+        if (x >= left - cornerSize && x <= left + cornerSize &&
+            y >= top - cornerSize && y <= top + cornerSize) {
+            return 1
+        }
+        // Check top-right corner
+        if (x >= right - cornerSize && x <= right + cornerSize &&
+            y >= top - cornerSize && y <= top + cornerSize) {
+            return 2
+        }
+        // Check bottom-left corner
+        if (x >= left - cornerSize && x <= left + cornerSize &&
+            y >= bottom - cornerSize && y <= bottom + cornerSize) {
+            return 3
+        }
+        // Check bottom-right corner
+        if (x >= right - cornerSize && x <= right + cornerSize &&
+            y >= bottom - cornerSize && y <= bottom + cornerSize) {
+            return 4
+        }
+        return 0
+    }
+
+    private fun resizeCropRect(x: Float, y: Float) {
+        when (resizeHandle) {
+            1 -> { // top-left
+                cropRect.left = x.coerceAtMost(cropStartRight - 50) // Minimum size 50px
+                cropRect.top = y.coerceAtMost(cropStartBottom - 50)
+            }
+            2 -> { // top-right
+                cropRect.right = x.coerceAtLeast(cropStartLeft + 50)
+                cropRect.top = y.coerceAtMost(cropStartBottom - 50)
+            }
+            3 -> { // bottom-left
+                cropRect.left = x.coerceAtMost(cropStartRight - 50)
+                cropRect.bottom = y.coerceAtLeast(cropStartTop + 50)
+            }
+            4 -> { // bottom-right
+                cropRect.right = x.coerceAtLeast(cropStartLeft + 50)
+                cropRect.bottom = y.coerceAtLeast(cropStartTop + 50)
+            }
+        }
     }
 
     private fun updateCropRect(x: Float, y: Float) {
