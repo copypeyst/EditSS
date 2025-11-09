@@ -422,7 +422,22 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun drawCropOverlay(canvas: Canvas) {
-        // Draw the crop rectangle border
+        // Create a semi-transparent dark overlay paint
+        val overlayPaint = Paint()
+        overlayPaint.color = Color.BLACK
+        overlayPaint.alpha = 128 // 50% opacity for dark overlay
+
+        // Draw dark overlay outside the crop rectangle
+        // Top area
+        canvas.drawRect(0f, 0f, width.toFloat(), cropRect.top, overlayPaint)
+        // Left area
+        canvas.drawRect(0f, cropRect.top, cropRect.left, cropRect.bottom, overlayPaint)
+        // Right area
+        canvas.drawRect(cropRect.right, cropRect.top, width.toFloat(), cropRect.bottom, overlayPaint)
+        // Bottom area
+        canvas.drawRect(0f, cropRect.bottom, width.toFloat(), height.toFloat(), overlayPaint)
+
+        // Draw the crop rectangle border on top
         canvas.drawRect(cropRect, cropPaint)
 
         // Draw corner indicators
