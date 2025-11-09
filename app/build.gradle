@@ -7,9 +7,6 @@ android {
     namespace 'com.tamad.editss'
     compileSdk 35
 
-    repositories {
-        maven { url 'https://jitpack.io' }
-    }
 
     defaultConfig {
         applicationId "com.tamad.editss"
