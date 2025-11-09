@@ -551,7 +551,7 @@ class MainActivity : AppCompatActivity() {
             editViewModel.undoStack.collect {
                 // Filter out Drawing actions for setPaths
                 val drawingActions = it.filterIsInstance<Action.Drawing>()
-                drawingView.setPaths(drawingActions.map { action -> DrawingAction(action.path, action.paint) })
+                drawingView.setPaths(drawingActions) // Pass Action.Drawing directly
             }
         }
 

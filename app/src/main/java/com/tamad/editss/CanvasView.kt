@@ -9,7 +9,7 @@ import android.view.View
 import android.graphics.RectF
 import com.tamad.editss.DrawMode
 import com.tamad.editss.DrawingState
-import com.tamad.editss.DrawingAction
+
 import com.tamad.editss.CropMode
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
@@ -22,7 +22,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val cropCornerPaint = Paint()
 
     private var baseBitmap: Bitmap? = null
-    private var paths = listOf<DrawingAction>()
+    private var paths = listOf<Action.Drawing>() // Changed to Action.Drawing
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
@@ -98,7 +98,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    fun setPaths(paths: List<DrawingAction>) {
+    fun setPaths(paths: List<Action.Drawing>) { // Changed to Action.Drawing
         this.paths = paths
         invalidate()
     }
