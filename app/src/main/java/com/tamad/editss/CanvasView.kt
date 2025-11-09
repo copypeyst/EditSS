@@ -65,6 +65,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.isAntiAlias = true
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
+        cropCornerPaint.alpha = 51 // 20% opacity
     }
 
     enum class ToolType {
@@ -570,9 +571,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 else -> { fixedX = currentLeft; fixedY = currentTop } // Should not happen
             }
 
-            // Calculate the current width and height based on the dragged point and fixed point
-            var width = Math.abs(newRight - fixedX)
-            var height = Math.abs(newBottom - fixedY)
+            // Calculate the desired width and height based on the current touch point relative to the fixed point
+            var desiredWidth = Math.abs(x - fixedX)
+            var desiredHeight = Math.abs(y - fixedY)
 
             // Determine the maximum allowed width and height based on image bounds
             val maxAllowedWidth: Float
@@ -598,51 +599,50 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 else -> { maxAllowedWidth = imageBounds.width(); maxAllowedHeight = imageBounds.height() }
             }
 
-            // Adjust width/height to maintain aspect ratio and fit within bounds
-            if (width / height > aspectRatio) { // Too wide
-                width = Math.min(width, maxAllowedWidth)
-                height = width / aspectRatio
-                if (height > maxAllowedHeight) { // If height now exceeds, re-adjust
-                    height = maxAllowedHeight
-                    width = height * aspectRatio
+            // Adjust desiredWidth/desiredHeight to maintain aspect ratio and fit within bounds
+            if (desiredWidth / desiredHeight > aspectRatio) { // Too wide
+                desiredWidth = Math.min(desiredWidth, maxAllowedWidth)
+                desiredHeight = desiredWidth / aspectRatio
+                if (desiredHeight > maxAllowedHeight) { // If height now exceeds, re-adjust
+                    desiredHeight = maxAllowedHeight
+                    desiredWidth = desiredHeight * aspectRatio
                 }
             } else { // Too tall
-                height = Math.min(height, maxAllowedHeight)
-                width = height * aspectRatio
-                if (width > maxAllowedWidth) { // If width now exceeds, re-adjust
-                    width = maxAllowedWidth
-                    height = width / aspectRatio
+                desiredHeight = Math.min(desiredHeight, maxAllowedHeight)
+                desiredWidth = desiredHeight * aspectRatio
+                if (desiredWidth > maxAllowedWidth) { // If width now exceeds, re-adjust
+                    desiredWidth = maxAllowedWidth
+                    desiredHeight = desiredWidth / aspectRatio
                 }
             }
 
             // Ensure minimum size
-            if (width < minSize) {
-                width = minSize
-                height = minSize / aspectRatio
+            if (desiredWidth < minSize) {
+                desiredWidth = minSize
+                desiredHeight = minSize / aspectRatio
             }
-            if (height < minSize) {
-                height = minSize
-                width = minSize * aspectRatio
+            if (desiredHeight < minSize) {
+                desiredHeight = minSize
+                desiredWidth = minSize * aspectRatio
             }
 
-
-            // Reconstruct newLeft, newTop, newRight, newBottom based on fixed point and new width/height
+            // Reconstruct newLeft, newTop, newRight, newBottom based on fixed point and new desiredWidth/desiredHeight
             when (resizeHandle) {
                 1 -> { // top-left
-                    newLeft = fixedX - width
-                    newTop = fixedY - height
+                    newLeft = fixedX - desiredWidth
+                    newTop = fixedY - desiredHeight
                 }
                 2 -> { // top-right
-                    newRight = fixedX + width
-                    newTop = fixedY - height
+                    newRight = fixedX + desiredWidth
+                    newTop = fixedY - desiredHeight
                 }
                 3 -> { // bottom-left
-                    newLeft = fixedX - width
-                    newBottom = fixedY + height
+                    newLeft = fixedX - desiredWidth
+                    newBottom = fixedY + desiredHeight
                 }
                 4 -> { // bottom-right
-                    newRight = fixedX + width
-                    newBottom = fixedY + height
+                    newRight = fixedX + desiredWidth
+                    newBottom = fixedY + desiredHeight
                 }
             }
         }
