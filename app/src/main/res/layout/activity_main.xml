@@ -363,7 +363,7 @@
         <!-- Crop Options -->
     <LinearLayout
         android:id="@+id/crop_options"
-        android:layout_width="match_match"
+        android:layout_width="match_parent"
         android:layout_height="140dp"
         android:orientation="vertical"
         android:visibility="gone">
