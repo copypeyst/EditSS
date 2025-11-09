@@ -298,6 +298,7 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Show drawing view
+            drawingView.setToolType(DrawingView.ToolType.DRAW) // Set draw mode
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
@@ -308,7 +309,8 @@ class MainActivity : AppCompatActivity() {
             drawOptionsLayout.visibility = View.GONE
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
-            drawingView.visibility = View.GONE // Hide drawing view
+            drawingView.visibility = View.VISIBLE // Keep drawing view visible for cropping
+            drawingView.setToolType(DrawingView.ToolType.CROP) // Set crop mode
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
@@ -427,21 +429,50 @@ class MainActivity : AppCompatActivity() {
             currentCropMode?.isSelected = false
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
+            drawingView.setCropMode(CropMode.FREEFORM)
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
+            drawingView.setCropMode(CropMode.SQUARE)
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
+            drawingView.setCropMode(CropMode.PORTRAIT)
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
+            drawingView.setCropMode(CropMode.LANDSCAPE)
+        }
+
+        // Set default crop mode
+        drawingView.setCropMode(CropMode.FREEFORM)
+
+        // Setup crop apply/cancel button handlers
+        val buttonCropApply: Button = findViewById(R.id.button_crop_apply)
+        val buttonCropCancel: Button = findViewById(R.id.button_crop_cancel)
+
+        buttonCropApply.setOnClickListener {
+            val croppedBitmap = drawingView.applyCrop()
+            if (croppedBitmap != null) {
+                // Image was cropped successfully
+                Toast.makeText(this, "Image cropped successfully", Toast.LENGTH_SHORT).show()
+                // Automatically switch back to draw tool after crop
+                toolDraw.performClick()
+            } else {
+                Toast.makeText(this, "No crop area selected", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        buttonCropCancel.setOnClickListener {
+            drawingView.cancelCrop()
+            // Switch back to draw tool
+            toolDraw.performClick()
         }
 
         // Initialize Adjust Options (no logic yet)

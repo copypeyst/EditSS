@@ -365,13 +365,45 @@
         android:id="@+id/crop_options"
         android:layout_width="match_parent"
         android:layout_height="140dp"
-        android:orientation="horizontal"
-        android:gravity="center"
+        android:orientation="vertical"
         android:visibility="gone">
-        <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropfreeformicon" android:contentDescription="@string/freeform_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
-        <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropsquareicon" android:contentDescription="@string/square_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
-        <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropportraiticon" android:contentDescription="@string/portrait_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
-        <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="@string/landscape_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center">
+            <ImageView android:id="@+id/crop_mode_freeform" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropfreeformicon" android:contentDescription="@string/freeform_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropsquareicon" android:contentDescription="@string/square_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropportraiticon" android:contentDescription="@string/portrait_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
+            <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="@string/landscape_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
+        </LinearLayout>
+        <!-- Apply/Cancel Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingTop="4dp">
+            <Button
+                android:id="@+id/button_crop_cancel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/cancel"
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="@color/button_background"
+                android:textColor="@android:color/white"/>
+            <Button
+                android:id="@+id/button_crop_apply"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/apply"
+                android:layout_marginStart="8dp"
+                android:backgroundTint="?attr/colorSecondary"
+                android:textColor="?attr/colorOnSecondary"/>
+        </LinearLayout>
     </LinearLayout>
 
         <!-- Adjust Options -->
