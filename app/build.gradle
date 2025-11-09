@@ -57,6 +57,7 @@ dependencies {
     implementation libs.coil
     implementation libs.coil.gif
     implementation libs.coil.svg
+    implementation 'com.github.CanHub:Android-Image-Cropper:4.5.0'
 
     testImplementation libs.junit
     androidTestImplementation libs.androidx.junit
