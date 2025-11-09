@@ -542,6 +542,21 @@ class MainActivity : AppCompatActivity() {
             editViewModel.pushCropAction(cropAction)
         }
 
+        // Connect undo/redo action handlers to CanvasView
+        drawingView.onUndoAction = { action ->
+            // Handle undo action for crop operations
+            if (action is EditAction.Crop) {
+                drawingView.handleCropUndo(action.action)
+            }
+        }
+
+        drawingView.onRedoAction = { action ->
+            // Handle redo action for crop operations
+            if (action is EditAction.Crop) {
+                drawingView.handleCropRedo(action.action)
+            }
+        }
+
         lifecycleScope.launch {
             editViewModel.drawingState.collect {
                 drawingView.setDrawingState(it)
@@ -556,14 +571,34 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Handle undone actions
+        lifecycleScope.launch {
+            editViewModel.lastUndoneAction.collect { action ->
+                action?.let {
+                    drawingView.onUndoAction?.invoke(it)
+                    // Clear the action to prevent duplicate processing
+                    editViewModel.clearLastUndoneAction()
+                }
+            }
+        }
+
+        // Handle redone actions
+        lifecycleScope.launch {
+            editViewModel.lastRedoneAction.collect { action ->
+                action?.let {
+                    drawingView.onRedoAction?.invoke(it)
+                    // Clear the action to prevent duplicate processing
+                    editViewModel.clearLastRedoneAction()
+                }
+            }
+        }
+
         buttonUndo.setOnClickListener {
             editViewModel.undo()
-            // CanvasView will be updated automatically via the collect above
         }
 
         buttonRedo.setOnClickListener {
             editViewModel.redo()
-            // CanvasView will be updated automatically via the collect above
         }
 
         cropModeFreeform.isSelected = true

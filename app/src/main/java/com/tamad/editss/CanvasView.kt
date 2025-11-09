@@ -53,6 +53,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onCropAction: ((CropAction) -> Unit)? = null // New callback for crop actions
+    var onUndoAction: ((EditAction) -> Unit)? = null // Callback for undo operations
+    var onRedoAction: ((EditAction) -> Unit)? = null // Callback for redo operations
 
     init {
         paint.isAntiAlias = true
@@ -120,17 +122,54 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     // Handle crop undo - restore previous bitmap state
     fun handleCropUndo(cropAction: CropAction) {
+        // Restore the bitmap to the state before the crop
         baseBitmap = cropAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        
+        // Update the image matrix to properly display the restored bitmap
         updateImageMatrix()
+        
+        // Clear any existing crop rectangle
+        cropRect.setEmpty()
+        
+        // Redraw the canvas
         invalidate()
     }
 
     // Handle crop redo - reapply the crop
     fun handleCropRedo(cropAction: CropAction) {
-        // The bitmap should already be in the state after the crop was applied
-        // Just update the matrix and redraw
-        updateImageMatrix()
-        invalidate()
+        // For redo, we need to reapply the crop to the current bitmap
+        // The cropAction.cropRect contains the rectangle that was applied
+        // and the current baseBitmap should be the one before the crop
+        
+        if (baseBitmap != null && !cropAction.cropRect.isEmpty) {
+            // Map crop rectangle from screen coordinates to image coordinates
+            val inverseMatrix = Matrix()
+            imageMatrix.invert(inverseMatrix)
+
+            val imageCropRect = RectF()
+            inverseMatrix.mapRect(imageCropRect, cropAction.cropRect)
+
+            // Clamp to image bounds
+            val left = imageCropRect.left.coerceIn(0f, baseBitmap!!.width.toFloat())
+            val top = imageCropRect.top.coerceIn(0f, baseBitmap!!.height.toFloat())
+            val right = imageCropRect.right.coerceIn(0f, baseBitmap!!.width.toFloat())
+            val bottom = imageCropRect.bottom.coerceIn(0f, baseBitmap!!.height.toFloat())
+
+            if (right > left && bottom > top) {
+                val croppedBitmap = Bitmap.createBitmap(
+                    baseBitmap!!,
+                    left.toInt(),
+                    top.toInt(),
+                    (right - left).toInt(),
+                    (bottom - top).toInt()
+                )
+
+                baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+                updateImageMatrix()
+                cropRect.setEmpty()
+                invalidate()
+            }
+        }
     }
 
     // Process a single action for undo

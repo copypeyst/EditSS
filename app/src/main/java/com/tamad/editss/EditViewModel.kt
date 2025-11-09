@@ -78,6 +78,9 @@ class EditViewModel : ViewModel() {
             val lastAction = _undoStack.value.last()
             _undoStack.value = _undoStack.value.dropLast(1)
             _redoStack.value = _redoStack.value + lastAction
+            
+            // Notify listeners about the undone action
+            _lastUndoneAction.value = lastAction
         }
     }
 
@@ -86,7 +89,26 @@ class EditViewModel : ViewModel() {
             val lastAction = _redoStack.value.last()
             _redoStack.value = _redoStack.value.dropLast(1)
             _undoStack.value = _undoStack.value + lastAction
+            
+            // Notify listeners about the redone action
+            _lastRedoneAction.value = lastAction
         }
+    }
+    
+    // Flow to notify about undone actions
+    private val _lastUndoneAction = MutableStateFlow<EditAction?>(null)
+    val lastUndoneAction: StateFlow<EditAction?> = _lastUndoneAction.asStateFlow()
+    
+    // Flow to notify about redone actions
+    private val _lastRedoneAction = MutableStateFlow<EditAction?>(null)
+    val lastRedoneAction: StateFlow<EditAction?> = _lastRedoneAction.asStateFlow()
+    
+    fun clearLastUndoneAction() {
+        _lastUndoneAction.value = null
+    }
+    
+    fun clearLastRedoneAction() {
+        _lastRedoneAction.value = null
     }
 
     // Drawing state management for shared Draw/Circle/Square tools
