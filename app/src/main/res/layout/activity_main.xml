@@ -399,6 +399,15 @@
         android:layout_height="0dp"
         android:background="@drawable/outer_bounds"
         app:layout_constraintTop_toBottomOf="@id/action_bar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <com.tamad.editss.CropView
+        android:id="@+id/crop_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/action_bar"
         app:layout_constraintBottom_toTopOf="@id/tool_options"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />

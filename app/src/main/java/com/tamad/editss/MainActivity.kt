@@ -116,6 +116,7 @@ class MainActivity : AppCompatActivity() {
     
     // Drawing-related UI elements
     private lateinit var drawingView: DrawingView
+    private lateinit var cropView: CropView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
@@ -214,6 +215,7 @@ class MainActivity : AppCompatActivity() {
         
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
+        cropView = findViewById(R.id.crop_view)
 
 
         // Initialize sliders with default values (25% size, 100% opacity)
@@ -298,6 +300,7 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Show drawing view
+            cropView.visibility = View.GONE // Hide crop view
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
@@ -309,6 +312,7 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.GONE // Hide drawing view
+            cropView.visibility = View.VISIBLE // Show crop view
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
@@ -320,6 +324,7 @@ class MainActivity : AppCompatActivity() {
             cropOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.GONE // Hide drawing view
+            cropView.visibility = View.GONE // Hide crop view
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
@@ -811,6 +816,7 @@ class MainActivity : AppCompatActivity() {
                             // Display the loaded image
                             val bitmap = (drawable as android.graphics.drawable.BitmapDrawable).bitmap
                             drawingView.setBitmap(bitmap)
+                            cropView.setBitmap(bitmap)
                             drawingView.requestLayout()
                             drawingView.invalidate()
                             
