@@ -40,3 +40,12 @@ jobs:
           name: EditSS.apk
           path: app/build/outputs/apk/debug/EditSS.apk
           retention-days: 1
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+        with:
+          tag_name: ${{ github.run_number }}
+          name: ${{ github.event.repository.name }} v${{ github.run_number }}
+          files: app/build/outputs/apk/debug/EditSS.apk
