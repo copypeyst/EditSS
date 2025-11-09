@@ -471,6 +471,17 @@ class MainActivity : AppCompatActivity() {
             drawingView.cancelCrop()
         }
 
+        // Set callbacks for crop operations to update UI
+        drawingView.onCropApplied = { _ ->
+            currentCropMode?.isSelected = false
+            currentCropMode = null
+        }
+
+        drawingView.onCropCanceled = {
+            currentCropMode?.isSelected = false
+            currentCropMode = null
+        }
+
         // Initialize Adjust Options (no logic yet)
         findViewById<SeekBar>(R.id.adjust_brightness_slider)
         findViewById<SeekBar>(R.id.adjust_contrast_slider)

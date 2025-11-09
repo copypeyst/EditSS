@@ -363,7 +363,7 @@
         <!-- Crop Options -->
     <LinearLayout
         android:id="@+id/crop_options"
-        android:layout_width="match_parent"
+        android:layout_width="match_match"
         android:layout_height="140dp"
         android:orientation="vertical"
         android:visibility="gone">
@@ -378,6 +378,15 @@
             <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropportraiticon" android:contentDescription="@string/portrait_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
             <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="@string/landscape_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
         </LinearLayout>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Freeform, 1:1, 9:16, 16:9"
+            android:textColor="@android:color/white"
+            android:gravity="center_horizontal"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp"/>
         <!-- Apply/Cancel Buttons -->
         <LinearLayout
             android:layout_width="match_parent"

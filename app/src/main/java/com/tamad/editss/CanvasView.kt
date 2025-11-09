@@ -212,6 +212,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Update image matrix to center the new image (do NOT reset)
         updateImageMatrix()
         invalidate()
+        onCropApplied?.invoke(baseBitmap!!) // Invoke callback
 
         return baseBitmap
     }
@@ -219,6 +220,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun cancelCrop() {
         cropRect.setEmpty()
         invalidate()
+        onCropCanceled?.invoke() // Invoke callback
     }
 
     private fun updateImageBounds() {
