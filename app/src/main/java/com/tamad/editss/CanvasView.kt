@@ -9,8 +9,8 @@ import android.view.View
 import android.graphics.RectF
 import com.tamad.editss.DrawMode
 import com.tamad.editss.DrawingState
-
 import com.tamad.editss.CropMode
+import com.tamad.editss.Action // Add this import
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
