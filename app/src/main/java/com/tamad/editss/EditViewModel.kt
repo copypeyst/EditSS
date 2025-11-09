@@ -12,13 +12,14 @@ enum class DrawMode {
     PEN,
     SQUARE,
     CIRCLE
+}
+
 // Crop modes enum
 enum class CropMode {
     FREEFORM,
     SQUARE,
     PORTRAIT,
     LANDSCAPE
-}
 }
 
 // Shared drawing state for Draw, Circle, and Square tools only

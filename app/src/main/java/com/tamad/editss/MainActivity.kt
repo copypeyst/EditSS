@@ -41,7 +41,7 @@ import coil.memory.MemoryCache
 import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
-import com.tamad.editss.EditViewModel.DrawMode
+import com.tamad.editss.DrawMode
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {

@@ -7,10 +7,10 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.graphics.RectF
-import com.tamad.editss.EditViewModel.DrawMode
-import com.tamad.editss.EditViewModel.DrawingState
-import com.tamad.editss.EditViewModel.DrawingAction
-import com.tamad.editss.EditViewModel.CropMode
+import com.tamad.editss.DrawMode
+import com.tamad.editss.DrawingState
+import com.tamad.editss.DrawingAction
+import com.tamad.editss.CropMode
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
