@@ -9,14 +9,12 @@ import android.view.View
 import android.graphics.RectF
 import com.tamad.editss.DrawMode
 import com.tamad.editss.DrawingState
+import com.tamad.editss.DrawingAction
 import com.tamad.editss.CropMode
-import com.tamad.editss.Action // Add this import
-import com.tamad.editss.Action.Drawing // Explicit import
-import com.tamad.editss.Action.Crop // Explicit import
+import com.tamad.editss.CropAction
+import com.tamad.editss.EditAction
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
-
-    var editViewModel: EditViewModel? = null // Add this line
 
     private val paint = Paint()
     private val currentPath = Path()
@@ -24,7 +22,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val cropCornerPaint = Paint()
 
     private var baseBitmap: Bitmap? = null
-    private var paths = listOf<Action.Drawing>() // Changed to Action.Drawing
+    private var paths = listOf<DrawingAction>()
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
@@ -51,10 +49,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var cropStartRight = 0f
     private var cropStartBottom = 0f
 
-    var onNewPath: ((Action.Drawing) -> Unit)? = null // Changed to Action.Drawing
-    var onNewCropAction: ((Action.Crop) -> Unit)? = null // New callback for crop actions
+    var onNewPath: ((DrawingAction) -> Unit)? = null
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
+    var onCropAction: ((CropAction) -> Unit)? = null // New callback for crop actions
 
     init {
         paint.isAntiAlias = true
@@ -70,7 +68,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.isAntiAlias = true
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
-        cropCornerPaint.alpha = 128 // 20% opacity
+        cropCornerPaint.alpha = 51 // 20% opacity
     }
 
     enum class ToolType {
@@ -100,9 +98,65 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    fun setPaths(paths: List<Action.Drawing>) { // Changed to Action.Drawing
+    fun setPaths(paths: List<DrawingAction>) {
         this.paths = paths
         invalidate()
+    }
+
+    // Handle undo/redo operations for the unified action system
+    fun handleUndo(actions: List<EditAction>) {
+        // Extract only drawing actions from the unified action list
+        val drawingActions = actions.filterIsInstance<EditAction.Drawing>().map { it.action }
+        this.paths = drawingActions
+        invalidate()
+    }
+
+    fun handleRedo(actions: List<EditAction>) {
+        // Extract only drawing actions from the unified action list
+        val drawingActions = actions.filterIsInstance<EditAction.Drawing>().map { it.action }
+        this.paths = drawingActions
+        invalidate()
+    }
+
+    // Handle crop undo - restore previous bitmap state
+    fun handleCropUndo(cropAction: CropAction) {
+        baseBitmap = cropAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        updateImageMatrix()
+        invalidate()
+    }
+
+    // Handle crop redo - reapply the crop
+    fun handleCropRedo(cropAction: CropAction) {
+        // The bitmap should already be in the state after the crop was applied
+        // Just update the matrix and redraw
+        updateImageMatrix()
+        invalidate()
+    }
+
+    // Process a single action for undo
+    fun processUndoAction(action: EditAction) {
+        when (action) {
+            is EditAction.Drawing -> {
+                // Drawing actions are handled by the setPaths method
+                // No additional handling needed here
+            }
+            is EditAction.Crop -> {
+                handleCropUndo(action.action)
+            }
+        }
+    }
+
+    // Process a single action for redo
+    fun processRedoAction(action: EditAction) {
+        when (action) {
+            is EditAction.Drawing -> {
+                // Drawing actions are handled by the setPaths method
+                // No additional handling needed here
+            }
+            is EditAction.Crop -> {
+                handleCropRedo(action.action)
+            }
+        }
     }
 
     fun setToolType(toolType: ToolType) {
@@ -188,6 +242,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
+        // Store the previous bitmap state for undo/redo
+        val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+
         // Map crop rectangle from screen coordinates to image coordinates
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
@@ -211,20 +268,24 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             (bottom - top).toInt()
         )
 
-        val previousBitmap = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true) // Capture current bitmap for undo
-
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        
+        // Create crop action for undo/redo
+        val cropAction = CropAction(
+            previousBitmap = previousBitmap,
+            cropRect = android.graphics.RectF(cropRect),
+            cropMode = currentCropMode
+        )
+        
+        // Notify ViewModel about the crop action
+        onCropAction?.invoke(cropAction)
+        
         cropRect.setEmpty()
 
         // Update image matrix to center the new image (do NOT reset)
         updateImageMatrix()
         invalidate()
         onCropApplied?.invoke(baseBitmap!!) // Invoke callback
-
-        // Push crop action to ViewModel for undo/redo
-        if (previousBitmap != null && baseBitmap != null) {
-            onNewCropAction?.invoke(Action.Crop(previousBitmap, baseBitmap!!))
-        }
 
         return baseBitmap
     }

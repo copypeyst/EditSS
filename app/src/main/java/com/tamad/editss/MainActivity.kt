@@ -42,6 +42,7 @@ import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
+import com.tamad.editss.EditAction
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -214,7 +215,6 @@ class MainActivity : AppCompatActivity() {
         
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
-        drawingView.editViewModel = editViewModel // Pass ViewModel to CanvasView
 
 
         // Initialize sliders with default values (25% size, 100% opacity)
@@ -241,12 +241,12 @@ class MainActivity : AppCompatActivity() {
 
         // Import Button Logic
         buttonImport.setOnClickListener {
-            if (editViewModel.hasDrawings) {
+            if (editViewModel.hasUnsavedChanges) {
                 AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
                     .setTitle(getString(R.string.discard_changes_title))
                     .setMessage(getString(R.string.discard_changes_message))
                     .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
-                        editViewModel.clearDrawings()
+                        editViewModel.clearAllActions()
                         if (hasImagePermission()) {
                             openImagePicker()
                         } else {
@@ -269,12 +269,12 @@ class MainActivity : AppCompatActivity() {
 
         // Camera Button Logic - Step 13: Create writable URI in MediaStore for camera capture
         buttonCamera.setOnClickListener {
-            if (editViewModel.hasDrawings) {
+            if (editViewModel.hasUnsavedChanges) {
                 AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
                     .setTitle(getString(R.string.discard_changes_title))
                     .setMessage(getString(R.string.discard_changes_message))
                     .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
-                        editViewModel.clearDrawings()
+                        editViewModel.clearAllActions()
                         captureImageFromCamera()
                         dialog.dismiss()
                     }
@@ -534,11 +534,12 @@ class MainActivity : AppCompatActivity() {
 
         // Connect DrawingView to ViewModel
         drawingView.onNewPath = {
-            editViewModel.pushAction(it) // It's already Action.Drawing
+            editViewModel.pushDrawingAction(it)
         }
 
-        drawingView.onNewCropAction = {
-            editViewModel.pushAction(it)
+        // Connect crop actions to ViewModel
+        drawingView.onCropAction = { cropAction ->
+            editViewModel.pushCropAction(cropAction)
         }
 
         lifecycleScope.launch {
@@ -548,27 +549,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            editViewModel.undoStack.collect {
-                // Filter out Drawing actions for setPaths
-                val drawingActions = it.filterIsInstance<Action.Drawing>()
-                drawingView.setPaths(drawingActions) // Pass Action.Drawing directly
-            }
-        }
-
-        lifecycleScope.launch {
-            editViewModel.bitmapForCanvas.collect { bitmap ->
-                bitmap?.let {
-                    drawingView.setBitmap(it)
-                }
+            editViewModel.undoStack.collect { actions ->
+                // Handle both drawing and crop actions
+                val drawingActions = actions.filterIsInstance<EditAction.Drawing>().map { it.action }
+                drawingView.setPaths(drawingActions)
             }
         }
 
         buttonUndo.setOnClickListener {
             editViewModel.undo()
+            // CanvasView will be updated automatically via the collect above
         }
 
         buttonRedo.setOnClickListener {
             editViewModel.redo()
+            // CanvasView will be updated automatically via the collect above
         }
 
         cropModeFreeform.isSelected = true
@@ -821,8 +816,8 @@ class MainActivity : AppCompatActivity() {
     // Simple Coil-based image loading - replaces all complex crash prevention logic
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
         isSketchMode = false
-        // Clear any existing drawings when a new image is loaded
-        editViewModel.clearDrawings()
+        // Clear any existing actions when a new image is loaded
+        editViewModel.clearAllActions()
 
         // Prevent loading while already loading
         if (isImageLoading) {
@@ -1191,7 +1186,7 @@ class MainActivity : AppCompatActivity() {
                             Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
-                            editViewModel.markDrawingsAsSaved()
+                            editViewModel.markActionsAsSaved()
                         }
                     } else {
                         throw Exception(getString(R.string.save_failed))
@@ -1245,7 +1240,7 @@ class MainActivity : AppCompatActivity() {
                             Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
-                            editViewModel.markDrawingsAsSaved()
+                            editViewModel.markActionsAsSaved()
 
                             // Invalidate Coil's cache for the overwritten URI to ensure a fresh load next time.
                             imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
