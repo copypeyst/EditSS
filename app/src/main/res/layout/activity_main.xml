@@ -364,33 +364,38 @@
     <LinearLayout
         android:id="@+id/crop_options"
         android:layout_width="match_parent"
-        android:layout_height="140dp"
+        android:layout_height="200dp"
         android:orientation="vertical"
-        android:visibility="gone">
+        android:visibility="gone"
+        android:padding="8dp">
+        
+        <!-- Crop Mode Icons and Labels -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:orientation="horizontal"
-            android:gravity="center">
+            android:gravity="center"
+            android:layout_marginBottom="8dp">
             
             <!-- Freeform Crop -->
             <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:layout_marginEnd="5dp"
+                android:layout_marginEnd="4dp"
                 android:orientation="vertical"
                 android:gravity="center">
                 <ImageView
                     android:id="@+id/crop_mode_freeform"
                     android:layout_width="match_parent"
-                    android:layout_height="110dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:src="@drawable/cropfreeformicon"
                     android:contentDescription="@string/freeform_crop"
                     android:background="@drawable/button_background"
                     android:scaleType="fitCenter"
-                    android:padding="2dp"
+                    android:padding="4dp"
                     android:clickable="true"
                     android:focusable="true"/>
                 <TextView
@@ -398,27 +403,29 @@
                     android:layout_height="wrap_content"
                     android:text="Freeform"
                     android:textColor="@android:color/white"
-                    android:textSize="12sp"
-                    android:layout_marginTop="2dp"/>
+                    android:textSize="11sp"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"/>
             </LinearLayout>
             
             <!-- Square Crop -->
             <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:layout_marginEnd="5dp"
+                android:layout_marginEnd="4dp"
                 android:orientation="vertical"
                 android:gravity="center">
                 <ImageView
                     android:id="@+id/crop_mode_square"
                     android:layout_width="match_parent"
-                    android:layout_height="110dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:src="@drawable/cropsquareicon"
                     android:contentDescription="@string/square_crop"
                     android:background="@drawable/button_background"
                     android:scaleType="fitCenter"
-                    android:padding="2dp"
+                    android:padding="4dp"
                     android:clickable="true"
                     android:focusable="true"/>
                 <TextView
@@ -426,27 +433,29 @@
                     android:layout_height="wrap_content"
                     android:text="1:1"
                     android:textColor="@android:color/white"
-                    android:textSize="12sp"
-                    android:layout_marginTop="2dp"/>
+                    android:textSize="11sp"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"/>
             </LinearLayout>
             
             <!-- Portrait Crop -->
             <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:layout_marginEnd="5dp"
+                android:layout_marginEnd="4dp"
                 android:orientation="vertical"
                 android:gravity="center">
                 <ImageView
                     android:id="@+id/crop_mode_portrait"
                     android:layout_width="match_parent"
-                    android:layout_height="110dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:src="@drawable/cropportraiticon"
                     android:contentDescription="@string/portrait_crop"
                     android:background="@drawable/button_background"
                     android:scaleType="fitCenter"
-                    android:padding="2dp"
+                    android:padding="4dp"
                     android:clickable="true"
                     android:focusable="true"/>
                 <TextView
@@ -454,26 +463,28 @@
                     android:layout_height="wrap_content"
                     android:text="9:16"
                     android:textColor="@android:color/white"
-                    android:textSize="12sp"
-                    android:layout_marginTop="2dp"/>
+                    android:textSize="11sp"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"/>
             </LinearLayout>
             
             <!-- Landscape Crop -->
             <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:orientation="vertical"
                 android:gravity="center">
                 <ImageView
                     android:id="@+id/crop_mode_landscape"
                     android:layout_width="match_parent"
-                    android:layout_height="110dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:src="@drawable/croplandscapeicon"
                     android:contentDescription="@string/landscape_crop"
                     android:background="@drawable/button_background"
                     android:scaleType="fitCenter"
-                    android:padding="2dp"
+                    android:padding="4dp"
                     android:clickable="true"
                     android:focusable="true"/>
                 <TextView
@@ -481,8 +492,9 @@
                     android:layout_height="wrap_content"
                     android:text="16:9"
                     android:textColor="@android:color/white"
-                    android:textSize="12sp"
-                    android:layout_marginTop="2dp"/>
+                    android:textSize="11sp"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"/>
             </LinearLayout>
         </LinearLayout>
         
@@ -491,26 +503,27 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center"
-            android:paddingTop="4dp">
+            android:gravity="center">
             <Button
                 android:id="@+id/button_crop_cancel"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="36dp"
                 android:layout_weight="1"
                 android:text="@string/cancel"
                 android:layout_marginEnd="8dp"
                 android:backgroundTint="@color/button_background"
-                android:textColor="@android:color/white"/>
+                android:textColor="@android:color/white"
+                android:textSize="12sp"/>
             <Button
                 android:id="@+id/button_crop_apply"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="36dp"
                 android:layout_weight="1"
                 android:text="@string/apply"
                 android:layout_marginStart="8dp"
                 android:backgroundTint="?attr/colorSecondary"
-                android:textColor="?attr/colorOnSecondary"/>
+                android:textColor="?attr/colorOnSecondary"
+                android:textSize="12sp"/>
         </LinearLayout>
     </LinearLayout>
 
