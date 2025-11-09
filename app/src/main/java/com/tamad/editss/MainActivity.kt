@@ -42,7 +42,6 @@ import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
-import com.canhub.cropper.CropImageView
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -117,7 +116,6 @@ class MainActivity : AppCompatActivity() {
     
     // Drawing-related UI elements
     private lateinit var drawingView: DrawingView
-    private lateinit var cropImageView: CropImageView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
@@ -216,7 +214,6 @@ class MainActivity : AppCompatActivity() {
         
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
-        cropImageView = findViewById(R.id.crop_image_view)
 
 
         // Initialize sliders with default values (25% size, 100% opacity)
@@ -301,7 +298,6 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Show drawing view
-            cropImageView.visibility = View.GONE // Hide crop view
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
@@ -313,15 +309,9 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.GONE // Hide drawing view
-            cropImageView.visibility = View.VISIBLE // Show crop view
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
-
-            // Load the current image into the crop view
-            currentImageInfo?.uri?.let {
-                cropImageView.setImageUriAsync(it)
-            }
         }
 
         toolAdjust.setOnClickListener {
@@ -330,7 +320,6 @@ class MainActivity : AppCompatActivity() {
             cropOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.GONE // Hide drawing view
-            cropImageView.visibility = View.GONE // Hide crop view
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
@@ -433,50 +422,27 @@ class MainActivity : AppCompatActivity() {
         val cropModeSquare: ImageView = findViewById(R.id.crop_mode_square)
         val cropModePortrait: ImageView = findViewById(R.id.crop_mode_portrait)
         val cropModeLandscape: ImageView = findViewById(R.id.crop_mode_landscape)
-        val cropDoneButton: ImageView = findViewById(R.id.crop_done_button)
 
         cropModeFreeform.setOnClickListener {
-            cropImageView.setFixedAspectRatio(false)
             currentCropMode?.isSelected = false
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
         }
         cropModeSquare.setOnClickListener {
-            cropImageView.setFixedAspectRatio(true)
-            cropImageView.setAspectRatio(1, 1)
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
         }
         cropModePortrait.setOnClickListener {
-            cropImageView.setFixedAspectRatio(true)
-            cropImageView.setAspectRatio(9, 16)
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
         }
         cropModeLandscape.setOnClickListener {
-            cropImageView.setFixedAspectRatio(true)
-            cropImageView.setAspectRatio(16, 9)
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
         }
-
-        cropDoneButton.setOnClickListener {
-            lifecycleScope.launch {
-                val cropped = cropImageView.getCroppedImage(900, 900)
-                if (cropped != null) {
-                    withContext(Dispatchers.Main) {
-                        drawingView.setBitmap(cropped)
-                        cropImageView.visibility = View.GONE
-                        drawingView.visibility = View.VISIBLE
-                        toolDraw.performClick()
-                    }
-                }
-            }
-        }
-
 
         // Initialize Adjust Options (no logic yet)
         findViewById<SeekBar>(R.id.adjust_brightness_slider)

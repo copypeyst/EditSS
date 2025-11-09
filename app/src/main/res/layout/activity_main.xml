@@ -372,7 +372,6 @@
         <ImageView android:id="@+id/crop_mode_square" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropsquareicon" android:contentDescription="@string/square_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
         <ImageView android:id="@+id/crop_mode_portrait" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:layout_marginEnd="5dp" android:src="@drawable/cropportraiticon" android:contentDescription="@string/portrait_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
         <ImageView android:id="@+id/crop_mode_landscape" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/croplandscapeicon" android:contentDescription="@string/landscape_crop" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
-        <ImageView android:id="@+id/crop_done_button" android:layout_width="0dp" android:layout_height="135dp" android:layout_weight="1" android:src="@drawable/saveicon" android:contentDescription="@string/done" android:background="@drawable/button_background" android:scaleType="fitCenter" android:padding="2dp" android:clickable="true" android:focusable="true"/>
     </LinearLayout>
 
         <!-- Adjust Options -->
@@ -399,16 +398,6 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:background="@drawable/outer_bounds"
-        app:layout_constraintTop_toBottomOf="@id/action_bar"
-        app:layout_constraintBottom_toTopOf="@id/tool_options"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <com.canhub.cropper.CropImageView
-        android:id="@+id/crop_image_view"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@id/action_bar"
         app:layout_constraintBottom_toTopOf="@id/tool_options"
         app:layout_constraintStart_toStartOf="parent"
