@@ -383,18 +383,14 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
                         cropStartBottom = cropRect.bottom
                         return true
                     }
-                    // Only create new crop rectangle if we're not already in crop mode
-                    // or if the existing rectangle is empty
-                    if (cropRect.width() <= 0 || cropRect.height() <= 0) {
-                        isCropping = true
-                        startX = x
-                        startY = y
-                        cropRect.left = x
-                        cropRect.top = y
-                        cropRect.right = x
-                        cropRect.bottom = y
-                    }
-                    // If there's already a crop rectangle, ignore outside touches
+                    // Otherwise create new crop rectangle
+                    isCropping = true
+                    startX = x
+                    startY = y
+                    cropRect.left = x
+                    cropRect.top = y
+                    cropRect.right = x
+                    cropRect.bottom = y
                 }
                 return true
             }
@@ -463,7 +459,8 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
     }
 
     private fun getResizeHandle(x: Float, y: Float): Int {
-        val cornerSize = 20f // Much smaller - only actual corner hits
+        val cornerSize = 60f
+        val edgeSize = 30f
         val left = cropRect.left
         val top = cropRect.top
         val right = cropRect.right
@@ -542,9 +539,9 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
             }
             CropMode.PORTRAIT -> {
                 // 9:16 ratio (width:height)
-                var width = newRight - newLeft
-                var height = newBottom - newTop
-                var targetHeight = width * 16 / 9f
+                val width = newRight - newLeft
+                val height = newBottom - newTop
+                val targetHeight = width * 16 / 9f
                 when (resizeHandle) {
                     1, 2 -> { // top handles
                         newTop = newBottom - targetHeight
@@ -556,9 +553,9 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
             }
             CropMode.LANDSCAPE -> {
                 // 16:9 ratio (width:height)
-                var width = newRight - newLeft
-                var height = newBottom - newTop
-                var targetWidth = height * 16 / 9f
+                val width = newRight - newLeft
+                val height = newBottom - newTop
+                val targetWidth = height * 16 / 9f
                 when (resizeHandle) {
                     1, 3 -> { // left handles
                         newLeft = newRight - targetWidth
@@ -569,26 +566,6 @@ class DrawingView(context: Context, attrs: AttributeSet) : View(context, attrs) 
                 }
             }
             else -> {} // FREEFORM - no aspect ratio constraint
-        }
-
-        // Clamp to image bounds after aspect ratio adjustment
-        newLeft = newLeft.coerceIn(imageBounds.left, imageBounds.right)
-        newTop = newTop.coerceIn(imageBounds.top, imageBounds.bottom)
-        newRight = newRight.coerceIn(imageBounds.left, imageBounds.right)
-        newBottom = newBottom.coerceIn(imageBounds.top, imageBounds.bottom)
-
-        // Ensure minimum size is maintained
-        val width = newRight - newLeft
-        val height = newBottom - newTop
-        if (width < minSize) {
-            val delta = (minSize - width) / 2
-            newLeft -= delta
-            newRight += delta
-        }
-        if (height < minSize) {
-            val delta = (minSize - height) / 2
-            newTop -= delta
-            newBottom += delta
         }
 
         cropRect.left = newLeft
