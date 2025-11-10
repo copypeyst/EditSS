@@ -385,7 +385,9 @@
                 android:focusable="true"
                 app:cardCornerRadius="8dp"
                 app:cardBackgroundColor="@color/crop_card_background_color"
-                app:cardElevation="0dp">
+                app:cardElevation="0dp"
+                app:strokeColor="@color/color_red"
+                app:strokeWidth="2dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -421,7 +423,9 @@
                 android:focusable="true"
                 app:cardCornerRadius="8dp"
                 app:cardBackgroundColor="@color/crop_card_background_color"
-                app:cardElevation="0dp">
+                app:cardElevation="0dp"
+                app:strokeColor="@color/color_red"
+                app:strokeWidth="2dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -457,7 +461,9 @@
                 android:focusable="true"
                 app:cardCornerRadius="8dp"
                 app:cardBackgroundColor="@color/crop_card_background_color"
-                app:cardElevation="0dp">
+                app:cardElevation="0dp"
+                app:strokeColor="@color/color_red"
+                app:strokeWidth="2dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -492,7 +498,9 @@
                 android:focusable="true"
                 app:cardCornerRadius="8dp"
                 app:cardBackgroundColor="@color/crop_card_background_color"
-                app:cardElevation="0dp">
+                app:cardElevation="0dp"
+                app:strokeColor="@color/color_red"
+                app:strokeWidth="2dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
