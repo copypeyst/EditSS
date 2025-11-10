@@ -385,7 +385,7 @@
                 <ImageView
                     android:id="@+id/crop_mode_freeform"
                     android:layout_width="85dp"
-                    android:layout_height="70dp"
+                    android:layout_height="75dp"
                     android:src="@drawable/cropfreeformicon"
                     android:contentDescription="@string/freeform_crop"
                     android:background="@drawable/tool_button_background"
@@ -397,7 +397,7 @@
                     android:layout_height="wrap_content"
                     android:text="Freeform"
                     android:textColor="@android:color/white"
-                    android:textSize="10sp"
+                    android:textSize="15sp"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
             
@@ -412,7 +412,7 @@
                 <ImageView
                     android:id="@+id/crop_mode_square"
                     android:layout_width="85dp"
-                    android:layout_height="70dp"
+                    android:layout_height="75dp"
                     android:src="@drawable/cropsquareicon"
                     android:contentDescription="@string/square_crop"
                     android:background="@drawable/tool_button_background"
@@ -424,7 +424,7 @@
                     android:layout_height="wrap_content"
                     android:text="1:1"
                     android:textColor="@android:color/white"
-                    android:textSize="10sp"
+                    android:textSize="15sp"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
             
@@ -439,7 +439,7 @@
                 <ImageView
                     android:id="@+id/crop_mode_portrait"
                     android:layout_width="85dp"
-                    android:layout_height="70dp"
+                    android:layout_height="75dp"
                     android:src="@drawable/cropportraiticon"
                     android:contentDescription="@string/portrait_crop"
                     android:background="@drawable/tool_button_background"
@@ -451,7 +451,7 @@
                     android:layout_height="wrap_content"
                     android:text="9:16"
                     android:textColor="@android:color/white"
-                    android:textSize="10sp"
+                    android:textSize="15sp"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
             
@@ -465,7 +465,7 @@
                 <ImageView
                     android:id="@+id/crop_mode_landscape"
                     android:layout_width="85dp"
-                    android:layout_height="70dp"
+                    android:layout_height="75dp"
                     android:src="@drawable/croplandscapeicon"
                     android:contentDescription="@string/landscape_crop"
                     android:background="@drawable/tool_button_background"
@@ -477,7 +477,7 @@
                     android:layout_height="wrap_content"
                     android:text="16:9"
                     android:textColor="@android:color/white"
-                    android:textSize="10sp"
+                    android:textSize="15sp"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
         </LinearLayout>
