@@ -13,7 +13,6 @@ import com.tamad.editss.DrawingAction
 import com.tamad.editss.CropMode
 import com.tamad.editss.CropAction
 import com.tamad.editss.EditAction
-import com.tamad.editss.AdjustState
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -21,6 +20,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val currentPath = Path()
     private val cropPaint = Paint()
     private val cropCornerPaint = Paint()
+
+    private val imagePaint = Paint().apply {
+        isAntiAlias = true
+        isFilterBitmap = true
+        isDither = true
+    }
 
     private var baseBitmap: Bitmap? = null
     private var paths = listOf<DrawingAction>()
@@ -49,12 +54,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var cropStartTop = 0f
     private var cropStartRight = 0f
     private var cropStartBottom = 0f
+    private var brightness = 0f
+    private var contrast = 1f
+    private var saturation = 1f
 
     var onNewPath: ((DrawingAction) -> Unit)? = null
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onCropAction: ((CropAction) -> Unit)? = null // New callback for crop actions
-    var onAdjustAction: ((AdjustAction) -> Unit)? = null // New callback for adjust actions
     var onUndoAction: ((EditAction) -> Unit)? = null // Callback for undo operations
     var onRedoAction: ((EditAction) -> Unit)? = null // Callback for redo operations
 
@@ -185,9 +192,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             is EditAction.Crop -> {
                 handleCropUndo(action.action)
             }
-            is EditAction.Adjust -> {
-                handleAdjustUndo(action.action)
-            }
         }
     }
 
@@ -201,60 +205,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             is EditAction.Crop -> {
                 handleCropRedo(action.action)
             }
-            is EditAction.Adjust -> {
-                handleAdjustRedo(action.action)
-            }
         }
-    }
-
-    // Apply adjustments to the current bitmap (for real-time preview)
-    fun applyAdjustments(adjustState: AdjustState) {
-        if (baseBitmap == null) return
-
-        // For real-time preview, we modify the current baseBitmap
-        val adjustedBitmap = this.applyImageAdjustments(baseBitmap!!, adjustState)
-        baseBitmap = adjustedBitmap
-        updateImageMatrix()
-        invalidate()
-    }
-
-    // Apply adjustments and create an action for undo/redo
-    fun applyAdjustmentsWithAction(adjustState: AdjustState) {
-        if (baseBitmap == null) return
-
-        // Store the previous bitmap state for undo/redo
-        val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-
-        // Apply the adjustments
-        val adjustedBitmap = this.applyImageAdjustments(baseBitmap!!, adjustState)
-        baseBitmap = adjustedBitmap
-
-        // Create adjust action for undo/redo
-        val adjustAction = AdjustAction(
-            previousBitmap = previousBitmap,
-            adjustState = adjustState
-        )
-
-        // Notify about the adjustment action
-        onAdjustAction?.invoke(adjustAction)
-
-        updateImageMatrix()
-        invalidate()
-    }
-
-    // Handle adjust undo - restore previous bitmap state
-    fun handleAdjustUndo(adjustAction: AdjustAction) {
-        baseBitmap = adjustAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
-        invalidate()
-    }
-
-    // Handle adjust redo - reapply the adjustment
-    fun handleAdjustRedo(adjustAction: AdjustAction) {
-        val adjustedBitmap = this.applyImageAdjustments(baseBitmap!!, adjustAction.adjustState)
-        baseBitmap = adjustedBitmap
-        updateImageMatrix()
-        invalidate()
     }
 
     fun setToolType(toolType: ToolType) {
@@ -442,12 +393,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return resultBitmap
     }
 
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        updateImageMatrix()
-    }
-
-    override fun onDraw(canvas: Canvas) {
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            super.onSizeChanged(w, h, oldw, oldh)
+            updateImageMatrix()
+        }
+    
+         override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         baseBitmap?.let {
             canvas.save()
@@ -459,7 +410,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 checker.bounds = rect
                 checker.draw(canvas)
             }
-            canvas.drawBitmap(it, imageMatrix, null)
+            canvas.drawBitmap(it, imageMatrix, imagePaint)
         }
 
         for (action in paths) {
@@ -833,7 +784,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     newBottom = fixedY + desiredHeight
                 }
             }
-        
+        }
 
         // Final clamp to ensure it's within image bounds (should be mostly handled above, but as a safeguard)
         newLeft = newLeft.coerceIn(imageBounds.left, imageBounds.right)
@@ -842,55 +793,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         newBottom = newBottom.coerceIn(imageBounds.top, imageBounds.bottom)
 
         cropRect.set(newLeft, newTop, newRight, newBottom)
-    }
-
-    // Apply brightness, contrast, and saturation to a bitmap using ColorMatrix
-    fun applyImageAdjustments(sourceBitmap: Bitmap, adjustState: AdjustState): Bitmap {
-        if (sourceBitmap.isRecycled) return sourceBitmap
-
-        val width = sourceBitmap.width
-        val height = sourceBitmap.height
-
-        val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(resultBitmap)
-        val paint = Paint()
-
-        // Create ColorMatrix for adjustments
-        val colorMatrix = ColorMatrix()
-
-        // Apply saturation (0.0 = grayscale, 1.0 = original, 2.0 = enhanced)
-        colorMatrix.setSaturation(adjustState.saturation)
-
-        // Apply contrast (0.0 = black, 1.0 = original, 2.0 = enhanced)
-        val contrast = if (adjustState.contrast < 0.0f) 0.0f else if (adjustState.contrast > 2.0f) 2.0f else adjustState.contrast
-        val contrastMatrix = ColorMatrix()
-        contrastMatrix.set(floatArrayOf(
-            contrast, 0f, 0f, 0f, 0f,  // Red
-            0f, contrast, 0f, 0f, 0f,  // Green
-            0f, 0f, contrast, 0f, 0f,  // Blue
-            0f, 0f, 0f, 1f, 0f         // Alpha
-        ))
-        colorMatrix.postConcat(contrastMatrix)
-
-        // Apply brightness (-100 to 100)
-        val brightnessValue = if (adjustState.brightness < -100f) -100f else if (adjustState.brightness > 100f) 100f else adjustState.brightness
-        val brightness = brightnessValue / 100f * 128f
-        val brightnessMatrix = ColorMatrix()
-        brightnessMatrix.set(floatArrayOf(
-            1f, 0f, 0f, 0f, brightness,  // Red
-            0f, 1f, 0f, 0f, brightness,  // Green
-            0f, 0f, 1f, 0f, brightness,  // Blue
-            0f, 0f, 0f, 1f, 0f           // Alpha
-        ))
-        colorMatrix.postConcat(brightnessMatrix)
-
-        // Apply the ColorMatrix to the paint
-        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
-
-        // Draw the original bitmap with the adjusted paint
-        canvas.drawBitmap(sourceBitmap, 0f, 0f, paint)
-
-        return resultBitmap
     }
 
     private fun updateCropRect(x: Float, y: Float) {
@@ -919,5 +821,47 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 cropRect.bottom = y
             }
         }
+    }
+
+    fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
+        this.brightness = brightness
+        this.contrast = contrast
+        this.saturation = saturation
+        updateColorFilter()
+        invalidate()
+    }
+
+    private fun updateColorFilter() {
+        val colorMatrix = ColorMatrix()
+        // Brightness and Contrast
+        colorMatrix.set(floatArrayOf(
+            contrast, 0f, 0f, 0f, brightness,
+            0f, contrast, 0f, 0f, brightness,
+            0f, 0f, contrast, 0f, brightness,
+            0f, 0f, 0f, 1f, 0f
+        ))
+
+        // Saturation
+        val saturationMatrix = ColorMatrix()
+        saturationMatrix.setSaturation(saturation)
+        colorMatrix.postConcat(saturationMatrix)
+
+        imagePaint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+    }
+
+    fun applyAdjustmentsToBitmap(): Bitmap? {
+        if (baseBitmap == null) return null
+
+        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(adjustedBitmap)
+        val paint = Paint()
+        paint.colorFilter = imagePaint.colorFilter
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
+
+        return adjustedBitmap
+    }
+
+    fun resetAdjustments() {
+        setAdjustments(0f, 1f, 1f)
     }
 }

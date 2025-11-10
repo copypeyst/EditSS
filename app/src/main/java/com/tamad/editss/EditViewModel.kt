@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import android.graphics.Path
 import android.graphics.Paint
 import android.graphics.Bitmap
-import android.graphics.ColorMatrix
 
 // Drawing modes enum
 enum class DrawMode {
@@ -32,33 +31,26 @@ data class DrawingState(
     val drawMode: DrawMode = DrawMode.PEN
 )
 
+data class AdjustState(
+    val brightness: Float = 0f,
+    val contrast: Float = 1f,
+    val saturation: Float = 1f
+)
+
 data class DrawingAction(
     val path: Path,
     val paint: Paint
 )
-
 data class CropAction(
     val previousBitmap: Bitmap, // The bitmap state before the crop
     val cropRect: android.graphics.RectF, // The crop rectangle that was applied
     val cropMode: CropMode // The crop mode used
 )
 
-data class AdjustState(
-    val brightness: Float = 0f, // -100 to 100 (0 = no change)
-    val contrast: Float = 1.0f, // 0.0 to 2.0 (1.0 = no change)
-    val saturation: Float = 1.0f // 0.0 to 2.0 (1.0 = no change)
-)
-
-data class AdjustAction(
-    val previousBitmap: Bitmap, // The bitmap state before the adjustment
-    val adjustState: AdjustState // The adjustment state that was applied
-)
-
 // Unified action system for both drawing and crop operations
 sealed class EditAction {
     data class Drawing(val action: DrawingAction) : EditAction()
     data class Crop(val action: CropAction) : EditAction()
-    data class Adjust(val action: AdjustAction) : EditAction()
 }
 
 class EditViewModel : ViewModel() {
@@ -76,7 +68,6 @@ class EditViewModel : ViewModel() {
     private val _drawingState = MutableStateFlow(DrawingState())
     val drawingState: StateFlow<DrawingState> = _drawingState.asStateFlow()
 
-    // Shared adjust state for brightness, contrast, saturation
     private val _adjustState = MutableStateFlow(AdjustState())
     val adjustState: StateFlow<AdjustState> = _adjustState.asStateFlow()
 
@@ -87,11 +78,6 @@ class EditViewModel : ViewModel() {
 
     fun pushCropAction(action: CropAction) {
         _undoStack.value = _undoStack.value + EditAction.Crop(action)
-        _redoStack.value = emptyList()
-    }
-
-    fun pushAdjustAction(action: AdjustAction) {
-        _undoStack.value = _undoStack.value + EditAction.Adjust(action)
         _redoStack.value = emptyList()
     }
 
@@ -150,7 +136,6 @@ class EditViewModel : ViewModel() {
         _drawingState.value = _drawingState.value.copy(drawMode = drawMode)
     }
 
-    // Adjust state management
     fun updateBrightness(brightness: Float) {
         _adjustState.value = _adjustState.value.copy(brightness = brightness)
     }
@@ -161,6 +146,10 @@ class EditViewModel : ViewModel() {
 
     fun updateSaturation(saturation: Float) {
         _adjustState.value = _adjustState.value.copy(saturation = saturation)
+    }
+
+    fun resetAdjustments() {
+        _adjustState.value = AdjustState()
     }
 
     fun clearAllActions() {
