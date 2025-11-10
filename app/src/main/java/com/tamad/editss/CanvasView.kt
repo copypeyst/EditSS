@@ -3,7 +3,6 @@ package com.tamad.editss
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
-import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -33,17 +32,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
-    // Gesture detection for pinch-to-zoom and pan
-    private lateinit var scaleGestureDetector: ScaleGestureDetector
-    private lateinit var gestureDetector: GestureDetector
-    private var isZoomGestureActive = false
-    private var currentScale = 1f
-    private var minScale = 0.5f
-    private var maxScale = 3.0f
-    private var lastPanX = 0f
-    private var lastPanY = 0f
-    private val savedMatrix = android.graphics.Matrix()
-
     private var currentDrawMode = DrawMode.PEN
     private var currentTool: ToolType = ToolType.DRAW
     private var currentCropMode: CropMode = CropMode.FREEFORM
@@ -56,6 +44,31 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isMovingCropRect = false
     private var isResizingCropRect = false
     private var resizeHandle: Int = 0 // 0=none, 1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right
+
+    private var scaleFactor = 1f
+    private var translationX = 0f
+    private var translationY = 0f
+    private var isZooming = false
+
+    private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            val previousScaleFactor = scaleFactor
+            scaleFactor *= detector.scaleFactor
+            scaleFactor = scaleFactor.coerceIn(0.5f, 5f)
+
+            val focusX = detector.focusX
+            val focusY = detector.focusY
+
+            translationX = focusX - (focusX - translationX) * (scaleFactor / previousScaleFactor)
+            translationY = focusY - (focusY - translationY) * (scaleFactor / previousScaleFactor)
+
+            invalidate()
+            return true
+        }
+    }
+
+    private val scaleGestureDetector = ScaleGestureDetector(context, scaleListener)
+
 
     // Gesture detection - REMOVED scale detector for crop mode
     private var lastTouchX = 0f
@@ -92,103 +105,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
         cropCornerPaint.alpha = 192 // 75% opacity
-
-        // Initialize gesture detectors
-        scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                if (isZoomGestureActive) {
-                    val scaleFactor = detector.scaleFactor
-                    val newScale = (currentScale * scaleFactor).coerceIn(minScale, maxScale)
-                    
-                    // Apply zoom around the focal point
-                    val focalPointX = detector.focusX
-                    val focalPointY = detector.focusY
-                    
-                    savedMatrix.set(imageMatrix)
-                    val scale = newScale / currentScale
-                    imageMatrix.postScale(scale, scale, focalPointX, focalPointY)
-                    
-                    // Clamp to bounds after scaling
-                    updateImageBounds()
-                    if (isImageWithinBounds()) {
-                        currentScale = newScale
-                        updateImageBounds()
-                        invalidate()
-                    } else {
-                        imageMatrix.set(savedMatrix)
-                    }
-                    return true
-                }
-                return false
-            }
-            
-            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                isZoomGestureActive = true
-                savedMatrix.set(imageMatrix)
-                return true
-            }
-            
-            override fun onScaleEnd(detector: ScaleGestureDetector) {
-                isZoomGestureActive = false
-            }
-        })
-
-        gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-                if (isZoomGestureActive && e1 != null) {
-                    // Two-finger pan
-                    if (e2.pointerCount >= 2) {
-                        val dx = -distanceX
-                        val dy = -distanceY
-                        
-                        val newMatrix = android.graphics.Matrix(imageMatrix)
-                        newMatrix.postTranslate(dx, dy)
-                        
-                        // Check if pan is within bounds
-                        val testBounds = RectF()
-                        newMatrix.mapRect(testBounds, imageBounds)
-                        
-                        if (isPanWithinBounds(testBounds)) {
-                            imageMatrix.set(newMatrix)
-                            lastPanX = e2.x
-                            lastPanY = e2.y
-                            updateImageBounds()
-                            invalidate()
-                            return true
-                        }
-                    }
-                }
-                return super.onScroll(e1, e2, distanceX, distanceY)
-            }
-        })
-    }
-
-    // Helper methods for gesture validation
-    private fun isImageWithinBounds(): Boolean {
-        return imageBounds.left >= -100f && imageBounds.top >= -100f &&
-               imageBounds.right <= width + 100f && imageBounds.bottom <= height + 100f
-    }
-
-    private fun isPanWithinBounds(testBounds: RectF): Boolean {
-        val margin = 50f
-        return testBounds.left >= -margin && testBounds.top >= -margin &&
-               testBounds.right <= width + margin && testBounds.bottom <= height + margin
-    }
-
-    // Reset zoom and pan state
-    private fun resetZoomAndPan() {
-        currentScale = 1f
-        isZoomGestureActive = false
-        savedMatrix.reset()
-        lastPanX = 0f
-        lastPanY = 0f
-    }
-
-    // Public method to reset zoom to fit image
-    fun resetZoom() {
-        resetZoomAndPan()
-        updateImageMatrix()
-        invalidate()
     }
 
     enum class ToolType {
@@ -208,7 +124,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
         background = resources.getDrawable(R.drawable.outer_bounds, null)
 
-        // Reset zoom/pan state when new image is loaded
         resetZoomAndPan()
         updateImageMatrix()
         invalidate()
@@ -353,6 +268,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             initializeDefaultCropRect()
         }
         invalidate()
+    }
+
+    private fun resetZoomAndPan() {
+        scaleFactor = 1f
+        translationX = 0f
+        translationY = 0f
     }
 
     private fun resetCropRect() {
@@ -531,6 +452,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
          override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        canvas.save()
+        canvas.translate(translationX, translationY)
+        canvas.scale(scaleFactor, scaleFactor, width / 2f, height / 2f)
+
         baseBitmap?.let {
             canvas.save()
             canvas.clipRect(imageBounds)
@@ -552,13 +477,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             canvas.drawPath(currentPath, paint)
         }
 
+        baseBitmap?.let {
+            canvas.restore()
+        }
+
+        canvas.restore()
+
         // Draw crop overlay if in crop mode
         if (currentTool == ToolType.CROP && !cropRect.isEmpty) {
             drawCropOverlay(canvas)
-        }
-
-        baseBitmap?.let {
-            canvas.restore()
         }
     }
 
@@ -596,21 +523,19 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val bitmapWidth = it.width.toFloat()
             val bitmapHeight = it.height.toFloat()
 
-            val baseScale: Float
+            val scale: Float
             var dx = 0f
             var dy = 0f
 
-            // Calculate base scale to fit image to screen
             if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
-                baseScale = viewWidth / bitmapWidth
-                dy = (viewHeight - bitmapHeight * baseScale) * 0.5f
+                scale = viewWidth / bitmapWidth
+                dy = (viewHeight - bitmapHeight * scale) * 0.5f
             } else {
-                baseScale = viewHeight / bitmapHeight
-                dx = (viewWidth - bitmapWidth * baseScale) * 0.5f
+                scale = viewHeight / bitmapHeight
+                dx = (viewWidth - bitmapWidth * scale) * 0.5f
             }
 
-            // Apply base scale and translation
-            imageMatrix.setScale(baseScale * currentScale, baseScale * currentScale)
+            imageMatrix.setScale(scale, scale)
             imageMatrix.postTranslate(dx, dy)
 
             imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
@@ -619,18 +544,61 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Check for multi-touch first - if 2+ fingers, route to gesture detectors
-        if (event.pointerCount >= 2) {
-            val consumed = scaleGestureDetector.onTouchEvent(event) || gestureDetector.onTouchEvent(event)
-            if (consumed) {
-                // Gesture was handled, return true to consume the event
-                return true
+        scaleGestureDetector.onTouchEvent(event)
+
+        val x = event.x
+        val y = event.y
+
+        if (scaleGestureDetector.isInProgress || event.pointerCount > 1) {
+            if (!isZooming) { // Start of a multi-touch gesture
+                isZooming = true
+                // Cancel any ongoing single-touch action
+                if (isDrawing) {
+                    isDrawing = false
+                    currentPath.reset()
+                }
+                isCropping = false
+                isMovingCropRect = false
+                isResizingCropRect = false
+                resizeHandle = 0
+                invalidate()
+            }
+
+            // Panning logic (only when not scaling, as scaling includes translation)
+            if (!scaleGestureDetector.isInProgress) {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = x - lastTouchX
+                        val dy = y - lastTouchY
+                        translationX += dx
+                        translationY += dy
+                    }
+                }
+            }
+            lastTouchX = x
+            lastTouchY = y
+            invalidate()
+            return true
+        }
+
+        // Reset isZooming flag when touch is released
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            if (isZooming) {
+                isZooming = false
+                return true // Consume the event
             }
         }
 
-        // For single-touch or when gestures don't handle it, route to existing tools
-        val x = event.x
-        val y = event.y
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            isZooming = false
+        }
+
+        if (isZooming) {
+            lastTouchX = x
+            lastTouchY = y
+            return true
+        }
+
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
@@ -766,16 +734,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     isResizingCropRect = false
                     resizeHandle = 0
                 }
-                isZoomGestureActive = false // Reset gesture state
-                return true
-            }
-            MotionEvent.ACTION_CANCEL -> {
-                isZoomGestureActive = false
-                isDrawing = false
-                isCropping = false
-                isMovingCropRect = false
-                isResizingCropRect = false
-                resizeHandle = 0
                 return true
             }
             else -> return false
