@@ -782,7 +782,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return 3
         }
         // Check bottom-right corner
-        if (Math.abs(x - right) <= cornerSize && Math.abs(y - bottom) <= corner.size) {
+        if (Math.abs(x - right) <= cornerSize && Math.abs(y - bottom) <= cornerSize) {
             return 4
         }
         return 0
