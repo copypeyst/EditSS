@@ -389,7 +389,7 @@
                     android:src="@drawable/cropfreeformicon"
                     android:contentDescription="@string/freeform_crop"
                     android:background="@drawable/tool_button_background"
-                    android:padding="10dp"
+                    android:padding="15dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:scaleType="fitCenter" />
@@ -417,7 +417,7 @@
                     android:src="@drawable/cropsquareicon"
                     android:contentDescription="@string/square_crop"
                     android:background="@drawable/tool_button_background"
-                    android:padding="10dp"
+                    android:padding="15dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:scaleType="fitCenter" />
@@ -445,7 +445,7 @@
                     android:src="@drawable/cropportraiticon"
                     android:contentDescription="@string/portrait_crop"
                     android:background="@drawable/tool_button_background"
-                    android:padding="10dp"
+                    android:padding="15dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:scaleType="fitCenter" />
@@ -472,7 +472,7 @@
                     android:src="@drawable/croplandscapeicon"
                     android:contentDescription="@string/landscape_crop"
                     android:background="@drawable/tool_button_background"
-                    android:padding="10dp"
+                    android:padding="15dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:scaleType="fitCenter" />
