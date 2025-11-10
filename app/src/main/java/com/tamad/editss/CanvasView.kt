@@ -642,27 +642,70 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun getResizeHandle(x: Float, y: Float): Int {
         val cornerSize = 60f
-        val left = cropRect.left
-        val top = cropRect.top
-        val right = cropRect.right
-        val bottom = cropRect.bottom
-
-        if (RectF(left, top, left + cornerSize, top + cornerSize).contains(x, y)) return 1
-        if (RectF(right - cornerSize, top, right, top + cornerSize).contains(x, y)) return 2
-        if (RectF(left, bottom - cornerSize, left + cornerSize, bottom).contains(x, y)) return 3
-        if (RectF(right - cornerSize, bottom - cornerSize, right, bottom).contains(x, y)) return 4
+        if (RectF(cropRect.left, cropRect.top, cropRect.left + cornerSize, cropRect.top + cornerSize).contains(x, y)) return 1
+        if (RectF(cropRect.right - cornerSize, cropRect.top, cropRect.right, cropRect.top + cornerSize).contains(x, y)) return 2
+        if (RectF(cropRect.left, cropRect.bottom - cornerSize, cropRect.left + cornerSize, cropRect.bottom).contains(x, y)) return 3
+        if (RectF(cropRect.right - cornerSize, cropRect.bottom - cornerSize, cropRect.right, cropRect.bottom).contains(x, y)) return 4
         return 0
     }
 
     private fun resizeCropRect(x: Float, y: Float) {
-        // Simplified for debugging
+        val minSize = 50f
+        var newLeft = cropRect.left
+        var newTop = cropRect.top
+        var newRight = cropRect.right
+        var newBottom = cropRect.bottom
+
+        // Update the corner being dragged
         when (resizeHandle) {
-            1 -> { cropRect.left = x; cropRect.top = y }
-            2 -> { cropRect.right = x; cropRect.top = y }
-            3 -> { cropRect.left = x; cropRect.bottom = y }
-            4 -> { cropRect.right = x; cropRect.bottom = y }
+            1 -> { newLeft = x; newTop = y }
+            2 -> { newRight = x; newTop = y }
+            3 -> { newLeft = x; newBottom = y }
+            4 -> { newRight = x; newBottom = y }
         }
-        invalidate()
+
+        // Enforce aspect ratio if not in FREEFORM mode
+        if (currentCropMode != CropMode.FREEFORM) {
+            val aspectRatio = when (currentCropMode) {
+                CropMode.SQUARE -> 1.0f
+                CropMode.PORTRAIT -> 9.0f / 16.0f
+                CropMode.LANDSCAPE -> 16.0f / 9.0f
+                else -> 1.0f // Should not be reached, but required for exhaustive when
+            }
+
+            // Determine the fixed corner opposite the dragged handle
+            val fixedX = if (resizeHandle == 1 || resizeHandle == 3) cropRect.right else cropRect.left
+            val fixedY = if (resizeHandle == 1 || resizeHandle == 2) cropRect.bottom else cropRect.top
+
+            // Calculate desired width and height from the drag point to the fixed corner
+            var desiredWidth = kotlin.math.abs(x - fixedX)
+            var desiredHeight = kotlin.math.abs(y - fixedY)
+
+            // Adjust width or height to match the aspect ratio
+            if (desiredWidth / desiredHeight > aspectRatio) {
+                desiredHeight = (desiredWidth / aspectRatio).toFloat()
+            } else {
+                desiredWidth = (desiredHeight * aspectRatio).toFloat()
+            }
+
+            // Recalculate the new corner positions based on the adjusted width/height
+            when (resizeHandle) {
+                1 -> { newLeft = fixedX - desiredWidth; newTop = fixedY - desiredHeight }
+                2 -> { newRight = fixedX + desiredWidth; newTop = fixedY - desiredHeight }
+                3 -> { newLeft = fixedX - desiredWidth; newBottom = fixedY + desiredHeight }
+                4 -> { newRight = fixedX + desiredWidth; newBottom = fixedY + desiredHeight }
+            }
+        }
+
+        // Enforce minimum size
+        if (newRight - newLeft < minSize) {
+            if (resizeHandle == 1 || resizeHandle == 3) newLeft = newRight - minSize else newRight = newLeft + minSize
+        }
+        if (newBottom - newTop < minSize) {
+            if (resizeHandle == 1 || resizeHandle == 2) newTop = newBottom - minSize else newBottom = newTop + minSize
+        }
+
+        cropRect.set(newLeft, newTop, newRight, newBottom)
     }
 
     private fun updateCropRect(x: Float, y: Float) {
