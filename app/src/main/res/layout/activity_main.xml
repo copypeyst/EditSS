@@ -382,28 +382,22 @@
                 android:layout_marginEnd="5dp"
                 android:orientation="vertical"
                 android:gravity="center">
-                <FrameLayout
+                <ImageView
                     android:id="@+id/crop_mode_freeform"
-                    android:layout_width="65dp"
-                    android:layout_height="65dp"
+                    android:layout_width="85dp"
+                    android:layout_height="75dp"
+                    android:src="@drawable/cropfreeformicon"
+                    android:contentDescription="@string/freeform_crop"
                     android:background="@drawable/tool_button_background"
+                    android:padding="10dp"
                     android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center">
-                    <ImageView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:src="@drawable/cropfreeformicon"
-                        android:contentDescription="@string/freeform_crop"
-                        android:scaleType="fitCenter"
-                        android:padding="16dp" />
-                </FrameLayout>
+                    android:focusable="true" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Freeform"
                     android:textColor="@android:color/white"
-                    android:textSize="12sp"
+                    android:textSize="15sp"
                     android:layout_marginTop="0dp" />
             </LinearLayout>
             
@@ -415,28 +409,22 @@
                 android:layout_marginEnd="5dp"
                 android:orientation="vertical"
                 android:gravity="center">
-                <FrameLayout
+                <ImageView
                     android:id="@+id/crop_mode_square"
-                    android:layout_width="65dp"
-                    android:layout_height="65dp"
+                    android:layout_width="85dp"
+                    android:layout_height="75dp"
+                    android:src="@drawable/cropsquareicon"
+                    android:contentDescription="@string/square_crop"
                     android:background="@drawable/tool_button_background"
+                    android:padding="10dp"
                     android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center">
-                    <ImageView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:src="@drawable/cropsquareicon"
-                        android:contentDescription="@string/square_crop"
-                        android:scaleType="fitCenter"
-                        android:padding="16dp" />
-                </FrameLayout>
+                    android:focusable="true" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="1:1"
                     android:textColor="@android:color/white"
-                    android:textSize="12sp"
+                    android:textSize="15sp"
                     android:layout_marginTop="0dp" />
             </LinearLayout>
             
@@ -448,28 +436,22 @@
                 android:layout_marginEnd="5dp"
                 android:orientation="vertical"
                 android:gravity="center">
-                <FrameLayout
+                <ImageView
                     android:id="@+id/crop_mode_portrait"
-                    android:layout_width="65dp"
-                    android:layout_height="65dp"
+                    android:layout_width="85dp"
+                    android:layout_height="75dp"
+                    android:src="@drawable/cropportraiticon"
+                    android:contentDescription="@string/portrait_crop"
                     android:background="@drawable/tool_button_background"
+                    android:padding="10dp"
                     android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center">
-                    <ImageView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:src="@drawable/cropportraiticon"
-                        android:contentDescription="@string/portrait_crop"
-                        android:scaleType="fitCenter"
-                        android:padding="16dp" />
-                </FrameLayout>
+                    android:focusable="true" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="9:16"
                     android:textColor="@android:color/white"
-                    android:textSize="12sp"
+                    android:textSize="15sp"
                     android:layout_marginTop="0dp" />
             </LinearLayout>
             
@@ -480,28 +462,22 @@
                 android:layout_weight="1"
                 android:orientation="vertical"
                 android:gravity="center">
-                <FrameLayout
+                <ImageView
                     android:id="@+id/crop_mode_landscape"
-                    android:layout_width="65dp"
-                    android:layout_height="65dp"
+                    android:layout_width="85dp"
+                    android:layout_height="75dp"
+                    android:src="@drawable/croplandscapeicon"
+                    android:contentDescription="@string/landscape_crop"
                     android:background="@drawable/tool_button_background"
+                    android:padding="10dp"
                     android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center">
-                    <ImageView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:src="@drawable/croplandscapeicon"
-                        android:contentDescription="@string/landscape_crop"
-                        android:scaleType="fitCenter"
-                        android:padding="16dp" />
-                </FrameLayout>
+                    android:focusable="true" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="16:9"
                     android:textColor="@android:color/white"
-                    android:textSize="12sp"
+                    android:textSize="15sp"
                     android:layout_marginTop="0dp" />
             </LinearLayout>
         </LinearLayout>
