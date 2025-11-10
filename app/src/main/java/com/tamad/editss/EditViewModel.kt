@@ -47,10 +47,16 @@ data class CropAction(
     val cropMode: CropMode // The crop mode used
 )
 
+data class AdjustAction(
+    val previousBitmap: Bitmap,
+    val newBitmap: Bitmap
+)
+
 // Unified action system for both drawing and crop operations
 sealed class EditAction {
     data class Drawing(val action: DrawingAction) : EditAction()
     data class Crop(val action: CropAction) : EditAction()
+    data class Adjust(val action: AdjustAction) : EditAction()
 }
 
 class EditViewModel : ViewModel() {
@@ -78,6 +84,11 @@ class EditViewModel : ViewModel() {
 
     fun pushCropAction(action: CropAction) {
         _undoStack.value = _undoStack.value + EditAction.Crop(action)
+        _redoStack.value = emptyList()
+    }
+
+    fun pushAdjustAction(action: AdjustAction) {
+        _undoStack.value = _undoStack.value + EditAction.Adjust(action)
         _redoStack.value = emptyList()
     }
 

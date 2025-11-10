@@ -533,11 +533,16 @@ class MainActivity : AppCompatActivity() {
         })
 
         buttonAdjustApply.setOnClickListener {
-            val adjustedBitmap = drawingView.applyAdjustmentsToBitmap()
-            if (adjustedBitmap != null) {
-                drawingView.setBitmap(adjustedBitmap)
+            val previousBitmap = drawingView.getBaseBitmap()
+            val newBitmap = drawingView.applyAdjustmentsToBitmap()
+
+            if (previousBitmap != null && newBitmap != null) {
+                val action = AdjustAction(previousBitmap, newBitmap)
+                editViewModel.pushAdjustAction(action)
+                drawingView.setBitmap(newBitmap)
                 Toast.makeText(this, "Adjustments applied", Toast.LENGTH_SHORT).show()
             }
+
             editViewModel.resetAdjustments()
             brightnessSlider.progress = 50
             contrastSlider.progress = 50
@@ -608,16 +613,18 @@ class MainActivity : AppCompatActivity() {
 
         // Connect undo/redo action handlers to CanvasView
         drawingView.onUndoAction = { action ->
-            // Handle undo action for crop operations
-            if (action is EditAction.Crop) {
-                drawingView.handleCropUndo(action.action)
+            when (action) {
+                is EditAction.Crop -> drawingView.handleCropUndo(action.action)
+                is EditAction.Adjust -> drawingView.handleAdjustUndo(action.action)
+                else -> { /* Do nothing for drawing actions as they are handled by setPaths */ }
             }
         }
 
         drawingView.onRedoAction = { action ->
-            // Handle redo action for crop operations
-            if (action is EditAction.Crop) {
-                drawingView.handleCropRedo(action.action)
+            when (action) {
+                is EditAction.Crop -> drawingView.handleCropRedo(action.action)
+                is EditAction.Adjust -> drawingView.handleAdjustRedo(action.action)
+                else -> { /* Do nothing for drawing actions as they are handled by setPaths */ }
             }
         }
 

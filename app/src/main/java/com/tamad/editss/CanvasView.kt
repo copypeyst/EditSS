@@ -115,6 +115,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
 
+    fun getBaseBitmap(): Bitmap? = baseBitmap
+
     // Handle undo/redo operations for the unified action system
     fun handleUndo(actions: List<EditAction>) {
         // Extract only drawing actions from the unified action list
@@ -182,6 +184,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
+    fun handleAdjustUndo(action: AdjustAction) {
+        baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        updateImageMatrix()
+        invalidate()
+    }
+
+    fun handleAdjustRedo(action: AdjustAction) {
+        baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        updateImageMatrix()
+        invalidate()
+    }
+
     // Process a single action for undo
     fun processUndoAction(action: EditAction) {
         when (action) {
@@ -191,6 +205,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
             is EditAction.Crop -> {
                 handleCropUndo(action.action)
+            }
+            is EditAction.Adjust -> {
+                handleAdjustUndo(action.action)
             }
         }
     }
@@ -204,6 +221,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
             is EditAction.Crop -> {
                 handleCropRedo(action.action)
+            }
+            is EditAction.Adjust -> {
+                handleAdjustRedo(action.action)
             }
         }
     }
