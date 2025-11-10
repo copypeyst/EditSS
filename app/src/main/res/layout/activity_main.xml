@@ -499,7 +499,7 @@
             <Button
                 android:id="@+id/button_crop_cancel"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="50dp"
                 android:layout_weight="1"
                 android:text="@string/cancel"
                 android:layout_marginEnd="8dp"
@@ -508,7 +508,7 @@
             <Button
                 android:id="@+id/button_crop_apply"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="50dp"
                 android:layout_weight="1"
                 android:text="@string/apply"
                 android:layout_marginStart="8dp"
@@ -540,7 +540,7 @@
                 <Button
                     android:id="@+id/button_adjust_cancel"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="50dp"
                     android:layout_weight="1"
                     android:text="@string/cancel"
                     android:layout_marginEnd="8dp"
@@ -549,7 +549,7 @@
                 <Button
                     android:id="@+id/button_adjust_apply"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="50dp"
                     android:layout_weight="1"
                     android:text="@string/apply"
                     android:layout_marginStart="8dp"
