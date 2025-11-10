@@ -66,6 +66,23 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val PERMISSION_REQUEST_CODE = 100
+        private const val MAX_UNDO_BITMAP_SIZE = 256 // Max size for longest side of downsampled bitmaps
+    }
+
+    private fun downsampleBitmap(bitmap: Bitmap, maxSize: Int): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+
+        val bitmapMaxSide = maxOf(width, height)
+        if (bitmapMaxSide <= maxSize) {
+            return bitmap // No downsampling needed
+        }
+
+        val scale = maxSize.toFloat() / bitmapMaxSide
+        val newWidth = (width * scale).toInt()
+        val newHeight = (height * scale).toInt()
+
+        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
     }
 
     private lateinit var rootLayout: FrameLayout
@@ -537,7 +554,9 @@ class MainActivity : AppCompatActivity() {
             val newBitmap = drawingView.applyAdjustmentsToBitmap()
 
             if (previousBitmap != null && newBitmap != null) {
-                val action = AdjustAction(previousBitmap, newBitmap)
+                val downsampledPreviousBitmap = downsampleBitmap(previousBitmap, MAX_UNDO_BITMAP_SIZE)
+                val downsampledNewBitmap = downsampleBitmap(newBitmap, MAX_UNDO_BITMAP_SIZE)
+                val action = AdjustAction(downsampledPreviousBitmap, downsampledNewBitmap)
                 editViewModel.pushAdjustAction(action)
                 drawingView.setBitmap(newBitmap)
                 Toast.makeText(this, "Adjustments applied", Toast.LENGTH_SHORT).show()
