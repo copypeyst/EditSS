@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/rounded_base_background" />
     <item android:drawable="@drawable/selected_state_drawable" />
     <item android:drawable="@drawable/ripple_effect" />
 </layer-list>
