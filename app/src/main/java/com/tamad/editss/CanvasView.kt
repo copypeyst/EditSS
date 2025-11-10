@@ -212,7 +212,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (baseBitmap == null) return
 
         // For real-time preview, we modify the current baseBitmap
-        val adjustedBitmap = applyImageAdjustments(baseBitmap!!, adjustState)
+        val adjustedBitmap = this.applyImageAdjustments(baseBitmap!!, adjustState)
         baseBitmap = adjustedBitmap
         updateImageMatrix()
         invalidate()
@@ -226,7 +226,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
 
         // Apply the adjustments
-        val adjustedBitmap = applyImageAdjustments(baseBitmap!!, adjustState)
+        val adjustedBitmap = this.applyImageAdjustments(baseBitmap!!, adjustState)
         baseBitmap = adjustedBitmap
 
         // Create adjust action for undo/redo
@@ -235,8 +235,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             adjustState = adjustState
         )
 
-        // Notify about the adjustment action (this would be called from MainActivity)
-        // onAdjustAction?.invoke(adjustAction)
+        // Notify about the adjustment action
+        onAdjustAction?.invoke(adjustAction)
 
         updateImageMatrix()
         invalidate()
@@ -251,7 +251,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     // Handle adjust redo - reapply the adjustment
     fun handleAdjustRedo(adjustAction: AdjustAction) {
-        val adjustedBitmap = applyImageAdjustments(baseBitmap!!, adjustAction.adjustState)
+        val adjustedBitmap = this.applyImageAdjustments(baseBitmap!!, adjustAction.adjustState)
         baseBitmap = adjustedBitmap
         updateImageMatrix()
         invalidate()
@@ -852,7 +852,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 colorMatrix.setSaturation(adjustState.saturation)
         
                 // Apply contrast (0.0 = black, 1.0 = original, 2.0 = enhanced)
-                val contrast = adjustState.coerceAtLeast(0.0f).coerceAtMost(2.0f)
+                val contrast = if (adjustState.contrast < 0.0f) 0.0f else if (adjustState.contrast > 2.0f) 2.0f else adjustState.contrast
                 val contrastMatrix = ColorMatrix()
                 contrastMatrix.set(floatArrayOf(
                     contrast, 0f, 0f, 0f, 0f,  // Red
@@ -863,7 +863,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 colorMatrix.postConcat(contrastMatrix)
         
                 // Apply brightness (-100 to 100)
-                val brightness = adjustState.brightness.coerceAtLeast(-100f).coerceAtMost(100f) / 100f * 128f
+                val brightnessValue = if (adjustState.brightness < -100f) -100f else if (adjustState.brightness > 100f) 100f else adjustState.brightness
+                val brightness = brightnessValue / 100f * 128f
                 val brightnessMatrix = ColorMatrix()
                 brightnessMatrix.set(floatArrayOf(
                     1f, 0f, 0f, 0f, brightness,  // Red

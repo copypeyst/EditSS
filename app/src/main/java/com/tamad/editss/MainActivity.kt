@@ -564,6 +564,11 @@ class MainActivity : AppCompatActivity() {
             editViewModel.pushCropAction(cropAction)
         }
 
+        // Connect adjust actions to ViewModel
+        drawingView.onAdjustAction = { adjustAction ->
+            editViewModel.pushAdjustAction(adjustAction)
+        }
+
         // Connect undo/redo action handlers to CanvasView
         drawingView.onUndoAction = { action ->
             // Handle undo action for crop operations
@@ -1622,20 +1627,6 @@ class MainActivity : AppCompatActivity() {
 
         // Apply adjustments and create action for undo/redo
         drawingView.applyAdjustmentsWithAction(adjustState)
-        
-        // Notify ViewModel about the adjustment action
-        lifecycleScope.launch {
-            val currentBitmap = drawingView.getDrawing()
-            if (currentBitmap != null) {
-                val adjustAction = AdjustAction(
-                    previousBitmap = currentBitmap, // This would be the bitmap before adjustment
-                    adjustState = adjustState
-                )
-                // Note: We need to get the previous bitmap from the CanvasView
-                // For now, we'll use the current bitmap as a fallback
-                editViewModel.pushAdjustAction(adjustAction)
-            }
-        }
 
         Toast.makeText(this, "Adjustments applied", Toast.LENGTH_SHORT).show()
     }
