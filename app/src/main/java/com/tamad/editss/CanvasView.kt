@@ -344,7 +344,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         
         // Create crop action for undo/redo
         val cropAction = CropAction(
-            previousBitmap = downsampledPreviousBitmap,
+            previousBitmap = previousBitmap,
             cropRect = android.graphics.RectF(cropRect),
             cropMode = currentCropMode
         )
