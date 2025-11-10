@@ -389,15 +389,16 @@
                     android:src="@drawable/cropfreeformicon"
                     android:contentDescription="@string/freeform_crop"
                     android:background="@drawable/tool_button_background"
-                    android:padding="10dp"
+                    android:padding="20dp"
                     android:clickable="true"
-                    android:focusable="true" />
+                    android:focusable="true"
+                    android:scaleType="centerInside" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Freeform"
                     android:textColor="@android:color/white"
-                    android:textSize="15sp"
+                    android:textSize="12sp"
                     android:layout_marginTop="0dp" />
             </LinearLayout>
             
@@ -416,15 +417,16 @@
                     android:src="@drawable/cropsquareicon"
                     android:contentDescription="@string/square_crop"
                     android:background="@drawable/tool_button_background"
-                    android:padding="10dp"
+                    android:padding="20dp"
                     android:clickable="true"
-                    android:focusable="true" />
+                    android:focusable="true"
+                    android:scaleType="centerInside" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="1:1"
                     android:textColor="@android:color/white"
-                    android:textSize="15sp"
+                    android:textSize="12sp"
                     android:layout_marginTop="0dp" />
             </LinearLayout>
             
@@ -443,15 +445,16 @@
                     android:src="@drawable/cropportraiticon"
                     android:contentDescription="@string/portrait_crop"
                     android:background="@drawable/tool_button_background"
-                    android:padding="10dp"
+                    android:padding="20dp"
                     android:clickable="true"
-                    android:focusable="true" />
+                    android:focusable="true"
+                    android:scaleType="centerInside" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="9:16"
                     android:textColor="@android:color/white"
-                    android:textSize="15sp"
+                    android:textSize="12sp"
                     android:layout_marginTop="0dp" />
             </LinearLayout>
             
@@ -469,15 +472,16 @@
                     android:src="@drawable/croplandscapeicon"
                     android:contentDescription="@string/landscape_crop"
                     android:background="@drawable/tool_button_background"
-                    android:padding="10dp"
+                    android:padding="20dp"
                     android:clickable="true"
-                    android:focusable="true" />
+                    android:focusable="true"
+                    android:scaleType="centerInside" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="16:9"
                     android:textColor="@android:color/white"
-                    android:textSize="15sp"
+                    android:textSize="12sp"
                     android:layout_marginTop="0dp" />
             </LinearLayout>
         </LinearLayout>
