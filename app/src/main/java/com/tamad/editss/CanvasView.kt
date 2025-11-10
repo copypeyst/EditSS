@@ -835,7 +835,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         
             // Apply brightness, contrast, and saturation to a bitmap using ColorMatrix
-            private fun applyImageAdjustments(sourceBitmap: Bitmap, adjustState: AdjustState): Bitmap {
+            fun applyImageAdjustments(sourceBitmap: Bitmap, adjustState: AdjustState): Bitmap {
                 if (sourceBitmap.isRecycled) return sourceBitmap
         
                 val width = sourceBitmap.width
@@ -852,7 +852,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 colorMatrix.setSaturation(adjustState.saturation)
         
                 // Apply contrast (0.0 = black, 1.0 = original, 2.0 = enhanced)
-                val contrast = adjustState.coerceIn(0.0f, 2.0f)
+                val contrast = adjustState.coerceAtLeast(0.0f).coerceAtMost(2.0f)
                 val contrastMatrix = ColorMatrix()
                 contrastMatrix.set(floatArrayOf(
                     contrast, 0f, 0f, 0f, 0f,  // Red
@@ -863,7 +863,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 colorMatrix.postConcat(contrastMatrix)
         
                 // Apply brightness (-100 to 100)
-                val brightness = adjustState.brightness.coerceIn(-100f, 100f) / 100f * 128f
+                val brightness = adjustState.brightness.coerceAtLeast(-100f).coerceAtMost(100f) / 100f * 128f
                 val brightnessMatrix = ColorMatrix()
                 brightnessMatrix.set(floatArrayOf(
                     1f, 0f, 0f, 0f, brightness,  // Red

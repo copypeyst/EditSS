@@ -54,11 +54,6 @@ data class AdjustAction(
     val adjustState: AdjustState // The adjustment state that was applied
 )
 
-data class AdjustAction(
-    val previousBitmap: Bitmap, // The bitmap state before the adjustment
-    val adjustState: AdjustState // The adjustment state that was applied
-)
-
 // Unified action system for both drawing and crop operations
 sealed class EditAction {
     data class Drawing(val action: DrawingAction) : EditAction()
