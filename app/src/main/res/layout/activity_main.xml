@@ -466,7 +466,7 @@
                 android:id="@+id/crop_mode_landscape"
                 android:layout_width="0dp"
                 android:layout_height="135dp"
-                android.layout_weight="1"
+                android:layout_weight="1"
                 android:orientation="vertical"
                 android:gravity="center"
                 android:background="@drawable/crop_button_background"
