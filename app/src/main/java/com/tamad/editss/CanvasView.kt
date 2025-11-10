@@ -346,12 +346,22 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Store the previous bitmap state for undo/redo
         val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
 
-        // Map crop rectangle from screen coordinates to image coordinates
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
+        // Create an inverse of the total transformation matrix (pan, zoom, and initial fit)
+        val inverseTotalMatrix = Matrix()
 
-        val imageCropRect = RectF()
-        inverseMatrix.mapRect(imageCropRect, cropRect)
+        // Invert canvas scale and translation
+        inverseTotalMatrix.postScale(1/scaleFactor, 1/scaleFactor)
+        inverseTotalMatrix.postTranslate(-translationX, -translationY)
+
+        // Invert initial imageMatrix
+        val invertedImageMatrix = Matrix()
+        imageMatrix.invert(invertedImageMatrix)
+        inverseTotalMatrix.postConcat(invertedImageMatrix)
+
+        // Map the screen-space crop rectangle to the bitmap's coordinate space
+        val imageCropRect = RectF(cropRect)
+        inverseTotalMatrix.mapRect(imageCropRect)
+
 
         // Clamp to image bounds
         val left = imageCropRect.left.coerceIn(0f, baseBitmap!!.width.toFloat())
@@ -454,7 +464,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         super.onDraw(canvas)
         canvas.save()
         canvas.translate(translationX, translationY)
-        canvas.scale(scaleFactor, scaleFactor, width / 2f, height / 2f)
+        canvas.scale(scaleFactor, scaleFactor)
 
         baseBitmap?.let {
             canvas.save()
@@ -543,6 +553,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
+    private fun screenToCanvas(x: Float, y: Float): PointF {
+        val newX = (x - translationX) / scaleFactor
+        val newY = (y - translationY) / scaleFactor
+        return PointF(newX, newY)
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         scaleGestureDetector.onTouchEvent(event)
 
@@ -606,12 +622,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 lastTouchY = y
 
                 if (currentTool == ToolType.DRAW) {
+                    val transformedPoint = screenToCanvas(x, y)
                     isDrawing = true
-                    startX = x
-                    startY = y
+                    startX = transformedPoint.x
+                    startY = transformedPoint.y
                     currentPath.reset()
                     if (currentDrawMode == DrawMode.PEN) {
-                        currentPath.moveTo(x, y)
+                        currentPath.moveTo(transformedPoint.x, transformedPoint.y)
                     }
                 } else if (currentTool == ToolType.CROP) {
                     // Check if touch is on a corner (for resizing) - only if rectangle exists
@@ -656,17 +673,20 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             MotionEvent.ACTION_MOVE -> {
                 if (currentTool == ToolType.DRAW) {
                     if (!isDrawing) return false
+                    val transformedPoint = screenToCanvas(x, y)
+                    val tx = transformedPoint.x
+                    val ty = transformedPoint.y
                     if (currentDrawMode == DrawMode.PEN) {
-                        currentPath.lineTo(x, y)
+                        currentPath.lineTo(tx, ty)
                     } else {
                         currentPath.reset()
                         when (currentDrawMode) {
                             DrawMode.CIRCLE -> {
-                                val radius = Math.sqrt(Math.pow((startX - x).toDouble(), 2.0) + Math.pow((startY - y).toDouble(), 2.0)).toFloat()
+                                val radius = Math.sqrt(Math.pow((startX - tx).toDouble(), 2.0) + Math.pow((startY - ty).toDouble(), 2.0)).toFloat()
                                 currentPath.addCircle(startX, startY, radius, Path.Direction.CW)
                             }
                             DrawMode.SQUARE -> {
-                                currentPath.addRect(startX, startY, x, y, Path.Direction.CW)
+                                currentPath.addRect(startX, startY, tx, ty, Path.Direction.CW)
                             }
                             else -> {}
                         }
@@ -762,7 +782,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return 3
         }
         // Check bottom-right corner
-        if (Math.abs(x - right) <= cornerSize && Math.abs(y - bottom) <= cornerSize) {
+        if (Math.abs(x - right) <= cornerSize && Math.abs(y - bottom) <= corner.size) {
             return 4
         }
         return 0
