@@ -13,6 +13,7 @@ import com.tamad.editss.DrawingAction
 import com.tamad.editss.CropMode
 import com.tamad.editss.CropAction
 import com.tamad.editss.EditAction
+import com.tamad.editss.AdjustState
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -53,6 +54,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onCropAction: ((CropAction) -> Unit)? = null // New callback for crop actions
+    var onAdjustAction: ((AdjustAction) -> Unit)? = null // New callback for adjust actions
     var onUndoAction: ((EditAction) -> Unit)? = null // Callback for undo operations
     var onRedoAction: ((EditAction) -> Unit)? = null // Callback for redo operations
 
@@ -75,7 +77,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     enum class ToolType {
         DRAW,
-        CROP
+        CROP,
+        ADJUST
     }
 
     fun setDrawingState(drawingState: DrawingState) {
@@ -182,6 +185,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             is EditAction.Crop -> {
                 handleCropUndo(action.action)
             }
+            is EditAction.Adjust -> {
+                handleAdjustUndo(action.action)
+            }
         }
     }
 
@@ -195,7 +201,60 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             is EditAction.Crop -> {
                 handleCropRedo(action.action)
             }
+            is EditAction.Adjust -> {
+                handleAdjustRedo(action.action)
+            }
         }
+    }
+
+    // Apply adjustments to the current bitmap (for real-time preview)
+    fun applyAdjustments(adjustState: AdjustState) {
+        if (baseBitmap == null) return
+
+        // For real-time preview, we modify the current baseBitmap
+        val adjustedBitmap = applyImageAdjustments(baseBitmap!!, adjustState)
+        baseBitmap = adjustedBitmap
+        updateImageMatrix()
+        invalidate()
+    }
+
+    // Apply adjustments and create an action for undo/redo
+    fun applyAdjustmentsWithAction(adjustState: AdjustState) {
+        if (baseBitmap == null) return
+
+        // Store the previous bitmap state for undo/redo
+        val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+
+        // Apply the adjustments
+        val adjustedBitmap = applyImageAdjustments(baseBitmap!!, adjustState)
+        baseBitmap = adjustedBitmap
+
+        // Create adjust action for undo/redo
+        val adjustAction = AdjustAction(
+            previousBitmap = previousBitmap,
+            adjustState = adjustState
+        )
+
+        // Notify about the adjustment action (this would be called from MainActivity)
+        // onAdjustAction?.invoke(adjustAction)
+
+        updateImageMatrix()
+        invalidate()
+    }
+
+    // Handle adjust undo - restore previous bitmap state
+    fun handleAdjustUndo(adjustAction: AdjustAction) {
+        baseBitmap = adjustAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        updateImageMatrix()
+        invalidate()
+    }
+
+    // Handle adjust redo - reapply the adjustment
+    fun handleAdjustRedo(adjustAction: AdjustAction) {
+        val adjustedBitmap = applyImageAdjustments(baseBitmap!!, adjustAction.adjustState)
+        baseBitmap = adjustedBitmap
+        updateImageMatrix()
+        invalidate()
     }
 
     fun setToolType(toolType: ToolType) {
@@ -773,6 +832,54 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     newRight = fixedX + desiredWidth
                     newBottom = fixedY + desiredHeight
                 }
+            }
+        
+            // Apply brightness, contrast, and saturation to a bitmap using ColorMatrix
+            private fun applyImageAdjustments(sourceBitmap: Bitmap, adjustState: AdjustState): Bitmap {
+                if (sourceBitmap.isRecycled) return sourceBitmap
+        
+                val width = sourceBitmap.width
+                val height = sourceBitmap.height
+        
+                val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(resultBitmap)
+                val paint = Paint()
+        
+                // Create ColorMatrix for adjustments
+                val colorMatrix = ColorMatrix()
+        
+                // Apply saturation (0.0 = grayscale, 1.0 = original, 2.0 = enhanced)
+                colorMatrix.setSaturation(adjustState.saturation)
+        
+                // Apply contrast (0.0 = black, 1.0 = original, 2.0 = enhanced)
+                val contrast = adjustState.coerceIn(0.0f, 2.0f)
+                val contrastMatrix = ColorMatrix()
+                contrastMatrix.set(floatArrayOf(
+                    contrast, 0f, 0f, 0f, 0f,  // Red
+                    0f, contrast, 0f, 0f, 0f,  // Green
+                    0f, 0f, contrast, 0f, 0f,  // Blue
+                    0f, 0f, 0f, 1f, 0f         // Alpha
+                ))
+                colorMatrix.postConcat(contrastMatrix)
+        
+                // Apply brightness (-100 to 100)
+                val brightness = adjustState.brightness.coerceIn(-100f, 100f) / 100f * 128f
+                val brightnessMatrix = ColorMatrix()
+                brightnessMatrix.set(floatArrayOf(
+                    1f, 0f, 0f, 0f, brightness,  // Red
+                    0f, 1f, 0f, 0f, brightness,  // Green
+                    0f, 0f, 1f, 0f, brightness,  // Blue
+                    0f, 0f, 0f, 1f, 0f           // Alpha
+                ))
+                colorMatrix.postConcat(brightnessMatrix)
+        
+                // Apply the ColorMatrix to the paint
+                paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+        
+                // Draw the original bitmap with the adjusted paint
+                canvas.drawBitmap(sourceBitmap, 0f, 0f, paint)
+        
+                return resultBitmap
             }
         }
 

@@ -521,16 +521,45 @@
         <LinearLayout
             android:id="@+id/adjust_options"
             android:layout_width="match_parent"
-            android:layout_height="140dp"
+            android:layout_height="170dp"
             android:orientation="vertical"
             android:gravity="center_vertical"
             android:visibility="gone">
+            
+            <!-- Adjustment Sliders -->
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/brightness" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
             <SeekBar android:id="@+id/adjust_brightness_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="4dp"/>
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/contrast" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
             <SeekBar android:id="@+id/adjust_contrast_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="4dp"/>
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/saturation" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
-            <SeekBar android:id="@+id/adjust_saturation_slider" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <SeekBar android:id="@+id/adjust_saturation_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp"/>
+            
+            <!-- Apply/Cancel Buttons -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginTop="4dp">
+                <Button
+                    android:id="@+id/button_adjust_cancel"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/cancel"
+                    android:layout_marginEnd="8dp"
+                    android:backgroundTint="@color/button_background"
+                    android:textColor="@android:color/white"/>
+                <Button
+                    android:id="@+id/button_adjust_apply"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/apply"
+                    android:layout_marginStart="8dp"
+                    android:backgroundTint="?attr/colorSecondary"
+                    android:textColor="?attr/colorOnSecondary"/>
+            </LinearLayout>
         </LinearLayout>
 
     </LinearLayout>

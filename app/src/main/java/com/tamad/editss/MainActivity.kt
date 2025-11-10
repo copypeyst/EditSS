@@ -43,6 +43,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
+import com.tamad.editss.AdjustAction
+import android.graphics.ColorMatrix
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -77,6 +79,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adjustOptionsLayout: LinearLayout
     private lateinit var scrim: View
     private lateinit var transparencyWarningText: TextView
+
+    // Adjust tool sliders
+    private lateinit var brightnessSlider: SeekBar
+    private lateinit var contrastSlider: SeekBar
+    private lateinit var saturationSlider: SeekBar
+
+    // Adjust tool buttons
+    private lateinit var adjustApplyButton: Button
+    private lateinit var adjustCancelButton: Button
 
     private var currentActiveTool: ImageView? = null
 
@@ -212,6 +223,15 @@ class MainActivity : AppCompatActivity() {
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         scrim = findViewById(R.id.scrim)
         transparencyWarningText = findViewById(R.id.transparency_warning_text)
+
+        // Initialize adjust sliders
+        brightnessSlider = findViewById(R.id.adjust_brightness_slider)
+        contrastSlider = findViewById(R.id.adjust_contrast_slider)
+        saturationSlider = findViewById(R.id.adjust_saturation_slider)
+
+        // Initialize adjust buttons
+        adjustApplyButton = findViewById(R.id.button_adjust_apply)
+        adjustCancelButton = findViewById(R.id.button_adjust_cancel)
         
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
@@ -322,7 +342,8 @@ class MainActivity : AppCompatActivity() {
             drawOptionsLayout.visibility = View.GONE
             cropOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
-            drawingView.visibility = View.GONE // Hide drawing view
+            drawingView.visibility = View.VISIBLE // Show drawing view for real-time preview
+            drawingView.setToolType(CanvasView.ToolType.ADJUST) // Set adjust mode
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
@@ -483,10 +504,11 @@ class MainActivity : AppCompatActivity() {
             currentCropMode = null
         }
 
-        // Initialize Adjust Options (no logic yet)
-        findViewById<SeekBar>(R.id.adjust_brightness_slider)
-        findViewById<SeekBar>(R.id.adjust_contrast_slider)
-        findViewById<SeekBar>(R.id.adjust_saturation_slider)
+        // Initialize Adjust Options
+        setupAdjustSliders()
+
+        // Setup adjust button handlers
+        setupAdjustButtonHandlers()
 
         // Color Swatches Logic
         val colorBlackContainer: FrameLayout = findViewById(R.id.color_black_container)
@@ -1504,4 +1526,135 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --- END: ADDED FOR OVERWRITE FIX ---
+
+    // Setup adjust sliders with listeners
+    private fun setupAdjustSliders() {
+        // Set slider ranges: brightness (-100 to 100), contrast & saturation (0 to 200, map to 0.0-2.0)
+        brightnessSlider.max = 200 // -100 to 100
+        contrastSlider.max = 200 // 0 to 200 (map to 0.0-2.0)
+        saturationSlider.max = 200 // 0 to 200 (map to 0.0-2.0)
+
+        // Set default positions (center for brightness, 100 for contrast/saturation)
+        brightnessSlider.progress = 100 // 0 (no change)
+        contrastSlider.progress = 100 // 1.0 (no change)
+        saturationSlider.progress = 100 // 1.0 (no change)
+
+        // Brightness slider listener
+        brightnessSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    // Convert: 0-200 -> -100 to 100
+                    val brightness = (progress - 100).toFloat()
+                    editViewModel.updateBrightness(brightness)
+                    updateCanvasWithAdjustments()
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        // Contrast slider listener
+        contrastSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    // Convert: 0-200 -> 0.0 to 2.0
+                    val contrast = progress / 100f
+                    editViewModel.updateContrast(contrast)
+                    updateCanvasWithAdjustments()
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        // Saturation slider listener
+        saturationSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    // Convert: 0-200 -> 0.0 to 2.0
+                    val saturation = progress / 100f
+                    editViewModel.updateSaturation(saturation)
+                    updateCanvasWithAdjustments()
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        // Update sliders when ViewModel state changes (e.g., when loading new image)
+        lifecycleScope.launch {
+            editViewModel.adjustState.collect { adjustState ->
+                brightnessSlider.progress = (adjustState.brightness + 100).toInt()
+                contrastSlider.progress = (adjustState.contrast * 100).toInt()
+                saturationSlider.progress = (adjustState.saturation * 100).toInt()
+            }
+        }
+    }
+
+    // Update canvas with current adjustments (for real-time preview)
+    private fun updateCanvasWithAdjustments() {
+        lifecycleScope.launch {
+            val adjustState = editViewModel.adjustState.value
+            drawingView.applyAdjustments(adjustState)
+        }
+    }
+
+    // Setup adjust button handlers
+    private fun setupAdjustButtonHandlers() {
+        adjustApplyButton.setOnClickListener {
+            applyAdjustments()
+        }
+
+        adjustCancelButton.setOnClickListener {
+            cancelAdjustments()
+        }
+    }
+
+    // Apply the current adjustments and add to undo stack
+    private fun applyAdjustments() {
+        val adjustState = editViewModel.adjustState.value
+        
+        // Check if any adjustments were made (not default values)
+        if (adjustState.brightness == 0f && adjustState.contrast == 1.0f && adjustState.saturation == 1.0f) {
+            Toast.makeText(this, "No adjustments to apply", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Apply adjustments and create action for undo/redo
+        drawingView.applyAdjustmentsWithAction(adjustState)
+        
+        // Notify ViewModel about the adjustment action
+        lifecycleScope.launch {
+            val currentBitmap = drawingView.getDrawing()
+            if (currentBitmap != null) {
+                val adjustAction = AdjustAction(
+                    previousBitmap = currentBitmap, // This would be the bitmap before adjustment
+                    adjustState = adjustState
+                )
+                // Note: We need to get the previous bitmap from the CanvasView
+                // For now, we'll use the current bitmap as a fallback
+                editViewModel.pushAdjustAction(adjustAction)
+            }
+        }
+
+        Toast.makeText(this, "Adjustments applied", Toast.LENGTH_SHORT).show()
+    }
+
+    // Cancel adjustments and reset sliders to default values
+    private fun cancelAdjustments() {
+        // Reset sliders to default values
+        brightnessSlider.progress = 100 // 0 brightness
+        contrastSlider.progress = 100 // 1.0 contrast
+        saturationSlider.progress = 100 // 1.0 saturation
+        
+        // Update ViewModel state
+        editViewModel.updateBrightness(0f)
+        editViewModel.updateContrast(1.0f)
+        editViewModel.updateSaturation(1.0f)
+        
+        // Reset canvas to original image
+        updateCanvasWithAdjustments()
+        
+        Toast.makeText(this, "Adjustments cancelled", Toast.LENGTH_SHORT).show()
+    }
 }
