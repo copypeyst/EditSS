@@ -661,6 +661,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         var newRight = cropRect.right
         var newBottom = cropRect.bottom
 
+        // Update the corner being dragged
         when (resizeHandle) {
             1 -> { newLeft = x; newTop = y }
             2 -> { newRight = x; newTop = y }
@@ -668,24 +669,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             4 -> { newRight = x; newBottom = y }
         }
 
+        // Enforce aspect ratio if not FREEFORM
         if (currentCropMode != CropMode.FREEFORM) {
             val aspectRatio = when (currentCropMode) {
-                CropMode.SQUARE -> 1f
-                CropMode.PORTRAIT -> 9f / 16f
-                CropMode.LANDSCAPE -> 16f / 9f
-                else -> 0f
+                CropMode.SQUARE -> 1.0f
+                CropMode.PORTRAIT -> 9.0f / 16.0f
+                CropMode.LANDSCAPE -> 16.0f / 9.0f
+                else -> 1.0f // Should not be reached due to the outer if, but required for exhaustive when
             }
 
-            val fixedX = when(resizeHandle) { 1, 3 -> cropRect.right else -> cropRect.left }
-            val fixedY = when(resizeHandle) { 1, 2 -> cropRect.bottom else -> cropRect.top }
+            val fixedX = if (resizeHandle == 1 || resizeHandle == 3) cropRect.right else cropRect.left
+            val fixedY = if (resizeHandle == 1 || resizeHandle == 2) cropRect.bottom else cropRect.top
 
             var desiredWidth = kotlin.math.abs(x - fixedX)
             var desiredHeight = kotlin.math.abs(y - fixedY)
 
             if (desiredWidth / desiredHeight > aspectRatio) {
-                desiredHeight = desiredWidth / aspectRatio
+                desiredHeight = (desiredWidth / aspectRatio).toFloat()
             } else {
-                desiredWidth = desiredHeight * aspectRatio
+                desiredWidth = (desiredHeight * aspectRatio).toFloat()
             }
 
             when (resizeHandle) {
@@ -696,6 +698,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
 
+        // Enforce min size
         if (newRight - newLeft < minSize) {
             if (resizeHandle == 1 || resizeHandle == 3) newLeft = newRight - minSize else newRight = newLeft + minSize
         }
