@@ -834,55 +834,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 }
             }
         
-            // Apply brightness, contrast, and saturation to a bitmap using ColorMatrix
-            fun applyImageAdjustments(sourceBitmap: Bitmap, adjustState: AdjustState): Bitmap {
-                if (sourceBitmap.isRecycled) return sourceBitmap
-        
-                val width = sourceBitmap.width
-                val height = sourceBitmap.height
-        
-                val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                val canvas = Canvas(resultBitmap)
-                val paint = Paint()
-        
-                // Create ColorMatrix for adjustments
-                val colorMatrix = ColorMatrix()
-        
-                // Apply saturation (0.0 = grayscale, 1.0 = original, 2.0 = enhanced)
-                colorMatrix.setSaturation(adjustState.saturation)
-        
-                // Apply contrast (0.0 = black, 1.0 = original, 2.0 = enhanced)
-                val contrast = if (adjustState.contrast < 0.0f) 0.0f else if (adjustState.contrast > 2.0f) 2.0f else adjustState.contrast
-                val contrastMatrix = ColorMatrix()
-                contrastMatrix.set(floatArrayOf(
-                    contrast, 0f, 0f, 0f, 0f,  // Red
-                    0f, contrast, 0f, 0f, 0f,  // Green
-                    0f, 0f, contrast, 0f, 0f,  // Blue
-                    0f, 0f, 0f, 1f, 0f         // Alpha
-                ))
-                colorMatrix.postConcat(contrastMatrix)
-        
-                // Apply brightness (-100 to 100)
-                val brightnessValue = if (adjustState.brightness < -100f) -100f else if (adjustState.brightness > 100f) 100f else adjustState.brightness
-                val brightness = brightnessValue / 100f * 128f
-                val brightnessMatrix = ColorMatrix()
-                brightnessMatrix.set(floatArrayOf(
-                    1f, 0f, 0f, 0f, brightness,  // Red
-                    0f, 1f, 0f, 0f, brightness,  // Green
-                    0f, 0f, 1f, 0f, brightness,  // Blue
-                    0f, 0f, 0f, 1f, 0f           // Alpha
-                ))
-                colorMatrix.postConcat(brightnessMatrix)
-        
-                // Apply the ColorMatrix to the paint
-                paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
-        
-                // Draw the original bitmap with the adjusted paint
-                canvas.drawBitmap(sourceBitmap, 0f, 0f, paint)
-        
-                return resultBitmap
-            }
-        }
 
         // Final clamp to ensure it's within image bounds (should be mostly handled above, but as a safeguard)
         newLeft = newLeft.coerceIn(imageBounds.left, imageBounds.right)
@@ -918,6 +869,55 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 cropRect.right = cropRect.left + width
                 cropRect.bottom = y
             }
+        }
+    
+        // Apply brightness, contrast, and saturation to a bitmap using ColorMatrix
+        fun applyImageAdjustments(sourceBitmap: Bitmap, adjustState: AdjustState): Bitmap {
+            if (sourceBitmap.isRecycled) return sourceBitmap
+    
+            val width = sourceBitmap.width
+            val height = sourceBitmap.height
+    
+            val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(resultBitmap)
+            val paint = Paint()
+    
+            // Create ColorMatrix for adjustments
+            val colorMatrix = ColorMatrix()
+    
+            // Apply saturation (0.0 = grayscale, 1.0 = original, 2.0 = enhanced)
+            colorMatrix.setSaturation(adjustState.saturation)
+    
+            // Apply contrast (0.0 = black, 1.0 = original, 2.0 = enhanced)
+            val contrast = if (adjustState.contrast < 0.0f) 0.0f else if (adjustState.contrast > 2.0f) 2.0f else adjustState.contrast
+            val contrastMatrix = ColorMatrix()
+            contrastMatrix.set(floatArrayOf(
+                contrast, 0f, 0f, 0f, 0f,  // Red
+                0f, contrast, 0f, 0f, 0f,  // Green
+                0f, 0f, contrast, 0f, 0f,  // Blue
+                0f, 0f, 0f, 1f, 0f         // Alpha
+            ))
+            colorMatrix.postConcat(contrastMatrix)
+    
+            // Apply brightness (-100 to 100)
+            val brightnessValue = if (adjustState.brightness < -100f) -100f else if (adjustState.brightness > 100f) 100f else adjustState.brightness
+            val brightness = brightnessValue / 100f * 128f
+            val brightnessMatrix = ColorMatrix()
+            brightnessMatrix.set(floatArrayOf(
+                1f, 0f, 0f, 0f, brightness,  // Red
+                0f, 1f, 0f, 0f, brightness,  // Green
+                0f, 0f, 1f, 0f, brightness,  // Blue
+                0f, 0f, 0f, 1f, 0f           // Alpha
+            ))
+            colorMatrix.postConcat(brightnessMatrix)
+    
+            // Apply the ColorMatrix to the paint
+            paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+    
+            // Draw the original bitmap with the adjusted paint
+            canvas.drawBitmap(sourceBitmap, 0f, 0f, paint)
+    
+            return resultBitmap
         }
     }
 }
