@@ -375,119 +375,147 @@
             android:gravity="center">
             
             <!-- Freeform Crop Button -->
-            <LinearLayout
+            <androidx.cardview.widget.CardView
                 android:id="@+id/crop_mode_freeform"
                 android:layout_width="0dp"
                 android:layout_height="135dp"
                 android:layout_weight="1"
                 android:layout_marginEnd="5dp"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:background="@drawable/tool_button_background"
                 android:clickable="true"
-                android:focusable="true">
-                
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:src="@drawable/cropfreeformicon"
-                    android:contentDescription="@string/freeform_crop"
-                    android:scaleType="fitCenter" />
-                    
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Freeform"
-                    android:textColor="@android:color/white"
-                    android:textSize="10sp"
-                    android:layout_marginTop="2dp" />
-            </LinearLayout>
-            
+                android:focusable="true"
+                app:cardCornerRadius="8dp"
+                app:cardBackgroundColor="@color/crop_card_background_color"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <ImageView
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/cropfreeformicon"
+                        android:contentDescription="@string/freeform_crop"
+                        android:scaleType="fitCenter" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Freeform"
+                        android:textColor="@android:color/white"
+                        android:textSize="10sp"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- Square Crop Button -->
-            <LinearLayout
+            <androidx.cardview.widget.CardView
                 android:id="@+id/crop_mode_square"
                 android:layout_width="0dp"
                 android:layout_height="135dp"
                 android:layout_weight="1"
                 android:layout_marginEnd="5dp"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:background="@drawable/tool_button_background"
                 android:clickable="true"
-                android:focusable="true">
-                
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:src="@drawable/cropsquareicon"
-                    android:contentDescription="@string/square_crop"
-                    android:scaleType="fitCenter" />
-                    
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="1:1"
-                    android:textColor="@android:color/white"
-                    android:textSize="10sp"
-                    android:layout_marginTop="2dp" />
-            </LinearLayout>
-            
+                android:focusable="true"
+                app:cardCornerRadius="8dp"
+                app:cardBackgroundColor="@color/crop_card_background_color"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <ImageView
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/cropsquareicon"
+                        android:contentDescription="@string/square_crop"
+                        android:scaleType="fitCenter" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="1:1"
+                        android:textColor="@android:color/white"
+                        android:textSize="10sp"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- Portrait Crop Button -->
-            <LinearLayout
+            <androidx.cardview.widget.CardView
                 android:id="@+id/crop_mode_portrait"
                 android:layout_width="0dp"
                 android:layout_height="135dp"
                 android:layout_weight="1"
                 android:layout_marginEnd="5dp"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:background="@drawable/tool_button_background"
                 android:clickable="true"
-                android:focusable="true">
-                
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:src="@drawable/cropportraiticon"
-                    android:contentDescription="@string/portrait_crop"
-                    android:scaleType="fitCenter" />
-                    
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="9:16"
-                    android:textColor="@android:color/white"
-                    android:textSize="10sp"
-                    android:layout_marginTop="2dp" />
-            </LinearLayout>
-            
+                android:focusable="true"
+                app:cardCornerRadius="8dp"
+                app:cardBackgroundColor="@color/crop_card_background_color"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <ImageView
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/cropportraiticon"
+                        android:contentDescription="@string/portrait_crop"
+                        android:scaleType="fitCenter" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="9:16"
+                        android:textColor="@android:color/white"
+                        android:textSize="10sp"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- Landscape Crop Button -->
-            <LinearLayout
+            <androidx.cardview.widget.CardView
                 android:id="@+id/crop_mode_landscape"
                 android:layout_width="0dp"
                 android:layout_height="135dp"
                 android:layout_weight="1"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:background="@drawable/tool_button_background"
                 android:clickable="true"
-                android:focusable="true">
-                
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:src="@drawable/croplandscapeicon"
-                    android:contentDescription="@string/landscape_crop"
-                    android:scaleType="fitCenter" />
-                    
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="16:9"
-                    android:textColor="@android:color/white"
-                    android:textSize="10sp"
-                    android:layout_marginTop="2dp" />
-            </LinearLayout>
+                android:focusable="true"
+                app:cardCornerRadius="8dp"
+                app:cardBackgroundColor="@color/crop_card_background_color"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <ImageView
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/croplandscapeicon"
+                        android:contentDescription="@string/landscape_crop"
+                        android:scaleType="fitCenter" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="16:9"
+                        android:textColor="@android:color/white"
+                        android:textSize="10sp"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
         </LinearLayout>
         <!-- Apply/Cancel Buttons -->
         <LinearLayout
