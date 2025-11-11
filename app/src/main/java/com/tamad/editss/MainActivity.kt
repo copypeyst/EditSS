@@ -617,26 +617,21 @@ class MainActivity : AppCompatActivity() {
             editViewModel.pushDrawingAction(drawingAction)
         }
 
-        // Connect crop actions to ViewModel
-        drawingView.onCropAction = { cropAction ->
-            editViewModel.pushCropAction(cropAction)
-        }
-
         // Connect undo/redo action handlers to CanvasView
         drawingView.onUndoAction = { action ->
             when (action) {
+                is EditAction.Drawing -> drawingView.processUndoAction(action)
                 is EditAction.Crop -> drawingView.handleCropUndo(action.action)
                 is EditAction.Adjust -> drawingView.handleAdjustUndo(action.action)
                 is EditAction.BitmapChange -> drawingView.handleBitmapChangeUndo(action)
-                else -> { /* Do nothing - drawing actions now handled via bitmap changes */ }
             }
         }
 
         drawingView.onRedoAction = { action ->
             when (action) {
+                is EditAction.Drawing -> drawingView.processRedoAction(action)
                 is EditAction.Adjust -> drawingView.handleAdjustRedo(action.action)
                 is EditAction.BitmapChange -> drawingView.handleBitmapChangeRedo(action)
-                else -> { /* Do nothing - drawing actions now handled via bitmap changes */ }
             }
         }
 

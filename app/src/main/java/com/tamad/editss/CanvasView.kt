@@ -211,17 +211,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun processRedoAction(action: EditAction) {
         when (action) {
             is EditAction.Drawing -> {
-                // Drawing actions are handled by the setPaths method
-                // No additional handling needed here
+                // For drawing actions, reapply the drawing to the current bitmap
+                // The DrawingAction should contain the path and paint to reapply
+                mergeDrawingStrokeIntoBitmap(action.action)
             }
             is EditAction.Crop -> {
-                // This case should ideally not be reached if EditAction.BitmapChange
-                // is correctly handling crop redos.
+                // This case should ideally not be reached since crops are handled via BitmapChange
                 // If it is reached, it means an EditAction.Crop was in the redo stack.
-                // As CropAction only contains previousBitmap, we cannot directly "redo" it here.
                 // The actual bitmap change for a crop redo is handled by EditAction.BitmapChange.
-                // So, we do nothing here.
-                // handleCropRedo(action.action) // This would be called if CropAction had newBitmap
             }
             is EditAction.Adjust -> {
                 handleAdjustRedo(action.action)
@@ -347,14 +344,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
-        // Create ONLY a CropAction for the undo stack - no conflicting BitmapChange action
-        val cropAction = CropAction(
+        // Create a BitmapChange action for clean undo/redo (no separate CropAction to avoid conflicts)
+        val bitmapChangeAction = EditAction.BitmapChange(
             previousBitmap = previousBaseBitmap,
-            cropRect = cropRect, // Store the screen-space cropRect for potential re-display
-            cropMode = currentCropMode
-            // No longer need previousDrawingActions since drawings are merged into bitmap
+            newBitmap = baseBitmap!!
         )
-        onCropAction?.invoke(cropAction) // Push the CropAction to the ViewModel
+        onBitmapChanged?.invoke(bitmapChangeAction) // Push the BitmapChange to the ViewModel
 
         // Clear the crop rectangle and update UI
         cropRect.setEmpty()
@@ -516,7 +511,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 val previousBitmap = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
                 
                 // Immediately merge the drawing stroke into the base bitmap
-                mergeDrawingStrokeIntoBitmap(it)
+                mergeDrawingStrokeIntoBitmap(action)
                 
                 // Create a DrawingAction with previous bitmap for proper undo/redo
                 val drawingActionWithHistory = DrawingAction(
