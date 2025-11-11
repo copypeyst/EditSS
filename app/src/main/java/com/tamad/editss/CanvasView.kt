@@ -424,6 +424,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return baseBitmap
     }
 
+    fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
+        if (baseBitmap == null) return
+        val canvas = Canvas(baseBitmap!!)
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        canvas.concat(inverseMatrix)
+        canvas.drawPath(action.path, action.paint)
+        invalidate()
+    }
+
     fun mergeDrawingActions() {
         if (baseBitmap == null) return
         val canvas = Canvas(baseBitmap!!)
@@ -459,6 +469,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             canvas.drawBitmap(it, imageMatrix, imagePaint)
         }
 
+        // Only draw paths if we're not in immediate merge mode (i.e., during drawing operations)
+        // Since we now merge immediately, paths should be empty except during active drawing
         for (action in paths) {
             canvas.drawPath(action.path, action.paint)
         }
@@ -536,8 +548,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (currentTool == ToolType.DRAW) {
             val action = currentDrawingTool.onTouchEvent(event, paint)
             action?.let {
+                // Immediately merge the drawing stroke into the base bitmap
+                mergeDrawingStrokeIntoBitmap(it)
                 onNewPath?.invoke(it)
-                paths = paths + it
             }
             invalidate()
             return true
