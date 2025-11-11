@@ -415,16 +415,19 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val resultBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(resultBitmap)
 
-        val inverseMatrix = android.graphics.Matrix()
-        imageMatrix.invert(inverseMatrix)
+        // Draw the bitmap first
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, null)
 
-        // Apply the inverse matrix to the canvas
-        canvas.concat(inverseMatrix)
-
+        // Save and apply image transformation to draw paths in screen coordinates
+        canvas.save()
+        canvas.concat(imageMatrix)
+        
+        // Draw all stored paths (which are in screen coordinates)
         for (action in paths) {
-            // Draw the path directly, as the canvas is already transformed
             canvas.drawPath(action.path, action.paint)
         }
+        
+        canvas.restore()
 
         return resultBitmap
     }
@@ -435,16 +438,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val resultBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(resultBitmap)
 
-        // The paths are in screen coordinates, but the final bitmap should be in the original image's
-        // coordinate space. We use the same inverse matrix transformation as getDrawing().
-        val inverseMatrix = android.graphics.Matrix()
-        imageMatrix.invert(inverseMatrix)
+        // Draw the bitmap first
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, null)
 
+        // Save and apply image transformation to draw paths in screen coordinates
+        canvas.save()
+        canvas.concat(imageMatrix)
+        
         for (action in paths) {
-            val transformedPath = Path()
-            action.path.transform(inverseMatrix, transformedPath)
-            canvas.drawPath(transformedPath, action.paint)
+            canvas.drawPath(action.path, action.paint)
         }
+        
+        canvas.restore()
 
         return resultBitmap
     }
@@ -673,39 +678,27 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                         val workingBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
                         val canvas = Canvas(workingBitmap)
                         
-                        // Apply image matrix inverse to get image coordinates
-                        val inverseMatrix = Matrix()
-                        imageMatrix.invert(inverseMatrix)
+                        // Save canvas state and apply image transformation
+                        canvas.save()
+                        canvas.concat(imageMatrix)
                         
-                        // Get the scale factors from the inverse matrix to adjust stroke width
-                        val scaleValues = FloatArray(9)
-                        inverseMatrix.getValues(scaleValues)
-                        val scaleX = scaleValues[Matrix.MSCALE_X]
-                        val scaleY = scaleValues[Matrix.MSCALE_Y]
-                        val averageScale = (scaleX + scaleY) / 2f
+                        // Draw the path directly onto the bitmap in its original screen coordinates
+                        canvas.drawPath(currentPath, paint)
                         
-                        // Transform the path to image coordinates
-                        val imagePath = Path()
-                        currentPath.transform(inverseMatrix, imagePath)
-                        
-                        // Create a new paint with adjusted stroke width to compensate for transformation
-                        val bitmapPaint = Paint(paint)
-                        bitmapPaint.strokeWidth = paint.strokeWidth / averageScale
-                        
-                        // Draw the path directly onto the bitmap
-                        canvas.drawPath(imagePath, bitmapPaint)
+                        // Restore canvas state
+                        canvas.restore()
                         
                         // Update the base bitmap
                         baseBitmap = workingBitmap
                         
                         // Update drawing state in ViewModel
-                            val newPaint = Paint(bitmapPaint)
-                            val newPath = Path(imagePath) // Store in image coordinates for reference
-                            
-                            // Create a DrawingBitmapAction for proper undo/redo
-                            val bitmapAction = DrawingBitmapAction(previousBitmap, workingBitmap, newPaint, newPath)
-                            onNewBitmapPath?.invoke(bitmapAction)
-                            onNewPath?.invoke(DrawingAction(newPath, newPaint))
+                        val newPaint = Paint(paint)
+                        val newPath = Path(currentPath) // Store in screen coordinates
+                        
+                        // Create a DrawingBitmapAction for proper undo/redo
+                        val bitmapAction = DrawingBitmapAction(previousBitmap, workingBitmap, newPaint, newPath)
+                        onNewBitmapPath?.invoke(bitmapAction)
+                        onNewPath?.invoke(DrawingAction(newPath, newPaint))
                     }
 
                     currentPath.reset()
