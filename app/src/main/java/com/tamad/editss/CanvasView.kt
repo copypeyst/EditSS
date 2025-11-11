@@ -138,16 +138,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Restore the bitmap to the state before the crop.
         baseBitmap = cropAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
-        // Restore the paths that were merged during the crop.
-        paths = cropAction.mergedPaths
-        
         // Update the image matrix to properly display the restored bitmap.
         updateImageMatrix()
         
         // Clear any existing crop rectangle.
         cropRect.setEmpty()
         
-        // Redraw the canvas.
+        // Redraw the canvas. The paths will be restored by the collector.
         invalidate()
     }
 
