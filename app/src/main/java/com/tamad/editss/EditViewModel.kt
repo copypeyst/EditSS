@@ -57,6 +57,7 @@ sealed class EditAction {
     data class Drawing(val action: DrawingAction) : EditAction()
     data class Crop(val action: CropAction) : EditAction()
     data class Adjust(val action: AdjustAction) : EditAction()
+    data class BitmapChange(val previousBitmap: Bitmap, val newBitmap: Bitmap) : EditAction()
 }
 
 class EditViewModel : ViewModel() {
@@ -89,6 +90,14 @@ class EditViewModel : ViewModel() {
 
     fun pushAdjustAction(action: AdjustAction) {
         _undoStack.value = _undoStack.value + EditAction.Adjust(action)
+        _redoStack.value = emptyList()
+    }
+
+    fun pushBitmapChangeAction(action: EditAction.BitmapChange) {
+        // When a bitmap changes (e.g., after a crop), all previous drawing actions are "baked in".
+        // So, we clear all existing drawing actions from the undo stack and add this bitmap change.
+        // This effectively flattens the history up to this point for drawings.
+        _undoStack.value = _undoStack.value.filterNot { it is EditAction.Drawing } + action
         _redoStack.value = emptyList()
     }
 
