@@ -612,12 +612,7 @@ class MainActivity : AppCompatActivity() {
         // Set default selections
         updateDrawModeSelection(drawModePen)
 
-        // Connect DrawingView to ViewModel
-        drawingView.onNewPath = {
-            editViewModel.pushDrawingAction(it)
-        }
-
-        // Connect bitmap change actions to ViewModel
+        // Connect bitmap change actions to ViewModel (for drawing strokes and crops)
         drawingView.onBitmapChanged = { bitmapChangeAction ->
             editViewModel.pushBitmapChangeAction(bitmapChangeAction)
         }
@@ -633,7 +628,7 @@ class MainActivity : AppCompatActivity() {
                 is EditAction.Crop -> drawingView.handleCropUndo(action.action)
                 is EditAction.Adjust -> drawingView.handleAdjustUndo(action.action)
                 is EditAction.BitmapChange -> drawingView.handleBitmapChangeUndo(action)
-                else -> { /* Do nothing for drawing actions as they are handled by setPaths */ }
+                else -> { /* Do nothing - drawing actions now handled via bitmap changes */ }
             }
         }
 
@@ -641,7 +636,7 @@ class MainActivity : AppCompatActivity() {
             when (action) {
                 is EditAction.Adjust -> drawingView.handleAdjustRedo(action.action)
                 is EditAction.BitmapChange -> drawingView.handleBitmapChangeRedo(action)
-                else -> { /* Do nothing for drawing actions as they are handled by setPaths */ }
+                else -> { /* Do nothing - drawing actions now handled via bitmap changes */ }
             }
         }
 
