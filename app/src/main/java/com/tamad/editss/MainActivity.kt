@@ -1,5 +1,8 @@
 package com.tamad.editss
 
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.MobileAds
 import androidx.activity.result.contract.ActivityResultContracts
 import android.util.Log
 import android.os.Bundle
@@ -183,6 +186,14 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Initialize the Mobile Ads SDK
+        MobileAds.initialize(this) {}
+
+        // Load Ad Banner
+        val adView = findViewById<AdView>(R.id.ad_banner)
+        val adRequest = AdRequest.Builder().build()
+        adView.loadAd(adRequest)
 
         // Initialize ViewModel for shared drawing state
         editViewModel = EditViewModel()
