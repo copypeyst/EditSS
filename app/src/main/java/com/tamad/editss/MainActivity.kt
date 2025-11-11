@@ -624,14 +624,17 @@ class MainActivity : AppCompatActivity() {
                 is EditAction.Crop -> drawingView.handleCropUndo(action.action)
                 is EditAction.Adjust -> drawingView.handleAdjustUndo(action.action)
                 is EditAction.BitmapChange -> drawingView.handleBitmapChangeUndo(action)
+                else -> { /* Handle other action types if needed */ }
             }
         }
 
         drawingView.onRedoAction = { action ->
             when (action) {
                 is EditAction.Drawing -> drawingView.processRedoAction(action)
+                is EditAction.Crop -> drawingView.handleCropRedo(action.action)
                 is EditAction.Adjust -> drawingView.handleAdjustRedo(action.action)
                 is EditAction.BitmapChange -> drawingView.handleBitmapChangeRedo(action)
+                else -> { /* Handle other action types if needed */ }
             }
         }
 
