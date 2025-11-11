@@ -41,6 +41,14 @@ data class DrawingAction(
     val path: Path,
     val paint: Paint
 )
+
+data class DrawingBitmapAction(
+    val previousBitmap: Bitmap,
+    val newBitmap: Bitmap,
+    val paint: Paint,
+    val path: Path
+)
+
 data class CropAction(
     val previousBitmap: Bitmap, // The bitmap state before the crop
     val cropRect: android.graphics.RectF, // The crop rectangle that was applied
@@ -55,6 +63,7 @@ data class AdjustAction(
 // Unified action system for both drawing and crop operations
 sealed class EditAction {
     data class Drawing(val action: DrawingAction) : EditAction()
+    data class DrawingBitmap(val action: DrawingBitmapAction) : EditAction()
     data class Crop(val action: CropAction) : EditAction()
     data class Adjust(val action: AdjustAction) : EditAction()
 }
@@ -77,6 +86,12 @@ class EditViewModel : ViewModel() {
     private val _adjustState = MutableStateFlow(AdjustState())
     val adjustState: StateFlow<AdjustState> = _adjustState.asStateFlow()
 
+    fun pushDrawingBitmapAction(action: DrawingBitmapAction) {
+        _undoStack.value = _undoStack.value + EditAction.DrawingBitmap(action)
+        _redoStack.value = emptyList()
+    }
+
+    // Backward compatibility - deprecated
     fun pushDrawingAction(action: DrawingAction) {
         _undoStack.value = _undoStack.value + EditAction.Drawing(action)
         _redoStack.value = emptyList()

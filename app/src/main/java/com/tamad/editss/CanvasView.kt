@@ -13,6 +13,7 @@ import com.tamad.editss.DrawingAction
 import com.tamad.editss.CropMode
 import com.tamad.editss.CropAction
 import com.tamad.editss.EditAction
+import com.tamad.editss.DrawingBitmapAction
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -28,7 +29,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private var baseBitmap: Bitmap? = null
-    private var paths = listOf<DrawingAction>()
+    private var paths = listOf<DrawingAction>() // Keep for backward compatibility
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
@@ -59,6 +60,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var saturation = 1f
 
     var onNewPath: ((DrawingAction) -> Unit)? = null
+    var onNewBitmapPath: ((DrawingBitmapAction) -> Unit)? = null
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onCropAction: ((CropAction) -> Unit)? = null // New callback for crop actions
@@ -337,7 +339,21 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             (bottom - top).toInt()
         )
 
+        // Transform all existing paths to account for the crop
+        val transformedPaths = mutableListOf<DrawingAction>()
+        for (action in paths) {
+            val transformedPath = Path()
+            val transformationMatrix = Matrix()
+            
+            // Create matrix to map from old image coordinates to new cropped image coordinates
+            transformationMatrix.setTranslate(-left, -top)
+            action.path.transform(transformationMatrix, transformedPath)
+            
+            transformedPaths.add(DrawingAction(transformedPath, action.paint))
+        }
+        
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        paths = transformedPaths
         
         // Create crop action for undo/redo
         val cropAction = CropAction(
@@ -393,8 +409,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val resultBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(resultBitmap)
 
-        // Paths are now stored in image coordinates, so draw them directly
+        val inverseMatrix = android.graphics.Matrix()
+        imageMatrix.invert(inverseMatrix)
+
+        // Apply the inverse matrix to the canvas
+        canvas.concat(inverseMatrix)
+
         for (action in paths) {
+            // Draw the path directly, as the canvas is already transformed
             canvas.drawPath(action.path, action.paint)
         }
 
@@ -407,9 +429,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val resultBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(resultBitmap)
 
-        // Paths are stored in image coordinates, so draw them directly
+        // The paths are in screen coordinates, but the final bitmap should be in the original image's
+        // coordinate space. We use the same inverse matrix transformation as getDrawing().
+        val inverseMatrix = android.graphics.Matrix()
+        imageMatrix.invert(inverseMatrix)
+
         for (action in paths) {
-            canvas.drawPath(action.path, action.paint)
+            val transformedPath = Path()
+            action.path.transform(inverseMatrix, transformedPath)
+            canvas.drawPath(transformedPath, action.paint)
         }
 
         return resultBitmap
@@ -435,18 +463,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             canvas.drawBitmap(it, imageMatrix, imagePaint)
         }
 
-        // Draw stored paths (now stored in image coordinates) by transforming to screen coordinates
-        for (action in paths) {
-            val transformedPath = Path()
-            action.path.transform(imageMatrix, transformedPath)
-            canvas.drawPath(transformedPath, action.paint)
-        }
-
-        // Draw current path (in image coordinates) by transforming to screen coordinates
+        // Only draw the current path while drawing (not committed yet)
         if (isDrawing && !currentPath.isEmpty) {
-            val transformedCurrentPath = Path()
-            currentPath.transform(imageMatrix, transformedCurrentPath)
-            canvas.drawPath(transformedCurrentPath, paint)
+            canvas.drawPath(currentPath, paint)
         }
 
         // Draw crop overlay if in crop mode
@@ -527,11 +546,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     startX = x
                     startY = y
                     currentPath.reset()
-                    
-                    // Convert screen coordinates to image coordinates
-                    val imagePoint = screenToImagePoint(x, y)
                     if (currentDrawMode == DrawMode.PEN) {
-                        currentPath.moveTo(imagePoint.x, imagePoint.y)
+                        currentPath.moveTo(x, y)
                     }
                 } else if (currentTool == ToolType.CROP) {
                     // Check if touch is on a corner (for resizing) - only if rectangle exists
@@ -576,22 +592,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             MotionEvent.ACTION_MOVE -> {
                 if (currentTool == ToolType.DRAW) {
                     if (!isDrawing) return false
-                    
-                    // Convert screen coordinates to image coordinates
-                    val imagePoint = screenToImagePoint(x, y)
-                    val startImagePoint = screenToImagePoint(startX, startY)
-                    
                     if (currentDrawMode == DrawMode.PEN) {
-                        currentPath.lineTo(imagePoint.x, imagePoint.y)
+                        currentPath.lineTo(x, y)
                     } else {
                         currentPath.reset()
                         when (currentDrawMode) {
                             DrawMode.CIRCLE -> {
-                                val radius = Math.sqrt(Math.pow((startImagePoint.x - imagePoint.x).toDouble(), 2.0) + Math.pow((startImagePoint.y - imagePoint.y).toDouble(), 2.0)).toFloat()
-                                currentPath.addCircle(startImagePoint.x, startImagePoint.y, radius, Path.Direction.CW)
+                                val radius = Math.sqrt(Math.pow((startX - x).toDouble(), 2.0) + Math.pow((startY - y).toDouble(), 2.0)).toFloat()
+                                currentPath.addCircle(startX, startY, radius, Path.Direction.CW)
                             }
                             DrawMode.SQUARE -> {
-                                currentPath.addRect(startImagePoint.x, startImagePoint.y, imagePoint.x, imagePoint.y, Path.Direction.CW)
+                                currentPath.addRect(startX, startY, x, y, Path.Direction.CW)
                             }
                             else -> {}
                         }
@@ -647,9 +658,38 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     if (!isDrawing) return false
                     isDrawing = false
 
-                    val newPaint = Paint(paint)
-                    val newPath = Path(currentPath)
-                    onNewPath?.invoke(DrawingAction(newPath, newPaint))
+                    // Paint the drawing directly onto the bitmap
+                    if (baseBitmap != null && !currentPath.isEmpty) {
+                        // Store previous bitmap state for undo/redo
+                        val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                        
+                        // Create a mutable bitmap to draw on
+                        val workingBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                        val canvas = Canvas(workingBitmap)
+                        
+                        // Apply image matrix inverse to get image coordinates
+                        val inverseMatrix = Matrix()
+                        imageMatrix.invert(inverseMatrix)
+                        
+                        // Transform the path to image coordinates
+                        val imagePath = Path()
+                        currentPath.transform(inverseMatrix, imagePath)
+                        
+                        // Draw the path directly onto the bitmap
+                        canvas.drawPath(imagePath, paint)
+                        
+                        // Update the base bitmap
+                        baseBitmap = workingBitmap
+                        
+                        // Update drawing state in ViewModel
+                            val newPaint = Paint(paint)
+                            val newPath = Path(imagePath) // Store in image coordinates for reference
+                            
+                            // Create a DrawingBitmapAction for proper undo/redo
+                            val bitmapAction = DrawingBitmapAction(previousBitmap, workingBitmap, newPaint, newPath)
+                            onNewBitmapPath?.invoke(bitmapAction)
+                            onNewPath?.invoke(DrawingAction(newPath, newPaint))
+                    }
 
                     currentPath.reset()
                     invalidate()
