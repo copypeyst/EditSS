@@ -612,28 +612,26 @@ class MainActivity : AppCompatActivity() {
         // Set default selections
         updateDrawModeSelection(drawModePen)
 
-        // Connect drawing actions to ViewModel (for drawing strokes)
-        drawingView.onNewPath = { drawingAction ->
-            editViewModel.pushDrawingAction(drawingAction)
+        // Connect bitmap change actions to ViewModel (for both drawing strokes and crops)
+        drawingView.onBitmapChanged = { bitmapChangeAction ->
+            editViewModel.pushBitmapChangeAction(bitmapChangeAction)
         }
 
         // Connect undo/redo action handlers to CanvasView
         drawingView.onUndoAction = { action ->
             when (action) {
-                is EditAction.Drawing -> drawingView.processUndoAction(action)
-                is EditAction.Crop -> drawingView.handleCropUndo(action.action)
-                is EditAction.Adjust -> drawingView.handleAdjustUndo(action.action)
                 is EditAction.BitmapChange -> drawingView.handleBitmapChangeUndo(action)
+                is EditAction.Adjust -> drawingView.handleAdjustUndo(action.action)
+                is EditAction.Crop -> drawingView.handleCropUndo(action.action)
                 else -> { /* Handle other action types if needed */ }
             }
         }
 
         drawingView.onRedoAction = { action ->
             when (action) {
-                is EditAction.Drawing -> drawingView.processRedoAction(action)
-                is EditAction.Crop -> drawingView.handleCropRedo(action.action)
-                is EditAction.Adjust -> drawingView.handleAdjustRedo(action.action)
                 is EditAction.BitmapChange -> drawingView.handleBitmapChangeRedo(action)
+                is EditAction.Adjust -> drawingView.handleAdjustRedo(action.action)
+                is EditAction.Crop -> drawingView.handleCropRedo(action.action)
                 else -> { /* Handle other action types if needed */ }
             }
         }
@@ -682,10 +680,12 @@ class MainActivity : AppCompatActivity() {
 
         buttonUndo.setOnClickListener {
             editViewModel.undo()
+            // The lastUndoneAction collector will handle updating the CanvasView
         }
 
         buttonRedo.setOnClickListener {
             editViewModel.redo()
+            // The lastRedoneAction collector will handle updating the CanvasView
         }
 
         cropModeFreeform.isSelected = true

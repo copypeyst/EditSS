@@ -57,11 +57,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
-    var onCropAction: ((CropAction) -> Unit)? = null // New callback for crop actions
-    var onNewPath: ((DrawingAction) -> Unit)? = null // Callback for drawing actions
+    var onCropAction: ((CropAction) -> Unit)? = null // Legacy callback
     var onUndoAction: ((EditAction) -> Unit)? = null // Callback for undo operations
     var onRedoAction: ((EditAction) -> Unit)? = null // Callback for redo operations
-    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null // Callback for bitmap changes (e.g., after crop)
+    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null // Callback for bitmap changes (drawing and crop)
 
     init {
         paint.isAntiAlias = true
@@ -185,49 +184,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
 
-    fun processUndoAction(action: EditAction) {
-        when (action) {
-            is EditAction.Drawing -> {
-                // For drawing actions, restore the bitmap state since drawings are merged into bitmap
-                val previousBitmap = action.action.previousBitmap
-                if (previousBitmap != null) {
-                    baseBitmap = previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-                    updateImageMatrix()
-                    invalidate()
-                }
-            }
-            is EditAction.Crop -> {
-                handleCropUndo(action.action)
-            }
-            is EditAction.Adjust -> {
-                handleAdjustUndo(action.action)
-            }
-            is EditAction.BitmapChange -> {
-                handleBitmapChangeUndo(action)
-            }
-        }
-    }
-
-    fun processRedoAction(action: EditAction) {
-        when (action) {
-            is EditAction.Drawing -> {
-                // For drawing actions, reapply the drawing to the current bitmap
-                // The DrawingAction should contain the path and paint to reapply
-                mergeDrawingStrokeIntoBitmap(action.action)
-            }
-            is EditAction.Crop -> {
-                // This case should ideally not be reached since crops are handled via BitmapChange
-                // If it is reached, it means an EditAction.Crop was in the redo stack.
-                // The actual bitmap change for a crop redo is handled by EditAction.BitmapChange.
-            }
-            is EditAction.Adjust -> {
-                handleAdjustRedo(action.action)
-            }
-            is EditAction.BitmapChange -> {
-                handleBitmapChangeRedo(action)
-            }
-        }
-    }
+    // Removed processUndoAction and processRedoAction - now using direct handlers for simplicity
 
     fun setToolType(toolType: ToolType) {
         this.currentTool = toolType
@@ -344,7 +301,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
-        // Create a BitmapChange action for clean undo/redo (no separate CropAction to avoid conflicts)
+        // Create ONLY a BitmapChange action for clean undo/redo - no separate CropAction
         val bitmapChangeAction = EditAction.BitmapChange(
             previousBitmap = previousBaseBitmap,
             newBitmap = baseBitmap!!
@@ -513,13 +470,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 // Immediately merge the drawing stroke into the base bitmap
                 mergeDrawingStrokeIntoBitmap(action)
                 
-                // Create a DrawingAction with previous bitmap for proper undo/redo
-                val drawingActionWithHistory = DrawingAction(
-                    path = action.path,
-                    paint = action.paint,
-                    previousBitmap = previousBitmap
+                // Create ONLY a BitmapChange action for clean undo/redo (no conflicting DrawingAction)
+                val bitmapChangeAction = EditAction.BitmapChange(
+                    previousBitmap = previousBitmap,
+                    newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
                 )
-                onNewPath?.invoke(drawingActionWithHistory)
+                onBitmapChanged?.invoke(bitmapChangeAction)
             }
             invalidate()
             return true
