@@ -612,9 +612,9 @@ class MainActivity : AppCompatActivity() {
         // Set default selections
         updateDrawModeSelection(drawModePen)
 
-        // Connect DrawingView to ViewModel for bitmap-based drawing
-        drawingView.onNewBitmapPath = { bitmapAction ->
-            editViewModel.pushDrawingBitmapAction(bitmapAction)
+        // Connect DrawingView to ViewModel
+        drawingView.onNewPath = {
+            editViewModel.pushDrawingAction(it)
         }
 
         // Connect crop actions to ViewModel
@@ -627,11 +627,7 @@ class MainActivity : AppCompatActivity() {
             when (action) {
                 is EditAction.Crop -> drawingView.handleCropUndo(action.action)
                 is EditAction.Adjust -> drawingView.handleAdjustUndo(action.action)
-                is EditAction.DrawingBitmap -> {
-                    // For bitmap-based drawing, restore previous bitmap state
-                    drawingView.setBitmap(action.action.previousBitmap)
-                }
-                else -> { /* Do nothing for legacy drawing actions */ }
+                else -> { /* Do nothing for drawing actions as they are handled by setPaths */ }
             }
         }
 
@@ -639,11 +635,7 @@ class MainActivity : AppCompatActivity() {
             when (action) {
                 is EditAction.Crop -> drawingView.handleCropRedo(action.action)
                 is EditAction.Adjust -> drawingView.handleAdjustRedo(action.action)
-                is EditAction.DrawingBitmap -> {
-                    // For bitmap-based drawing, restore new bitmap state
-                    drawingView.setBitmap(action.action.newBitmap)
-                }
-                else -> { /* Do nothing for legacy drawing actions */ }
+                else -> { /* Do nothing for drawing actions as they are handled by setPaths */ }
             }
         }
 

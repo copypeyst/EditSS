@@ -13,12 +13,11 @@ import com.tamad.editss.DrawingAction
 import com.tamad.editss.CropMode
 import com.tamad.editss.CropAction
 import com.tamad.editss.EditAction
-import com.tamad.editss.DrawingBitmapAction
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private val paint = Paint()
-    private val currentPath = Path()
+    private var currentDrawingTool: DrawingTool = PenTool()
     private val cropPaint = Paint()
     private val cropCornerPaint = Paint()
 
@@ -29,17 +28,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private var baseBitmap: Bitmap? = null
-    private var paths = listOf<DrawingAction>() // Keep for backward compatibility
+    private var paths = listOf<DrawingAction>()
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
-    private var currentDrawMode = DrawMode.PEN
+
     private var currentTool: ToolType = ToolType.DRAW
     private var currentCropMode: CropMode = CropMode.FREEFORM
-    private var startX = 0f
-    private var startY = 0f
 
-    private var isDrawing = false
     private var isCropping = false
     private var cropRect = RectF()
     private var isMovingCropRect = false
@@ -60,7 +56,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var saturation = 1f
 
     var onNewPath: ((DrawingAction) -> Unit)? = null
-    var onNewBitmapPath: ((DrawingBitmapAction) -> Unit)? = null
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onCropAction: ((CropAction) -> Unit)? = null // New callback for crop actions
@@ -94,7 +89,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         paint.color = drawingState.color
         paint.strokeWidth = drawingState.size
         paint.alpha = drawingState.opacity
-        currentDrawMode = drawingState.drawMode
+        currentDrawingTool = when (drawingState.drawMode) {
+            DrawMode.PEN -> PenTool()
+            DrawMode.CIRCLE -> CircleTool()
+            DrawMode.SQUARE -> SquareTool()
+        }
     }
 
     fun setBitmap(bitmap: Bitmap?) {
@@ -202,11 +201,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun processUndoAction(action: EditAction) {
         when (action) {
             is EditAction.Drawing -> {
-                // Legacy drawing actions - no handling needed
-            }
-            is EditAction.DrawingBitmap -> {
-                // For bitmap-based drawing actions, restore previous bitmap state
-                setBitmap(action.action.previousBitmap)
+                // Drawing actions are handled by the setPaths method
+                // No additional handling needed here
             }
             is EditAction.Crop -> {
                 handleCropUndo(action.action)
@@ -221,11 +217,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun processRedoAction(action: EditAction) {
         when (action) {
             is EditAction.Drawing -> {
-                // Legacy drawing actions - no handling needed
-            }
-            is EditAction.DrawingBitmap -> {
-                // For bitmap-based drawing actions, restore new bitmap state
-                setBitmap(action.action.newBitmap)
+                // Drawing actions are handled by the setPaths method
+                // No additional handling needed here
             }
             is EditAction.Crop -> {
                 handleCropRedo(action.action)
@@ -237,6 +230,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun setToolType(toolType: ToolType) {
+        if (currentTool == ToolType.DRAW && toolType != ToolType.DRAW) {
+            mergeDrawingActions()
+        }
         this.currentTool = toolType
         if (toolType == ToolType.CROP) {
             initializeDefaultCropRect()
@@ -345,37 +341,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             (bottom - top).toInt()
         )
 
-        // Transform all existing paths to account for the crop
-        // FIX: Apply proper coordinate transformation for paths that are in screen coordinates
-        val transformedPaths = mutableListOf<DrawingAction>()
-        for (action in paths) {
-            val transformedPath = Path()
-            
-            // Get the path points in screen coordinates
-            val pathPoints = FloatArray(2)
-            val pathMeasure = PathMeasure(action.path, false)
-            val pathLength = pathMeasure.length
-            
-            // Create a new path that will contain the transformed coordinates
-            val tempPath = Path()
-            
-            // Copy the original path to tempPath for measurement
-            tempPath.addPath(action.path)
-            
-            // Apply the proper transformation:
-            // 1. First convert from screen coordinates to image coordinates using inverted matrix
-            // 2. Then subtract the crop offset to get coordinates in the new cropped image space
-            val transformationMatrix = Matrix()
-            transformationMatrix.postConcat(inverseMatrix) // Convert screen to image coords
-            transformationMatrix.postTranslate(-left, -top) // Adjust for crop offset
-            
-            tempPath.transform(transformationMatrix, transformedPath)
-            
-            transformedPaths.add(DrawingAction(transformedPath, action.paint))
-        }
-        
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        paths = transformedPaths
         
         // Create crop action for undo/redo
         val cropAction = CropAction(
@@ -412,62 +378,26 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    private fun screenToImagePoint(screenX: Float, screenY: Float): PointF {
-        val imagePoint = floatArrayOf(screenX, screenY)
+
+
+    fun getFinalBitmap(): Bitmap? {
+        mergeDrawingActions()
+        return baseBitmap
+    }
+
+    fun mergeDrawingActions() {
+        if (baseBitmap == null) return
+        val canvas = Canvas(baseBitmap!!)
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
-        inverseMatrix.mapPoints(imagePoint)
-        return PointF(imagePoint[0], imagePoint[1])
-    }
+        canvas.concat(inverseMatrix)
 
-    private fun imageToScreenPoint(imageX: Float, imageY: Float): PointF {
-        val screenPoint = floatArrayOf(imageX, imageY)
-        imageMatrix.mapPoints(screenPoint)
-        return PointF(screenPoint[0], screenPoint[1])
-    }
-
-    fun getDrawing(): Bitmap? {
-        if (baseBitmap == null) return null
-        val resultBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(resultBitmap)
-
-        // Draw the bitmap first
-        canvas.drawBitmap(baseBitmap!!, 0f, 0f, null)
-
-        // Save and apply image transformation to draw paths in screen coordinates
-        canvas.save()
-        canvas.concat(imageMatrix)
-        
-        // Draw all stored paths (which are in screen coordinates)
         for (action in paths) {
             canvas.drawPath(action.path, action.paint)
         }
-        
-        canvas.restore()
 
-        return resultBitmap
-    }
-
-    fun getDrawingOnTransparent(): Bitmap? {
-        if (baseBitmap == null) return null
-        // Create a new transparent bitmap with the same dimensions as the base bitmap.
-        val resultBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(resultBitmap)
-
-        // Draw the bitmap first
-        canvas.drawBitmap(baseBitmap!!, 0f, 0f, null)
-
-        // Save and apply image transformation to draw paths in screen coordinates
-        canvas.save()
-        canvas.concat(imageMatrix)
-        
-        for (action in paths) {
-            canvas.drawPath(action.path, action.paint)
-        }
-        
-        canvas.restore()
-
-        return resultBitmap
+        paths = emptyList()
+        invalidate()
     }
 
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -490,10 +420,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             canvas.drawBitmap(it, imageMatrix, imagePaint)
         }
 
-        // Only draw the current path while drawing (not committed yet)
-        if (isDrawing && !currentPath.isEmpty) {
-            canvas.drawPath(currentPath, paint)
+        for (action in paths) {
+            canvas.drawPath(action.path, action.paint)
         }
+
+        currentDrawingTool.onDraw(canvas, paint)
 
         // Draw crop overlay if in crop mode
         if (currentTool == ToolType.CROP && !cropRect.isEmpty) {
@@ -563,20 +494,22 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val x = event.x
         val y = event.y
 
+        if (currentTool == ToolType.DRAW) {
+            val action = currentDrawingTool.onTouchEvent(event, paint)
+            action?.let {
+                onNewPath?.invoke(it)
+                paths = paths + it
+            }
+            invalidate()
+            return true
+        }
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 lastTouchX = x
                 lastTouchY = y
 
-                if (currentTool == ToolType.DRAW) {
-                    isDrawing = true
-                    startX = x
-                    startY = y
-                    currentPath.reset()
-                    if (currentDrawMode == DrawMode.PEN) {
-                        currentPath.moveTo(x, y)
-                    }
-                } else if (currentTool == ToolType.CROP) {
+                if (currentTool == ToolType.CROP) {
                     // Check if touch is on a corner (for resizing) - only if rectangle exists
                     if (cropRect.width() > 0 && cropRect.height() > 0) {
                         resizeHandle = getResizeHandle(x, y)
@@ -607,8 +540,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     }
                     // Otherwise create new crop rectangle
                     isCropping = true
-                    startX = x
-                    startY = y
                     cropRect.left = x
                     cropRect.top = y
                     cropRect.right = x
@@ -617,25 +548,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                if (currentTool == ToolType.DRAW) {
-                    if (!isDrawing) return false
-                    if (currentDrawMode == DrawMode.PEN) {
-                        currentPath.lineTo(x, y)
-                    } else {
-                        currentPath.reset()
-                        when (currentDrawMode) {
-                            DrawMode.CIRCLE -> {
-                                val radius = Math.sqrt(Math.pow((startX - x).toDouble(), 2.0) + Math.pow((startY - y).toDouble(), 2.0)).toFloat()
-                                currentPath.addCircle(startX, startY, radius, Path.Direction.CW)
-                            }
-                            DrawMode.SQUARE -> {
-                                currentPath.addRect(startX, startY, x, y, Path.Direction.CW)
-                            }
-                            else -> {}
-                        }
-                    }
-                    invalidate()
-                } else if (currentTool == ToolType.CROP) {
+                if (currentTool == ToolType.CROP) {
                     if (isResizingCropRect) {
                         resizeCropRect(x, y)
                         clampCropRectToImage()
@@ -681,45 +594,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 return true
             }
             MotionEvent.ACTION_UP -> {
-                if (currentTool == ToolType.DRAW) {
-                    if (!isDrawing) return false
-                    isDrawing = false
-
-                    // Paint the drawing directly onto the bitmap
-                    if (baseBitmap != null && !currentPath.isEmpty) {
-                        // Store previous bitmap state for undo/redo
-                        val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                        
-                        // Create a mutable bitmap to draw on
-                        val workingBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                        val canvas = Canvas(workingBitmap)
-                        
-                        // Save canvas state and apply image transformation
-                        canvas.save()
-                        canvas.concat(imageMatrix)
-                        
-                        // Draw the path directly onto the bitmap in its original screen coordinates
-                        canvas.drawPath(currentPath, paint)
-                        
-                        // Restore canvas state
-                        canvas.restore()
-                        
-                        // Update the base bitmap
-                        baseBitmap = workingBitmap
-                        
-                        // Update drawing state in ViewModel
-                        val newPaint = Paint(paint)
-                        val newPath = Path(currentPath) // Store in screen coordinates
-                        
-                        // Create a DrawingBitmapAction for proper undo/redo
-                        val bitmapAction = DrawingBitmapAction(previousBitmap, workingBitmap, newPaint, newPath)
-                        onNewBitmapPath?.invoke(bitmapAction)
-                        onNewPath?.invoke(DrawingAction(newPath, newPaint))
-                    }
-
-                    currentPath.reset()
-                    invalidate()
-                } else if (currentTool == ToolType.CROP) {
+                if (currentTool == ToolType.CROP) {
                     isCropping = false
                     isMovingCropRect = false
                     isResizingCropRect = false
