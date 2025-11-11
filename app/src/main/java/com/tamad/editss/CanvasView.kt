@@ -12,6 +12,7 @@ import com.tamad.editss.DrawingState
 import com.tamad.editss.CropMode
 import com.tamad.editss.CropAction
 import com.tamad.editss.EditAction
+import com.tamad.editss.DrawingAction
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -404,8 +405,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         canvas.concat(inverseMatrix)
         canvas.drawPath(action.path, action.paint)
         
-        // Clear paths after merging into bitmap
-        paths = emptyList()
+        // Paths are cleared immediately after merging into bitmap (no need to track separately)
         
         invalidate()
     }
