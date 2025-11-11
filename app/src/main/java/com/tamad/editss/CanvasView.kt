@@ -465,14 +465,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val action = currentDrawingTool.onTouchEvent(event, paint)
             action?.let {
                 // Save the bitmap state BEFORE drawing for proper undo/redo
-                val previousBitmap = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
                 
                 // Immediately merge the drawing stroke into the base bitmap
                 mergeDrawingStrokeIntoBitmap(action)
                 
                 // Create ONLY a BitmapChange action for clean undo/redo (no conflicting DrawingAction)
                 val bitmapChangeAction = EditAction.BitmapChange(
-                    previousBitmap = previousBitmap,
+                    previousBitmap = bitmapBeforeDrawing,
                     newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
                 )
                 onBitmapChanged?.invoke(bitmapChangeAction)
