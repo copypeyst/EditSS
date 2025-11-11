@@ -39,7 +39,8 @@ data class AdjustState(
 
 data class DrawingAction(
     val path: Path,
-    val paint: Paint
+    val paint: Paint,
+    val previousBitmap: Bitmap? = null // For proper undo/redo of bitmap-based drawing
 )
 data class CropAction(
     val previousBitmap: Bitmap, // The bitmap state before the crop

@@ -612,9 +612,9 @@ class MainActivity : AppCompatActivity() {
         // Set default selections
         updateDrawModeSelection(drawModePen)
 
-        // Connect bitmap change actions to ViewModel (for drawing strokes and crops)
-        drawingView.onBitmapChanged = { bitmapChangeAction ->
-            editViewModel.pushBitmapChangeAction(bitmapChangeAction)
+        // Connect drawing actions to ViewModel (for drawing strokes)
+        drawingView.onNewPath = { drawingAction ->
+            editViewModel.pushDrawingAction(drawingAction)
         }
 
         // Connect crop actions to ViewModel
@@ -648,9 +648,9 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             editViewModel.undoStack.collect { actions ->
-                // Handle both drawing and crop actions
-                val drawingActions = actions.filterIsInstance<EditAction.Drawing>().map { it.action }
-                drawingView.setPaths(drawingActions)
+                // Drawing actions are now handled immediately as bitmap changes
+                // No need to set paths anymore since drawings are merged into bitmap
+                // The CanvasView handles drawing actions via the onNewPath callback
             }
         }
 
