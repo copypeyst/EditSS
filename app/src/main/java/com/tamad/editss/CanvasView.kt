@@ -314,10 +314,22 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Store the previous bitmap state for undo/redo
         val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
 
-        // Map crop rectangle from screen coordinates to image coordinates
+        // Create a canvas to draw the paths onto the bitmap
+        val canvas = Canvas(baseBitmap!!)
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
 
+        // Draw each path onto the baseBitmap
+        for (action in paths) {
+            val transformedPath = Path()
+            action.path.transform(inverseMatrix, transformedPath)
+            canvas.drawPath(transformedPath, action.paint)
+        }
+
+        // Clear the paths list as they are now part of the bitmap
+        paths = emptyList()
+
+        // Map crop rectangle from screen coordinates to image coordinates
         val imageCropRect = RectF()
         inverseMatrix.mapRect(imageCropRect, cropRect)
 
