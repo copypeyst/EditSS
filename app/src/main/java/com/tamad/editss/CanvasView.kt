@@ -152,6 +152,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     // Handle crop redo - reapply the crop
 
 
+    fun handleCropRedo(cropAction: CropAction) {
+        // This function should ideally restore the bitmap to the state *after* the crop.
+        // However, CropAction only contains previousBitmap.
+        // The actual redo of a crop is handled by EditAction.BitmapChange.
+        // So, if this is called, it means an EditAction.Crop was in the redo stack,
+        // which might indicate an inconsistency in the action management.
+        // For now, we do nothing here, as the BitmapChange action should handle the actual bitmap update.
+    }
+
     fun handleAdjustUndo(action: AdjustAction) {
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
         updateImageMatrix()
@@ -199,6 +208,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             is EditAction.Drawing -> {
                 // Drawing actions are handled by the setPaths method
                 // No additional handling needed here
+            }
+            is EditAction.Crop -> {
+                // This case should ideally not be reached if EditAction.BitmapChange
+                // is correctly handling crop redos.
+                // If it is reached, it means an EditAction.Crop was in the redo stack.
+                // As CropAction only contains previousBitmap, we cannot directly "redo" it here.
+                // The actual bitmap change for a crop redo is handled by EditAction.BitmapChange.
+                // So, we do nothing here.
+                // handleCropRedo(action.action) // This would be called if CropAction had newBitmap
             }
             is EditAction.Adjust -> {
                 handleAdjustRedo(action.action)
