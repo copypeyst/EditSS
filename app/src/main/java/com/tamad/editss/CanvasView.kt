@@ -139,13 +139,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Restore the bitmap to the state before the crop.
         baseBitmap = cropAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
+        // Restore the drawing paths that existed before the crop.
+        this.paths = cropAction.previousDrawingActions
+        
         // Update the image matrix to properly display the restored bitmap.
         updateImageMatrix()
         
         // Clear any existing crop rectangle.
         cropRect.setEmpty()
         
-        // Redraw the canvas. The paths will be restored by the collector.
+        // Redraw the canvas.
         invalidate()
     }
 
@@ -315,6 +318,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         // Store the state before the crop for the undo action.
         val previousBaseBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+        val previousDrawingActions = paths // Capture current drawing paths
 
         // Map crop rectangle from screen coordinates to image coordinates.
         val inverseMatrix = Matrix()
@@ -342,6 +346,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
+        // Create a CropAction for the undo stack.
+        val cropAction = CropAction(
+            previousBitmap = previousBaseBitmap,
+            cropRect = cropRect, // Store the screen-space cropRect for potential re-display
+            cropMode = currentCropMode,
+            previousDrawingActions = previousDrawingActions
+        )
+        onCropAction?.invoke(cropAction) // Push the CropAction to the ViewModel
+
         // Create a BitmapChange action for the undo stack.
         val bitmapChangeAction = EditAction.BitmapChange(
             previousBitmap = previousBaseBitmap,

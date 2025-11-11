@@ -44,7 +44,8 @@ data class DrawingAction(
 data class CropAction(
     val previousBitmap: Bitmap, // The bitmap state before the crop
     val cropRect: android.graphics.RectF, // The crop rectangle that was applied
-    val cropMode: CropMode // The crop mode used
+    val cropMode: CropMode, // The crop mode used
+    val previousDrawingActions: List<DrawingAction> // Drawing actions before the crop
 )
 
 data class AdjustAction(
@@ -94,10 +95,9 @@ class EditViewModel : ViewModel() {
     }
 
     fun pushBitmapChangeAction(action: EditAction.BitmapChange) {
-        // When a bitmap changes (e.g., after a crop), all previous drawing actions are "baked in".
-        // So, we clear all existing drawing actions from the undo stack and add this bitmap change.
-        // This effectively flattens the history up to this point for drawings.
-        _undoStack.value = _undoStack.value.filterNot { it is EditAction.Drawing } + action
+        // When a bitmap changes (e.g., after a crop), we add this bitmap change to the undo stack.
+        // Drawing actions are now managed by EditAction.Crop when a crop occurs.
+        _undoStack.value = _undoStack.value + action
         _redoStack.value = emptyList()
     }
 
