@@ -90,6 +90,11 @@ class EditViewModel : ViewModel() {
         _redoStack.value = emptyList()
     }
 
+    fun pushAdjustAction(action: AdjustAction) {
+        _undoStack.value = _undoStack.value + EditAction.Adjust(action)
+        _redoStack.value = emptyList()
+    }
+
     fun undo() {
         if (_undoStack.value.isEmpty()) return
 
