@@ -1,12 +1,12 @@
 package com.tamad.editss
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import android.graphics.Path
-import android.graphics.Paint
-import android.graphics.Bitmap
+import kotlinx.coroutines.launch
+import android.graphics.*
 
 // Drawing modes enum
 enum class DrawMode {
@@ -23,11 +23,13 @@ enum class CropMode {
     LANDSCAPE
 }
 
+// --- DATA CLASSES FOR STATE AND ACTIONS ---
+
 // Shared drawing state for Draw, Circle, and Square tools only
 data class DrawingState(
     val color: Int = android.graphics.Color.RED,
-    val size: Float = 26f, // Default to position 25 on slider (matches (25 + 1))
-    val opacity: Int = 252, // Default to position 100 on slider (matches ((100 - 1) * 2.55))
+    val size: Float = 26f,
+    val opacity: Int = 252,
     val drawMode: DrawMode = DrawMode.PEN
 )
 
@@ -37,22 +39,26 @@ data class AdjustState(
     val saturation: Float = 1f
 )
 
+// --- ACTION DEFINITIONS ---
+// Actions now store parameters, not bitmaps.
+
 data class DrawingAction(
     val path: Path,
     val paint: Paint
 )
+
 data class CropAction(
-    val previousBitmap: Bitmap, // The bitmap state before the crop
-    val cropRect: android.graphics.RectF, // The crop rectangle that was applied
-    val cropMode: CropMode // The crop mode used
+    val cropRect: RectF, // The rectangle used for the crop
+    val imageMatrix: Matrix // The matrix to map screen coords to image coords
 )
 
 data class AdjustAction(
-    val previousBitmap: Bitmap,
-    val newBitmap: Bitmap
+    val brightness: Float,
+    val contrast: Float,
+    val saturation: Float
 )
 
-// Unified action system for both drawing and crop operations
+// Unified action system
 sealed class EditAction {
     data class Drawing(val action: DrawingAction) : EditAction()
     data class Crop(val action: CropAction) : EditAction()
@@ -61,76 +67,142 @@ sealed class EditAction {
 
 class EditViewModel : ViewModel() {
 
+    // --- STATEFLOWS ---
+
+    private var _sourceBitmap: Bitmap? = null
+
+    private val _processedBitmap = MutableStateFlow<Bitmap?>(null)
+    val processedBitmap: StateFlow<Bitmap?> = _processedBitmap.asStateFlow()
+
     private val _undoStack = MutableStateFlow<List<EditAction>>(emptyList())
     val undoStack: StateFlow<List<EditAction>> = _undoStack.asStateFlow()
 
     private val _redoStack = MutableStateFlow<List<EditAction>>(emptyList())
     val redoStack: StateFlow<List<EditAction>> = _redoStack.asStateFlow()
 
-    // Track the size of the undo stack at the point of the last save
     private val _lastSavedActionCount = MutableStateFlow(0)
 
-    // Shared drawing state for Draw/Circle/Square tools
     private val _drawingState = MutableStateFlow(DrawingState())
     val drawingState: StateFlow<DrawingState> = _drawingState.asStateFlow()
 
     private val _adjustState = MutableStateFlow(AdjustState())
     val adjustState: StateFlow<AdjustState> = _adjustState.asStateFlow()
 
+    init {
+        // Automatically recompute the bitmap whenever the undo stack changes.
+        viewModelScope.launch {
+            _undoStack.collect {
+                recomputeBitmap()
+            }
+        }
+    }
+
+    fun setSourceBitmap(bitmap: Bitmap?) {
+        _sourceBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        _processedBitmap.value = _sourceBitmap
+        clearAllActions()
+    }
+
+    private fun recomputeBitmap() {
+        viewModelScope.launch {
+            val source = _sourceBitmap ?: return@launch
+            var currentBitmap = source.copy(Bitmap.Config.ARGB_8888, true)
+
+            for (editAction in _undoStack.value) {
+                currentBitmap = when (editAction) {
+                    is EditAction.Drawing -> {
+                        val canvas = Canvas(currentBitmap)
+                        canvas.drawPath(editAction.action.path, editAction.action.paint)
+                        currentBitmap
+                    }
+                    is EditAction.Crop -> {
+                        val inverseMatrix = Matrix()
+                        editAction.action.imageMatrix.invert(inverseMatrix)
+                        val imageCropRect = RectF()
+                        inverseMatrix.mapRect(imageCropRect, editAction.action.cropRect)
+
+                        val left = imageCropRect.left.coerceIn(0f, currentBitmap.width.toFloat())
+                        val top = imageCropRect.top.coerceIn(0f, currentBitmap.height.toFloat())
+                        val right = imageCropRect.right.coerceIn(0f, currentBitmap.width.toFloat())
+                        val bottom = imageCropRect.bottom.coerceIn(0f, currentBitmap.height.toFloat())
+
+                        if (right > left && bottom > top) {
+                            Bitmap.createBitmap(
+                                currentBitmap,
+                                left.toInt(),
+                                top.toInt(),
+                                (right - left).toInt(),
+                                (bottom - top).toInt()
+                            )
+                        } else {
+                            currentBitmap
+                        }
+                    }
+                    is EditAction.Adjust -> {
+                        val adjustedBitmap = Bitmap.createBitmap(currentBitmap.width, currentBitmap.height, Bitmap.Config.ARGB_8888)
+                        val canvas = Canvas(adjustedBitmap)
+                        val paint = Paint()
+                        val colorMatrix = ColorMatrix()
+                        colorMatrix.set(floatArrayOf(
+                            editAction.action.contrast, 0f, 0f, 0f, editAction.action.brightness,
+                            0f, editAction.action.contrast, 0f, 0f, editAction.action.brightness,
+                            0f, 0f, editAction.action.contrast, 0f, editAction.action.brightness,
+                            0f, 0f, 0f, 1f, 0f
+                        ))
+                        val saturationMatrix = ColorMatrix()
+                        saturationMatrix.setSaturation(editAction.action.saturation)
+                        colorMatrix.postConcat(saturationMatrix)
+                        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+                        canvas.drawBitmap(currentBitmap, 0f, 0f, paint)
+                        adjustedBitmap
+                    }
+                }
+            }
+            _processedBitmap.value = currentBitmap
+        }
+    }
+
+    // --- ACTION MANAGEMENT ---
+
     fun pushDrawingAction(action: DrawingAction) {
-        _undoStack.value = _undoStack.value + EditAction.Drawing(action)
+        _undoStack.value += EditAction.Drawing(action)
         _redoStack.value = emptyList()
     }
 
     fun pushCropAction(action: CropAction) {
-        _undoStack.value = _undoStack.value + EditAction.Crop(action)
+        _undoStack.value += EditAction.Crop(action)
         _redoStack.value = emptyList()
     }
 
     fun pushAdjustAction(action: AdjustAction) {
-        _undoStack.value = _undoStack.value + EditAction.Adjust(action)
+        _undoStack.value += EditAction.Adjust(action)
         _redoStack.value = emptyList()
     }
 
     fun undo() {
         if (_undoStack.value.isNotEmpty()) {
             val lastAction = _undoStack.value.last()
+            _redoStack.value += lastAction
             _undoStack.value = _undoStack.value.dropLast(1)
-            _redoStack.value = _redoStack.value + lastAction
-            
-            // Notify listeners about the undone action
-            _lastUndoneAction.value = lastAction
         }
     }
 
     fun redo() {
         if (_redoStack.value.isNotEmpty()) {
             val lastAction = _redoStack.value.last()
+            _undoStack.value += lastAction
             _redoStack.value = _redoStack.value.dropLast(1)
-            _undoStack.value = _undoStack.value + lastAction
-            
-            // Notify listeners about the redone action
-            _lastRedoneAction.value = lastAction
         }
     }
-    
-    // Flow to notify about undone actions
-    private val _lastUndoneAction = MutableStateFlow<EditAction?>(null)
-    val lastUndoneAction: StateFlow<EditAction?> = _lastUndoneAction.asStateFlow()
-    
-    // Flow to notify about redone actions
-    private val _lastRedoneAction = MutableStateFlow<EditAction?>(null)
-    val lastRedoneAction: StateFlow<EditAction?> = _lastRedoneAction.asStateFlow()
-    
-    fun clearLastUndoneAction() {
-        _lastUndoneAction.value = null
-    }
-    
-    fun clearLastRedoneAction() {
-        _lastRedoneAction.value = null
+
+    fun clearAllActions() {
+        _undoStack.value = emptyList()
+        _redoStack.value = emptyList()
+        _lastSavedActionCount.value = 0
     }
 
-    // Drawing state management for shared Draw/Circle/Square tools
+    // --- UI STATE MANAGEMENT ---
+
     fun updateDrawingColor(color: Int) {
         _drawingState.value = _drawingState.value.copy(color = color)
     }
@@ -163,36 +235,12 @@ class EditViewModel : ViewModel() {
         _adjustState.value = AdjustState()
     }
 
-    fun clearDrawingActions() {
-        _undoStack.value = _undoStack.value.filterNot { it is EditAction.Drawing }
-    }
+    // --- SAVE STATE ---
 
-    fun clearAllActions() {
-        _undoStack.value = emptyList()
-        _redoStack.value = emptyList()
-        _lastSavedActionCount.value = 0 // Reset saved count when actions are cleared
-    }
-
-    // New function to mark current actions as saved
     fun markActionsAsSaved() {
         _lastSavedActionCount.value = _undoStack.value.size
     }
 
-    // hasUnsavedChanges now indicates if there are unsaved changes
     val hasUnsavedChanges: Boolean
-        get() = _undoStack.value.size > _lastSavedActionCount.value
-
-    // Backward compatibility - still available for drawing-only operations
-    fun clearDrawings() {
-        clearAllActions()
-    }
-
-    // Backward compatibility - still available for drawing-only operations
-    val hasDrawings: Boolean
-        get() = hasUnsavedChanges
-
-    // Backward compatibility - still available for drawing-only operations
-    fun markDrawingsAsSaved() {
-        markActionsAsSaved()
-    }
+        get() = _undoStack.value.size != _lastSavedActionCount.value
 }
