@@ -622,6 +622,10 @@ class MainActivity : AppCompatActivity() {
             editViewModel.pushCropAction(cropAction)
         }
 
+        drawingView.onDrawingsApplied = {
+            editViewModel.clearDrawingActions()
+        }
+
         // Connect undo/redo action handlers to CanvasView
         drawingView.onUndoAction = { action ->
             when (action) {

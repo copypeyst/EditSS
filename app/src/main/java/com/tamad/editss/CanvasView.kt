@@ -62,6 +62,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onCropAction: ((CropAction) -> Unit)? = null // New callback for crop actions
+    var onDrawingsApplied: (() -> Unit)? = null
     var onUndoAction: ((EditAction) -> Unit)? = null // Callback for undo operations
     var onRedoAction: ((EditAction) -> Unit)? = null // Callback for redo operations
 
@@ -326,8 +327,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             canvas.drawPath(transformedPath, action.paint)
         }
 
-        // Clear the paths list as they are now part of the bitmap
-        paths = emptyList()
+        // Signal that drawings have been applied to the bitmap
+        onDrawingsApplied?.invoke()
 
         // Map crop rectangle from screen coordinates to image coordinates
         val imageCropRect = RectF()

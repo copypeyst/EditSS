@@ -163,6 +163,10 @@ class EditViewModel : ViewModel() {
         _adjustState.value = AdjustState()
     }
 
+    fun clearDrawingActions() {
+        _undoStack.value = _undoStack.value.filterNot { it is EditAction.Drawing }
+    }
+
     fun clearAllActions() {
         _undoStack.value = emptyList()
         _redoStack.value = emptyList()
