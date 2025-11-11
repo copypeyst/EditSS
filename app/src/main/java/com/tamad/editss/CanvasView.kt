@@ -318,7 +318,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         // Store the state before the crop for the undo action.
         val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-        val pathsToMerge = paths.toList() // Make a copy of the paths.
 
         // Map crop rectangle from screen coordinates to image coordinates.
         val inverseMatrix = Matrix()
@@ -346,15 +345,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
-        // The drawings are now baked in, so clear the paths.
+        // The drawings are now baked in, so clear the paths locally.
+        // The collector will soon update the paths from the viewmodel state to be empty.
         paths = emptyList()
 
         // Create a crop action for the undo stack.
         val cropAction = CropAction(
             previousBitmap = previousBitmap,
             cropRect = RectF(cropRect),
-            cropMode = currentCropMode,
-            mergedPaths = pathsToMerge
+            cropMode = currentCropMode
         )
         
         onCropAction?.invoke(cropAction)

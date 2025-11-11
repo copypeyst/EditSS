@@ -44,8 +44,7 @@ data class DrawingAction(
 data class CropAction(
     val previousBitmap: Bitmap, // The bitmap state before the crop
     val cropRect: android.graphics.RectF, // The crop rectangle that was applied
-    val cropMode: CropMode, // The crop mode used
-    val mergedPaths: List<DrawingAction> // Add this to store paths merged during crop
+    val cropMode: CropMode // The crop mode used
 )
 
 data class AdjustAction(
@@ -84,9 +83,7 @@ class EditViewModel : ViewModel() {
     }
 
     fun pushCropAction(action: CropAction) {
-        // The crop action merges all current drawing actions, so filter them out.
-        val nonDrawingActions = _undoStack.value.filter { it !is EditAction.Drawing }
-        _undoStack.value = nonDrawingActions + EditAction.Crop(action)
+        _undoStack.value = _undoStack.value + EditAction.Crop(action)
         _redoStack.value = emptyList()
     }
 
@@ -96,36 +93,25 @@ class EditViewModel : ViewModel() {
     }
 
     fun undo() {
-        if (_undoStack.value.isEmpty()) return
-
-        val lastAction = _undoStack.value.last()
-        _undoStack.value = _undoStack.value.dropLast(1)
-        _redoStack.value = _redoStack.value + lastAction
-
-        if (lastAction is EditAction.Crop) {
-            // When undoing a crop, restore the merged drawing actions to the stack.
-            val mergedDrawingActions = lastAction.action.mergedPaths.map { EditAction.Drawing(it) }
-            _undoStack.value = _undoStack.value + mergedDrawingActions
+        if (_undoStack.value.isNotEmpty()) {
+            val lastAction = _undoStack.value.last()
+            _undoStack.value = _undoStack.value.dropLast(1)
+            _redoStack.value = _redoStack.value + lastAction
+            
+            // Notify listeners about the undone action
+            _lastUndoneAction.value = lastAction
         }
-
-        _lastUndoneAction.value = lastAction
     }
 
     fun redo() {
-        if (_redoStack.value.isEmpty()) return
-
-        val actionToRedo = _redoStack.value.last()
-
-        if (actionToRedo is EditAction.Crop) {
-            // When redoing a crop, remove the drawing actions that are about to be merged.
-            val numToDrop = actionToRedo.action.mergedPaths.size
-            _undoStack.value = _undoStack.value.dropLast(numToDrop)
+        if (_redoStack.value.isNotEmpty()) {
+            val lastAction = _redoStack.value.last()
+            _redoStack.value = _redoStack.value.dropLast(1)
+            _undoStack.value = _undoStack.value + lastAction
+            
+            // Notify listeners about the redone action
+            _lastRedoneAction.value = lastAction
         }
-
-        _redoStack.value = _redoStack.value.dropLast(1)
-        _undoStack.value = _undoStack.value + actionToRedo
-
-        _lastRedoneAction.value = actionToRedo
     }
     
     // Flow to notify about undone actions
