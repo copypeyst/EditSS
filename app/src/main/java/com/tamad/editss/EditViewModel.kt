@@ -44,7 +44,8 @@ data class DrawingAction(
 data class CropAction(
     val previousBitmap: Bitmap, // The bitmap state before the crop
     val cropRect: android.graphics.RectF, // The crop rectangle that was applied
-    val cropMode: CropMode // The crop mode used
+    val cropMode: CropMode, // The crop mode used
+    val mergedPaths: List<DrawingAction> // Add this to store paths merged during crop
 )
 
 data class AdjustAction(
