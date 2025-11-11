@@ -362,6 +362,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         )
         onBitmapChanged?.invoke(bitmapChangeAction) // Invoke the new callback
 
+        // Clear the paths list after successful crop since drawings are now merged into the bitmap
+        paths = emptyList()
+
         // Clear the crop rectangle and update UI
         cropRect.setEmpty()
         updateImageMatrix()
