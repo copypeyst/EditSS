@@ -312,9 +312,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
-        // Store the previous bitmap state for undo/redo
-        val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-
         // Create a canvas to draw the paths onto the bitmap
         val canvas = Canvas(baseBitmap!!)
         val inverseMatrix = Matrix()
@@ -326,6 +323,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             action.path.transform(inverseMatrix, transformedPath)
             canvas.drawPath(transformedPath, action.paint)
         }
+
+        // Now that drawings are on the bitmap, store this state for undo
+        val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
 
         // Signal that drawings have been applied to the bitmap
         onDrawingsApplied?.invoke()
