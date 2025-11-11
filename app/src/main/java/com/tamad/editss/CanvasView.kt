@@ -16,8 +16,6 @@ import com.tamad.editss.EditAction
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
-    private val MAX_UNDO_BITMAP_SIZE = 256 // Max size for longest side of downsampled bitmaps
-
     private val paint = Paint()
     private val currentPath = Path()
     private val cropPaint = Paint()
@@ -315,7 +313,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         // Store the previous bitmap state for undo/redo
         val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-        val downsampledPreviousBitmap = downsampleBitmap(previousBitmap, MAX_UNDO_BITMAP_SIZE)
 
         // Map crop rectangle from screen coordinates to image coordinates
         val inverseMatrix = Matrix()
@@ -844,22 +841,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 cropRect.bottom = y
             }
         }
-    }
-
-    private fun downsampleBitmap(bitmap: Bitmap, maxSize: Int): Bitmap {
-        val width = bitmap.width
-        val height = bitmap.height
-
-        val bitmapMaxSide = maxOf(width, height)
-        if (bitmapMaxSide <= maxSize) {
-            return bitmap // No downsampling needed
-        }
-
-        val scale = maxSize.toFloat() / bitmapMaxSide
-        val newWidth = (width * scale).toInt()
-        val newHeight = (height * scale).toInt()
-
-        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
     }
 
     fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
