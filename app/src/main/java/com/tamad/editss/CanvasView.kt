@@ -677,18 +677,29 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                         val inverseMatrix = Matrix()
                         imageMatrix.invert(inverseMatrix)
                         
+                        // Get the scale factors from the inverse matrix to adjust stroke width
+                        val scaleValues = FloatArray(9)
+                        inverseMatrix.getValues(scaleValues)
+                        val scaleX = scaleValues[Matrix.MSCALE_X]
+                        val scaleY = scaleValues[Matrix.MSCALE_Y]
+                        val averageScale = (scaleX + scaleY) / 2f
+                        
                         // Transform the path to image coordinates
                         val imagePath = Path()
                         currentPath.transform(inverseMatrix, imagePath)
                         
+                        // Create a new paint with adjusted stroke width to compensate for transformation
+                        val bitmapPaint = Paint(paint)
+                        bitmapPaint.strokeWidth = paint.strokeWidth / averageScale
+                        
                         // Draw the path directly onto the bitmap
-                        canvas.drawPath(imagePath, paint)
+                        canvas.drawPath(imagePath, bitmapPaint)
                         
                         // Update the base bitmap
                         baseBitmap = workingBitmap
                         
                         // Update drawing state in ViewModel
-                            val newPaint = Paint(paint)
+                            val newPaint = Paint(bitmapPaint)
                             val newPath = Path(imagePath) // Store in image coordinates for reference
                             
                             // Create a DrawingBitmapAction for proper undo/redo
