@@ -202,8 +202,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun processUndoAction(action: EditAction) {
         when (action) {
             is EditAction.Drawing -> {
-                // Drawing actions are handled by the setPaths method
-                // No additional handling needed here
+                // Legacy drawing actions - no handling needed
+            }
+            is EditAction.DrawingBitmap -> {
+                // For bitmap-based drawing actions, restore previous bitmap state
+                setBitmap(action.action.previousBitmap)
             }
             is EditAction.Crop -> {
                 handleCropUndo(action.action)
@@ -218,8 +221,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun processRedoAction(action: EditAction) {
         when (action) {
             is EditAction.Drawing -> {
-                // Drawing actions are handled by the setPaths method
-                // No additional handling needed here
+                // Legacy drawing actions - no handling needed
+            }
+            is EditAction.DrawingBitmap -> {
+                // For bitmap-based drawing actions, restore new bitmap state
+                setBitmap(action.action.newBitmap)
             }
             is EditAction.Crop -> {
                 handleCropRedo(action.action)
