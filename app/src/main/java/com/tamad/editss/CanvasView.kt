@@ -346,14 +346,30 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         )
 
         // Transform all existing paths to account for the crop
+        // FIX: Apply proper coordinate transformation for paths that are in screen coordinates
         val transformedPaths = mutableListOf<DrawingAction>()
         for (action in paths) {
             val transformedPath = Path()
-            val transformationMatrix = Matrix()
             
-            // Create matrix to map from old image coordinates to new cropped image coordinates
-            transformationMatrix.setTranslate(-left, -top)
-            action.path.transform(transformationMatrix, transformedPath)
+            // Get the path points in screen coordinates
+            val pathPoints = FloatArray(2)
+            val pathMeasure = PathMeasure(action.path, false)
+            val pathLength = pathMeasure.length
+            
+            // Create a new path that will contain the transformed coordinates
+            val tempPath = Path()
+            
+            // Copy the original path to tempPath for measurement
+            tempPath.addPath(action.path)
+            
+            // Apply the proper transformation:
+            // 1. First convert from screen coordinates to image coordinates using inverted matrix
+            // 2. Then subtract the crop offset to get coordinates in the new cropped image space
+            val transformationMatrix = Matrix()
+            transformationMatrix.postConcat(inverseMatrix) // Convert screen to image coords
+            transformationMatrix.postTranslate(-left, -top) // Adjust for crop offset
+            
+            tempPath.transform(transformationMatrix, transformedPath)
             
             transformedPaths.add(DrawingAction(transformedPath, action.paint))
         }
