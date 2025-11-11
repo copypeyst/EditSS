@@ -472,7 +472,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 
                 // Create ONLY a BitmapChange action for clean undo/redo (no conflicting DrawingAction)
                 val bitmapChangeAction = EditAction.BitmapChange(
-                    previousBitmap = bitmapBeforeDrawing,
+                    previousBitmap = bitmapBeforeDrawing ?: return@let, // Handle null case
                     newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
                 )
                 onBitmapChanged?.invoke(bitmapChangeAction)
