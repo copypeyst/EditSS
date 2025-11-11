@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.view.MotionEvent
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 class CircleTool : DrawingTool {

@@ -380,6 +380,34 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
 
 
+    fun getDrawing(): Bitmap? {
+        if (baseBitmap == null) return null
+        val resultBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(resultBitmap)
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        canvas.concat(inverseMatrix)
+
+        for (action in paths) {
+            canvas.drawPath(action.path, action.paint)
+        }
+        return resultBitmap
+    }
+
+    fun getDrawingOnTransparent(): Bitmap? {
+        if (baseBitmap == null) return null
+        val resultBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(resultBitmap)
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        canvas.concat(inverseMatrix)
+
+        for (action in paths) {
+            canvas.drawPath(action.path, action.paint)
+        }
+        return resultBitmap
+    }
+
     fun getFinalBitmap(): Bitmap? {
         mergeDrawingActions()
         return baseBitmap
