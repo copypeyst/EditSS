@@ -44,8 +44,8 @@ data class DrawingAction(
 data class CropAction(
     val previousBitmap: Bitmap, // The bitmap state before the crop
     val cropRect: android.graphics.RectF, // The crop rectangle that was applied
-    val cropMode: CropMode, // The crop mode used
-    val previousDrawingActions: List<DrawingAction> // Drawing actions before the crop
+    val cropMode: CropMode // The crop mode used
+    // previousDrawingActions removed - drawings are now immediately merged into bitmap
 )
 
 data class AdjustAction(
