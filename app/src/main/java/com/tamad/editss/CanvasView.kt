@@ -66,6 +66,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var currentScale = 1f
     private var currentTranslateX = 0f
     private var currentTranslateY = 0f
+    private var lastUnclampedScale = 1f // Track intended scale before clamping
 
     // Two-finger zoom and pan (display only)
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -76,8 +77,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val focusX = detector.focusX
             val focusY = detector.focusY
             
-            // Calculate new scale
+            // Calculate new scale and track unclamped version
             val newScale = currentScale * scaleFactor
+            lastUnclampedScale = newScale
             
             // Only allow zooming in (no zooming out beyond original scale)
             if (scaleFactor > 1.0f || (scaleFactor < 1.0f && newScale > originalScale)) {
@@ -95,8 +97,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
         
         override fun onScaleEnd(detector: ScaleGestureDetector) {
-            // Only recenter if we actually tried to zoom out (scaleFactor < 1.0f)
-            if (detector.scaleFactor < 1.0f && currentScale <= originalScale + 0.001f) {
+            // Only recenter if user tried to zoom out past original scale
+            if (detector.scaleFactor < 1.0f && lastUnclampedScale <= originalScale + 0.001f) {
                 resetDisplayView()
             }
         }
@@ -682,6 +684,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             currentScale = scale
             currentTranslateX = dx
             currentTranslateY = dy
+            lastUnclampedScale = scale
 
             imageMatrix.setScale(scale, scale)
             imageMatrix.postTranslate(dx, dy)
