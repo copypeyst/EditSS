@@ -35,6 +35,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var currentTool: ToolType = ToolType.DRAW
     private var currentCropMode: CropMode = CropMode.FREEFORM
 
+    private var isCropModeActive = false // Track if crop mode is actually selected
     private var isCropping = false
     private var cropRect = RectF()
     private var isMovingCropRect = false
@@ -189,15 +190,31 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun setToolType(toolType: ToolType) {
         this.currentTool = toolType
         if (toolType == ToolType.CROP) {
-            initializeDefaultCropRect()
+            // Only initialize crop rect if a crop mode is already active
+            if (isCropModeActive) {
+                initializeDefaultCropRect()
+            }
+        } else {
+            // When leaving crop mode, reset crop mode active state
+            isCropModeActive = false
         }
         invalidate()
     }
 
     fun setCropMode(cropMode: CropMode) {
         this.currentCropMode = cropMode
+        this.isCropModeActive = true // Mark that a crop mode is now active
         if (currentTool == ToolType.CROP) {
             initializeDefaultCropRect()
+        }
+        invalidate()
+    }
+    
+    fun setCropModeInactive() {
+        this.isCropModeActive = false
+        if (currentTool == ToolType.CROP) {
+            // Clear the crop rectangle when leaving crop mode
+            cropRect.setEmpty()
         }
         invalidate()
     }
@@ -515,7 +532,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     if (!cropRect.isEmpty) {
                         return true // Consume the event but do nothing
                     }
-                    // Otherwise create new crop rectangle
+                    // Only allow crop creation if a crop mode is actually active/selected
+                    if (!isCropModeActive) {
+                        return true // Consume the event but do nothing if no crop mode selected
+                    }
+                    // Create new crop rectangle
                     isCropping = true
                     cropRect.left = x
                     cropRect.top = y

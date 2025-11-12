@@ -311,6 +311,7 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Show drawing view
             drawingView.setToolType(CanvasView.ToolType.DRAW) // Set draw mode
+            drawingView.setCropModeInactive() // Clear crop mode active state
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
@@ -335,6 +336,7 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Hide drawing view
             drawingView.setToolType(CanvasView.ToolType.ADJUST) // Set tool type
+            drawingView.setCropModeInactive() // Clear crop mode active state
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
@@ -473,7 +475,10 @@ class MainActivity : AppCompatActivity() {
         buttonCropApply.setOnClickListener {
             val croppedBitmap = drawingView.applyCrop()
             if (croppedBitmap != null) {
-                // Image was cropped successfully - stay in crop mode
+                // Image was cropped successfully - clear crop mode selection
+                currentCropMode?.isSelected = false
+                currentCropMode = null
+                drawingView.setCropModeInactive()
                 Toast.makeText(this, "Image cropped successfully", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "No crop area selected", Toast.LENGTH_SHORT).show()
@@ -482,6 +487,9 @@ class MainActivity : AppCompatActivity() {
 
         buttonCropCancel.setOnClickListener {
             drawingView.cancelCrop()
+            currentCropMode?.isSelected = false
+            currentCropMode = null
+            drawingView.setCropModeInactive()
         }
 
         // Set callbacks for crop operations to update UI
