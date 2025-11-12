@@ -1261,8 +1261,20 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val bitmapToSave: Bitmap?
-                if (isSketchMode && (selectedSaveFormat == "image/png" || selectedSaveFormat == "image/webp")) {
-                    bitmapToSave = drawingView.getTransparentDrawing()
+                if (isSketchMode) {
+                    when (selectedSaveFormat) {
+                        "image/png", "image/webp" -> {
+                            // For transparent formats, use transparent version
+                            bitmapToSave = drawingView.getTransparentDrawing()
+                        }
+                        "image/jpeg" -> {
+                            // For JPEG, render strokes on white background
+                            bitmapToSave = drawingView.getSketchDrawingOnWhite()
+                        }
+                        else -> {
+                            bitmapToSave = drawingView.getDrawing()
+                        }
+                    }
                 } else {
                     bitmapToSave = drawingView.getDrawing()
                 }

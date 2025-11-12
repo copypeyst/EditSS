@@ -405,6 +405,41 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Non-sketch mode: use original method
         return getDrawingOnTransparent()
     }
+    
+    fun getSketchDrawingOnWhite(): Bitmap? {
+        if (isSketchMode) {
+            // Create white bitmap and render strokes on top
+            baseBitmap?.let { originalBitmap ->
+                val whiteBitmap = Bitmap.createBitmap(
+                    originalBitmap.width,
+                    originalBitmap.height,
+                    Bitmap.Config.ARGB_8888
+                )
+                val canvas = Canvas(whiteBitmap)
+                val paint = Paint()
+                
+                // Fill with white background
+                canvas.drawColor(Color.WHITE)
+                
+                // Render all sketch strokes
+                for (stroke in sketchStrokes) {
+                    paint.color = stroke.paint.color
+                    paint.strokeWidth = stroke.paint.strokeWidth
+                    paint.alpha = stroke.paint.alpha
+                    paint.style = stroke.paint.style
+                    paint.strokeJoin = stroke.paint.strokeJoin
+                    paint.strokeCap = stroke.paint.strokeCap
+                    paint.isAntiAlias = stroke.paint.isAntiAlias
+                    
+                    canvas.drawPath(stroke.path, paint)
+                }
+                
+                return whiteBitmap
+            }
+        }
+        // Non-sketch mode: use original method
+        return getDrawing()
+    }
 
     fun getFinalBitmap(): Bitmap? {
         // Since drawings are immediately merged into bitmap, just return baseBitmap
