@@ -46,6 +46,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
+import android.graphics.Color
+import android.graphics.Paint
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -747,6 +749,9 @@ class MainActivity : AppCompatActivity() {
                 selectedSaveFormat = "image/jpeg"
                 updateFormatSelectionUI() // This will set JPEG radio button as selected
                 updateSavePanelUI()
+                
+                // Enable sketch mode for the CanvasView
+                drawingView.setSketchMode(true)
             }
         }
 
@@ -792,11 +797,28 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 // Get bitmap from Coil
-                val bitmapToShare = if (isSketchMode && (selectedSaveFormat == "image/png" || selectedSaveFormat == "image/webp")) {
+                val bitmapToShare: Bitmap?
+                if (isSketchMode && (selectedSaveFormat == "image/png" || selectedSaveFormat == "image/webp")) {
                     // For sketch mode with PNG/WebP, use the transparent bitmap directly
-                    drawingView.getDrawing()
+                    bitmapToShare = drawingView.getDrawing()
+                } else if (isSketchMode && selectedSaveFormat == "image/jpeg") {
+                    // For sketch mode with JPEG, add white background to the transparent bitmap
+                    val transparentBitmap = drawingView.getDrawing()
+                    if (transparentBitmap != null) {
+                        val whiteBackgroundBitmap = Bitmap.createBitmap(
+                            transparentBitmap.width,
+                            transparentBitmap.height,
+                            Bitmap.Config.ARGB_8888
+                        )
+                        val canvas = Canvas(whiteBackgroundBitmap)
+                        canvas.drawColor(Color.WHITE) // Add white background
+                        canvas.drawBitmap(transparentBitmap, 0f, 0f, Paint()) // Draw transparent image on top
+                        bitmapToShare = whiteBackgroundBitmap
+                    } else {
+                        bitmapToShare = drawingView.getDrawing()
+                    }
                 } else {
-                    drawingView.getDrawing()
+                    bitmapToShare = drawingView.getDrawing()
                 }
 
                 if (bitmapToShare != null) {
@@ -1281,6 +1303,22 @@ class MainActivity : AppCompatActivity() {
                 if (isSketchMode && (selectedSaveFormat == "image/png" || selectedSaveFormat == "image/webp")) {
                     // For sketch mode with PNG/WebP, use the transparent bitmap directly
                     bitmapToSave = drawingView.getDrawing() // Now already transparent
+                } else if (isSketchMode && selectedSaveFormat == "image/jpeg") {
+                    // For sketch mode with JPEG, add white background to the transparent bitmap
+                    val transparentBitmap = drawingView.getDrawing()
+                    if (transparentBitmap != null) {
+                        val whiteBackgroundBitmap = Bitmap.createBitmap(
+                            transparentBitmap.width,
+                            transparentBitmap.height,
+                            Bitmap.Config.ARGB_8888
+                        )
+                        val canvas = Canvas(whiteBackgroundBitmap)
+                        canvas.drawColor(Color.WHITE) // Add white background
+                        canvas.drawBitmap(transparentBitmap, 0f, 0f, Paint()) // Draw transparent image on top
+                        bitmapToSave = whiteBackgroundBitmap
+                    } else {
+                        bitmapToSave = drawingView.getDrawing()
+                    }
                 } else {
                     bitmapToSave = drawingView.getDrawing()
                 }
