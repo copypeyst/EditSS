@@ -808,11 +808,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun updateColorFilter() {
         val colorMatrix = ColorMatrix()
-        // Brightness and Contrast
+        
+        // Proper contrast and brightness calculation
+        // Formula: new_value = ((old_value - 128) * contrast) + 128 + brightness
+        val brightnessOffset = brightness - (contrast - 1f) * 128f
+        
         colorMatrix.set(floatArrayOf(
-            contrast, 0f, 0f, 0f, brightness,
-            0f, contrast, 0f, 0f, brightness,
-            0f, 0f, contrast, 0f, brightness,
+            contrast, 0f, 0f, 0f, brightnessOffset,
+            0f, contrast, 0f, 0f, brightnessOffset,
+            0f, 0f, contrast, 0f, brightnessOffset,
             0f, 0f, 0f, 1f, 0f
         ))
 
