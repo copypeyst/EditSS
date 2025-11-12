@@ -357,8 +357,35 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun getDrawingOnTransparent(): Bitmap? {
-        // Since drawings are merged into bitmap, return a copy of baseBitmap
-        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        val originalBitmap = baseBitmap ?: return null
+        
+        // Create a mutable copy to work with
+        val transparentBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        
+        // Get the pixel data
+        val pixels = IntArray(transparentBitmap.width * transparentBitmap.height)
+        transparentBitmap.getPixels(pixels, 0, transparentBitmap.width, 0, 0,
+                                   transparentBitmap.width, transparentBitmap.height)
+        
+        // Convert white pixels to transparent, keeping all other colors
+        for (i in pixels.indices) {
+            val pixel = pixels[i]
+            val red = Color.red(pixel)
+            val green = Color.green(pixel)
+            val blue = Color.blue(pixel)
+            val alpha = Color.alpha(pixel)
+            
+            // If the pixel is very close to white (and not transparent already), make it transparent
+            if (alpha > 0 && red >= 250 && green >= 250 && blue >= 250) {
+                pixels[i] = Color.TRANSPARENT // Fully transparent
+            }
+        }
+        
+        // Set the modified pixels back to the bitmap
+        transparentBitmap.setPixels(pixels, 0, transparentBitmap.width, 0, 0,
+                                   transparentBitmap.width, transparentBitmap.height)
+        
+        return transparentBitmap
     }
 
     fun getFinalBitmap(): Bitmap? {
