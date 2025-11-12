@@ -158,7 +158,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     // Timing buffer for two-finger gesture detection
     private var timingBufferActive = false
     private var timingBufferStartTime = 0L
-    private val TIMING_BUFFER_DURATION = 500L // 500ms delay
+    private var firstTouchX = 0f
+    private var timingBufferHandler: Runnable? = null
+    private val TIMING_BUFFER_DURATION = 100L // 100ms delay
     
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
@@ -771,12 +773,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         // Get the action using getActionMasked() which properly handles multi-touch
         val action = event.actionMasked
+        val x = event.x
+        val y = event.y
         
         // Always check for multi-touch events first
         when (action) {
             MotionEvent.ACTION_POINTER_DOWN -> {
-                // A secondary finger has touched the screen - cancel timing buffer
+                // A secondary finger has touched the screen
                 timingBufferActive = false
+                timingBufferHandler?.let { removeCallbacks(it) }
+                timingBufferHandler = null
                 
                 if (event.pointerCount == 2 && baseBitmap != null) {
                     // Let gesture detectors handle the two-finger gesture
@@ -792,6 +798,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     val gestureHandled = gestureDetector.onTouchEvent(event)
                     return true // Always consume multi-touch move events
                 }
+                
+                // Check if we've moved enough to confirm this is drawing, not waiting for second finger
+                if (timingBufferActive) {
+                    val distance = kotlin.math.sqrt((x - firstTouchX) * (x - firstTouchX) + (y - lastTouchY) * (y - lastTouchY))
+                    if (distance > 50f) { // 50 pixels threshold
+                        // Clear timing buffer - this is clearly drawing
+                        timingBufferActive = false
+                        timingBufferHandler?.let { removeCallbacks(it) }
+                        timingBufferHandler = null
+                    }
+                }
             }
             MotionEvent.ACTION_POINTER_UP -> {
                 // A secondary finger has been lifted
@@ -802,65 +819,27 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
 
-        // Check timing buffer - if active, see if it has expired
-        if (timingBufferActive) {
-            val currentTime = System.currentTimeMillis()
-            if (currentTime - timingBufferStartTime > TIMING_BUFFER_DURATION) {
-                // Buffer expired, proceed with single-finger processing
-                timingBufferActive = false
-            } else if (event.pointerCount <= 1 && event.action == MotionEvent.ACTION_MOVE) {
-                // Still in buffer period and moving - don't process drawing yet
-                return true
-            }
-        }
-
-        // Only process single-finger events (and only if timing buffer is not active)
-        if (event.pointerCount <= 1 && !timingBufferActive) {
-            val x = event.x
-            val y = event.y
-
+        // Only process single-finger events
+        if (event.pointerCount <= 1) {
             if (currentTool == ToolType.DRAW) {
-                // Check if this is the initial ACTION_DOWN for single-finger drawing
-                if (event.action == MotionEvent.ACTION_DOWN) {
+                // Always allow drawing tool to handle the event
+                val action = currentDrawingTool.onTouchEvent(event, paint)
+                
+                // If this is the initial touch and we're not already in timing buffer
+                if (event.action == MotionEvent.ACTION_DOWN && !timingBufferActive) {
                     // Start timing buffer to wait for potential second finger
                     timingBufferActive = true
                     timingBufferStartTime = System.currentTimeMillis()
+                    firstTouchX = x
                     
-                    // Reset timing buffer after the duration
-                    postDelayed({
-                        if (timingBufferActive) {
-                            timingBufferActive = false
-                            // Trigger single-finger processing now
-                            if (currentTool == ToolType.DRAW) {
-                                val action = currentDrawingTool.onTouchEvent(event, paint)
-                                action?.let {
-                                    if (isSketchMode) {
-                                        sketchStrokes.add(action)
-                                        val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                                        onBitmapChanged?.invoke(EditAction.BitmapChange(
-                                            previousBitmap = bitmapBeforeDrawing ?: return@postDelayed,
-                                            newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                                        ))
-                                    } else {
-                                        val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                                        mergeDrawingStrokeIntoBitmap(action)
-                                        onBitmapChanged?.invoke(EditAction.BitmapChange(
-                                            previousBitmap = bitmapBeforeDrawing ?: return@postDelayed,
-                                            newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                                        ))
-                                    }
-                                }
-                                invalidate()
-                            }
-                        }
-                    }, TIMING_BUFFER_DURATION)
-                    
-                    // For now, don't start drawing yet - let the delayed action handle it
-                    return true
+                    // Set up handler to clear buffer after duration
+                    timingBufferHandler = Runnable {
+                        timingBufferActive = false
+                        timingBufferHandler = null
+                    }
+                    postDelayed(timingBufferHandler!!, TIMING_BUFFER_DURATION)
                 }
                 
-                // For other events (MOVE, UP) in single-finger mode
-                val action = currentDrawingTool.onTouchEvent(event, paint)
                 action?.let {
                     if (isSketchMode) {
                         // In sketch mode, store strokes separately for transparency support
@@ -982,6 +961,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 MotionEvent.ACTION_UP -> {
                     // Reset timing buffer when finger is lifted
                     timingBufferActive = false
+                    timingBufferHandler?.let { removeCallbacks(it) }
+                    timingBufferHandler = null
                     
                     if (currentTool == ToolType.CROP) {
                         isCropping = false
