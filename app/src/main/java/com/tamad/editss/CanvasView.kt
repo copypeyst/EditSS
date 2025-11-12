@@ -131,8 +131,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     // Track recent drawing actions to cancel if second finger is detected
     private var lastDrawingTime = 0L
-    private var recentBitmapChanges = mutableListOf<EditAction.BitmapChange>()
-    private var shouldCancelDrawing = false // Flag to prevent undo notifications
+    private var inProgressStroke: DrawingAction? = null // Track the stroke being drawn
     private val CANCEL_DRAWING_WINDOW = 500L // Extended 500ms window to cancel drawing
 
     
@@ -697,39 +696,28 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (currentTool == ToolType.DRAW) {
             val action = currentDrawingTool.onTouchEvent(event, paint)
             action?.let {
-                // Store pre-drawing state BEFORE any bitmap modifications
-                val preDrawingBitmap = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                // Track in-progress stroke for potential cancellation if second finger detected
+                inProgressStroke = action
+                lastDrawingTime = System.currentTimeMillis()
                 
                 if (isSketchMode) {
                     // In sketch mode, store strokes separately for transparency support
                     sketchStrokes.add(action)
                     
-                    // Create action for tracking (for potential cancellation)
-                    val bitmapChangeAction = EditAction.BitmapChange(
-                        previousBitmap = preDrawingBitmap ?: return@let,
-                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                    )
-                    trackRecentDrawing(bitmapChangeAction)
-                    
                     // Save bitmap state for undo/redo
+                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
                     onBitmapChanged?.invoke(EditAction.BitmapChange(
-                        previousBitmap = preDrawingBitmap ?: return@let,
+                        previousBitmap = bitmapBeforeDrawing ?: return@let,
                         newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
                     ))
                 } else {
                     // In imported/captured image mode, use original behavior
                     mergeDrawingStrokeIntoBitmap(action)
                     
-                    // Create action for tracking (for potential cancellation)
-                    val bitmapChangeAction = EditAction.BitmapChange(
-                        previousBitmap = preDrawingBitmap ?: return@let,
-                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                    )
-                    trackRecentDrawing(bitmapChangeAction)
-                    
                     // Save bitmap state for undo/redo
+                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
                     onBitmapChanged?.invoke(EditAction.BitmapChange(
-                        previousBitmap = preDrawingBitmap ?: return@let,
+                        previousBitmap = bitmapBeforeDrawing ?: return@let,
                         newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
                     ))
                 }
@@ -832,6 +820,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 return true
             }
             MotionEvent.ACTION_UP -> {
+                // Clear in-progress stroke when finger is lifted (stroke is finalized)
+                inProgressStroke = null
+                lastDrawingTime = 0L
+                
                 if (currentTool == ToolType.CROP) {
                     isCropping = false
                     isMovingCropRect = false
@@ -1185,23 +1177,19 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val currentTime = System.currentTimeMillis()
         val timeSinceDrawing = currentTime - lastDrawingTime
         
-        // Only cancel if the drawing was recent (within the cancel window)
-        if (timeSinceDrawing <= CANCEL_DRAWING_WINDOW && recentBitmapChanges.isNotEmpty()) {
-            // Get the most recent drawing action
-            val lastAction = recentBitmapChanges.last()
+        // Only cancel if there was a recent in-progress stroke
+        if (timeSinceDrawing <= CANCEL_DRAWING_WINDOW && inProgressStroke != null) {
+            // Remove the in-progress stroke from sketch strokes if in sketch mode
+            if (isSketchMode && sketchStrokes.isNotEmpty()) {
+                sketchStrokes.removeAt(sketchStrokes.size - 1) // Remove the last stroke
+            }
             
-            // Set flag to prevent undo notifications during cancellation
-            shouldCancelDrawing = true
-            
-            // Restore the previous bitmap to cancel the drawing
-            baseBitmap = lastAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-            updateImageBounds()
-            invalidate()
-            
-            // Clear the tracking list and reset flag
-            recentBitmapChanges.clear()
+            // Clear the in-progress stroke tracking
+            inProgressStroke = null
             lastDrawingTime = 0L
-            shouldCancelDrawing = false
+            
+            // Redraw to show the stroke has been removed
+            invalidate()
         }
     }
 }
