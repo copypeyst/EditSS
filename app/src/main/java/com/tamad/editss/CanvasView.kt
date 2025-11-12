@@ -46,7 +46,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val sketchStrokes = mutableListOf<DrawingAction>()
     private var isSketchMode = false // Track if we're in sketch mode (no imported/captured image)
 
-    // Gesture detection - REMOVED scale detector for crop mode
+    // Gesture detection - ADDED pinch zoom and pan support
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var cropStartX = 0f
@@ -58,6 +58,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var brightness = 0f
     private var contrast = 1f
     private var saturation = 1f
+
+    // Pinch zoom and pan variables
+    private var scaleDetector: ScaleGestureDetector? = null
+    private var currentScale = 1f
+    private var lastPanX = 0f
+    private var lastPanY = 0f
+    private var isPanning = false
+    
+    // Track if image is zoomed/paned from default position
+    private var isImageTransformed = false
 
     
     var onCropApplied: ((Bitmap) -> Unit)? = null
@@ -82,6 +92,27 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
         cropCornerPaint.alpha = 192 // 75% opacity
+        
+        // Initialize ScaleGestureDetector for pinch zoom (works in all modes)
+        scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val scaleFactor = detector.scaleFactor
+                val newScale = (currentScale * scaleFactor).coerceIn(1f, 5f) // Only zoom in, max 5x
+                
+                // Only update if we're actually changing scale (avoid tiny changes)
+                if (Math.abs(newScale - currentScale) > 0.01f) {
+                    currentScale = newScale
+                    isImageTransformed = currentScale > 1.01f || isImageTransformed
+                    
+                    // Update the image matrix to reflect zoom
+                    updateImageMatrix()
+                    
+                    invalidate()
+                }
+                
+                return true
+            }
+        })
     }
 
     enum class ToolType {
@@ -211,6 +242,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             // When leaving crop mode, reset crop mode active state
             isCropModeActive = false
         }
+        
+        // Don't reset zoom - it should work the same in all modes
+        
         invalidate()
     }
 
@@ -567,160 +601,221 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val bitmapWidth = it.width.toFloat()
             val bitmapHeight = it.height.toFloat()
 
-            val scale: Float
+            val baseScale: Float
             var dx = 0f
             var dy = 0f
 
             if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
-                scale = viewWidth / bitmapWidth
-                dy = (viewHeight - bitmapHeight * scale) * 0.5f
+                baseScale = viewWidth / bitmapWidth
+                dy = (viewHeight - bitmapHeight * baseScale) * 0.5f
             } else {
-                scale = viewHeight / bitmapHeight
-                dx = (viewWidth - bitmapWidth * scale) * 0.5f
+                baseScale = viewHeight / bitmapHeight
+                dx = (viewWidth - bitmapWidth * baseScale) * 0.5f
             }
 
-            imageMatrix.setScale(scale, scale)
+            // Apply base scale and position first
+            imageMatrix.reset()
+            imageMatrix.setScale(baseScale, baseScale)
             imageMatrix.postTranslate(dx, dy)
+            
+            // Apply zoom and pan if image is transformed
+            if (isImageTransformed && currentScale > 1f) {
+                val scaledBaseWidth = bitmapWidth * baseScale * currentScale
+                val scaledBaseHeight = bitmapHeight * baseScale * currentScale
+                
+                // Center the scaled image, then apply additional translation for panning
+                val centerX = (viewWidth - scaledBaseWidth) * 0.5f
+                val centerY = (viewHeight - scaledBaseHeight) * 0.5f
+                
+                // Reset to center position for zoomed image
+                imageMatrix.setScale(baseScale * currentScale, baseScale * currentScale)
+                imageMatrix.postTranslate(centerX, centerY)
+            }
 
             imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
             imageMatrix.mapRect(imageBounds)
         }
+    }
+    
+    private fun resetImageTransform() {
+        currentScale = 1f
+        isImageTransformed = false
+        updateImageMatrix()
+        invalidate()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val x = event.x
         val y = event.y
 
-        if (currentTool == ToolType.DRAW) {
-            val action = currentDrawingTool.onTouchEvent(event, paint)
-            action?.let {
-                if (isSketchMode) {
-                    // In sketch mode, store strokes separately for transparency support
-                    sketchStrokes.add(action)
-                    
-                    // Save bitmap state for undo/redo (background changes)
-                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                    onBitmapChanged?.invoke(EditAction.BitmapChange(
-                        previousBitmap = bitmapBeforeDrawing ?: return@let,
-                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                    ))
-                } else {
-                    // In imported/captured image mode, use original behavior
-                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                    mergeDrawingStrokeIntoBitmap(action)
-                    onBitmapChanged?.invoke(EditAction.BitmapChange(
-                        previousBitmap = bitmapBeforeDrawing ?: return@let,
-                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                    ))
+        // Always handle pinch-to-zoom gestures (non-intrusive, just for viewing)
+        scaleDetector?.onTouchEvent(event)
+        
+        // Handle two-finger panning when zoomed
+        if (event.pointerCount == 2 && currentScale > 1.01f) {
+            when (event.action) {
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    isPanning = true
+                    lastPanX = x
+                    lastPanY = y
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (isPanning) {
+                        val dx = x - lastPanX
+                        val dy = y - lastPanY
+                        
+                        // Apply pan to image matrix
+                        val panMatrix = Matrix(imageMatrix)
+                        panMatrix.postTranslate(dx, dy)
+                        
+                        // Update matrix and invalidate
+                        imageMatrix.set(panMatrix)
+                        imageBounds.set(0f, 0f, baseBitmap!!.width.toFloat(), baseBitmap!!.height.toFloat())
+                        imageMatrix.mapRect(imageBounds)
+                        
+                        lastPanX = x
+                        lastPanY = y
+                        invalidate()
+                        return true
+                    }
+                }
+                MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP -> {
+                    isPanning = false
                 }
             }
-            invalidate()
-            return true
-        }
+        } else {
+            // Handle tool operations (works the same at any zoom level)
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    lastTouchX = x
+                    lastTouchY = y
 
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                lastTouchX = x
-                lastTouchY = y
-
-                if (currentTool == ToolType.CROP) {
-                    // Check if touch is on a corner (for resizing) - only if rectangle exists
-                    if (cropRect.width() > 0 && cropRect.height() > 0) {
-                        resizeHandle = getResizeHandle(x, y)
-                        if (resizeHandle > 0) {
-                            isResizingCropRect = true
+                    if (currentTool == ToolType.DRAW) {
+                        // Handle drawing tool - works the same regardless of zoom level
+                        val action = currentDrawingTool.onTouchEvent(event, paint)
+                        action?.let {
+                            if (isSketchMode) {
+                                // In sketch mode, store strokes separately for transparency support
+                                sketchStrokes.add(action)
+                                
+                                // Save bitmap state for undo/redo (background changes)
+                                val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                                onBitmapChanged?.invoke(EditAction.BitmapChange(
+                                    previousBitmap = bitmapBeforeDrawing ?: return@let,
+                                    newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                                ))
+                            } else {
+                                // In imported/captured image mode, use original behavior
+                                val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                                mergeDrawingStrokeIntoBitmap(action)
+                                onBitmapChanged?.invoke(EditAction.BitmapChange(
+                                    previousBitmap = bitmapBeforeDrawing ?: return@let,
+                                    newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                                ))
+                            }
+                        }
+                        invalidate()
+                        return true
+                    } else if (currentTool == ToolType.CROP) {
+                        // Check if touch is on a corner (for resizing) - only if rectangle exists
+                        if (cropRect.width() > 0 && cropRect.height() > 0) {
+                            resizeHandle = getResizeHandle(x, y)
+                            if (resizeHandle > 0) {
+                                isResizingCropRect = true
+                                cropStartLeft = cropRect.left
+                                cropStartTop = cropRect.top
+                                cropStartRight = cropRect.right
+                                cropStartBottom = cropRect.bottom
+                                return true
+                            }
+                        }
+                        // Check if touch is inside the crop rectangle (for moving)
+                        if (cropRect.contains(x, y)) {
+                            isMovingCropRect = true
+                            cropStartX = x
+                            cropStartY = y
                             cropStartLeft = cropRect.left
                             cropStartTop = cropRect.top
                             cropStartRight = cropRect.right
                             cropStartBottom = cropRect.bottom
                             return true
                         }
+                        // If a cropRect already exists and we are not resizing or moving it, do nothing.
+                        // This prevents creating a new cropRect when touching outside an existing one.
+                        if (!cropRect.isEmpty) {
+                            return true // Consume the event but do nothing
+                        }
+                        // Only allow crop creation if a crop mode is actually active/selected
+                        if (!isCropModeActive) {
+                            return true // Consume the event but do nothing if no crop mode selected
+                        }
+                        // Create new crop rectangle
+                        isCropping = true
+                        cropRect.left = x
+                        cropRect.top = y
+                        cropRect.right = x
+                        cropRect.bottom = y
                     }
-                    // Check if touch is inside the crop rectangle (for moving)
-                    if (cropRect.contains(x, y)) {
-                        isMovingCropRect = true
-                        cropStartX = x
-                        cropStartY = y
-                        cropStartLeft = cropRect.left
-                        cropStartTop = cropRect.top
-                        cropStartRight = cropRect.right
-                        cropStartBottom = cropRect.bottom
-                        return true
-                    }
-                    // If a cropRect already exists and we are not resizing or moving it, do nothing.
-                    // This prevents creating a new cropRect when touching outside an existing one.
-                    if (!cropRect.isEmpty) {
-                        return true // Consume the event but do nothing
-                    }
-                    // Only allow crop creation if a crop mode is actually active/selected
-                    if (!isCropModeActive) {
-                        return true // Consume the event but do nothing if no crop mode selected
-                    }
-                    // Create new crop rectangle
-                    isCropping = true
-                    cropRect.left = x
-                    cropRect.top = y
-                    cropRect.right = x
-                    cropRect.bottom = y
+                    return true
                 }
-                return true
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (currentTool == ToolType.CROP) {
-                    if (isResizingCropRect) {
-                        resizeCropRect(x, y)
-                        clampCropRectToImage()
-                        invalidate()
-                    } else if (isMovingCropRect) {
-                        var dx = x - cropStartX
-                        var dy = y - cropStartY
+                MotionEvent.ACTION_MOVE -> {
+                    if (currentTool == ToolType.CROP) {
+                        if (isResizingCropRect) {
+                            resizeCropRect(x, y)
+                            clampCropRectToImage()
+                            invalidate()
+                        } else if (isMovingCropRect) {
+                            var dx = x - cropStartX
+                            var dy = y - cropStartY
 
-                        // Calculate potential new cropRect position
-                        val newLeft = cropStartLeft + dx
-                        val newTop = cropStartTop + dy
-                        val newRight = cropStartRight + dx
-                        val newBottom = cropStartBottom + dy
+                            // Calculate potential new cropRect position
+                            val newLeft = cropStartLeft + dx
+                            val newTop = cropStartTop + dy
+                            val newRight = cropStartRight + dx
+                            val newBottom = cropStartBottom + dy
 
-                        // Adjust dx and dy to prevent moving outside imageBounds
-                        if (newLeft < imageBounds.left) {
-                            dx = imageBounds.left - cropStartLeft
-                        }
-                        if (newTop < imageBounds.top) {
-                            dy = imageBounds.top - cropStartTop
-                        }
-                        if (newRight > imageBounds.right) {
-                            dx = imageBounds.right - cropStartRight
-                        }
-                        if (newBottom > imageBounds.bottom) {
-                            dy = imageBounds.bottom - cropStartBottom
-                        }
+                            // Adjust dx and dy to prevent moving outside imageBounds
+                            if (newLeft < imageBounds.left) {
+                                dx = imageBounds.left - cropStartLeft
+                            }
+                            if (newTop < imageBounds.top) {
+                                dy = imageBounds.top - cropStartTop
+                            }
+                            if (newRight > imageBounds.right) {
+                                dx = imageBounds.right - cropStartRight
+                            }
+                            if (newBottom > imageBounds.bottom) {
+                                dy = imageBounds.bottom - cropStartBottom
+                            }
 
-                        // Apply the adjusted dx and dy
-                        cropRect.left = cropStartLeft + dx
-                        cropRect.top = cropStartTop + dy
-                        cropRect.right = cropStartRight + dx
-                        cropRect.bottom = cropStartBottom + dy
+                            // Apply the adjusted dx and dy
+                            cropRect.left = cropStartLeft + dx
+                            cropRect.top = cropStartTop + dy
+                            cropRect.right = cropStartRight + dx
+                            cropRect.bottom = cropStartBottom + dy
 
-                        // No need to call clampCropRectToImage() here as we've already handled clamping during movement
-                        invalidate()
-                    } else if (isCropping) {
-                        updateCropRect(x, y)
-                        clampCropRectToImage() // Add this line
-                        invalidate()
+                            // No need to call clampCropRectToImage() here as we've already handled clamping during movement
+                            invalidate()
+                        } else if (isCropping) {
+                            updateCropRect(x, y)
+                            clampCropRectToImage() // Add this line
+                            invalidate()
+                        }
                     }
+                    return true
                 }
-                return true
-            }
-            MotionEvent.ACTION_UP -> {
-                if (currentTool == ToolType.CROP) {
-                    isCropping = false
-                    isMovingCropRect = false
-                    isResizingCropRect = false
-                    resizeHandle = 0
+                MotionEvent.ACTION_UP -> {
+                    if (currentTool == ToolType.CROP) {
+                        isCropping = false
+                        isMovingCropRect = false
+                        isResizingCropRect = false
+                        resizeHandle = 0
+                    }
+                    return true
                 }
-                return true
+                else -> return false
             }
-            else -> return false
         }
         return true
     }
