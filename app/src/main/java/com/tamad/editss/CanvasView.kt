@@ -1,9 +1,6 @@
 package com.tamad.editss
 
-import android.content.Context
-import android.graphics.*
-import android.util.AttributeSet
-import android.view.MotionEvent
+import android.view.GestureDetector
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.graphics.RectF
