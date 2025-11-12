@@ -60,6 +60,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var saturation = 1f
 
     // Zoom/Pan state that preserves current view during undo
+    private var originalScale = 1f
+    private var originalTranslateX = 0f
+    private var originalTranslateY = 0f
     private var currentScale = 1f
     private var currentTranslateX = 0f
     private var currentTranslateY = 0f
@@ -76,9 +79,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             // Calculate new scale
             val newScale = currentScale * scaleFactor
             
-            // Only allow zooming in (no zooming out beyond original)
-            if (scaleFactor > 1.0f || (scaleFactor < 1.0f && newScale > 1.0f)) {
-                currentScale = newScale.coerceAtLeast(1.0f)
+            // Only allow zooming in (no zooming out beyond original scale)
+            if (scaleFactor > 1.0f || (scaleFactor < 1.0f && newScale > originalScale)) {
+                currentScale = newScale.coerceAtLeast(originalScale)
                 
                 // Update matrix with zoom
                 imageMatrix.setScale(currentScale, currentScale)
@@ -93,7 +96,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         
         override fun onScaleEnd(detector: ScaleGestureDetector) {
             // Snap back to original if zoomed out too far
-            if (currentScale <= 1.0f) {
+            if (currentScale <= originalScale + 0.001f) {
                 resetDisplayView()
             }
         }
@@ -102,7 +105,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     // Two-finger pan (display only)
     private val gestureDetector = android.view.GestureDetector(context, object : android.view.GestureDetector.SimpleOnGestureListener() {
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            if (e2.pointerCount == 2 && baseBitmap != null && currentScale > 1.0f) {
+            if (e2.pointerCount == 2 && baseBitmap != null && currentScale > originalScale) {
                 // Pan the display (opposite direction of finger movement)
                 currentTranslateX -= distanceX
                 currentTranslateY -= distanceY
@@ -253,6 +256,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
+        // Update original scale if bitmap changed size
+        updateOriginalMatrix()
+        
         // Restore saved display state
         currentScale = savedScale
         currentTranslateX = savedTranslateX
@@ -271,6 +277,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val savedTranslateY = currentTranslateY
         
         baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        
+        // Update original scale if bitmap changed size
+        updateOriginalMatrix()
         
         // Restore saved display state
         currentScale = savedScale
@@ -652,7 +661,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val bitmapWidth = it.width.toFloat()
             val bitmapHeight = it.height.toFloat()
 
-            val scale: Float
+            var scale: Float
             var dx = 0f
             var dy = 0f
 
@@ -663,6 +672,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 scale = viewHeight / bitmapHeight
                 dx = (viewWidth - bitmapWidth * scale) * 0.5f
             }
+
+            // Store original values
+            originalScale = scale
+            originalTranslateX = dx
+            originalTranslateY = dy
+            
+            // Initialize current display state to original
+            currentScale = scale
+            currentTranslateX = dx
+            currentTranslateY = dy
 
             imageMatrix.setScale(scale, scale)
             imageMatrix.postTranslate(dx, dy)
@@ -1066,7 +1085,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     // Display reset function
     private fun resetDisplayView() {
-        // Reset to original matrix calculation
+        currentScale = originalScale
+        currentTranslateX = originalTranslateX
+        currentTranslateY = originalTranslateY
+        
+        imageMatrix.setScale(currentScale, currentScale)
+        imageMatrix.postTranslate(currentTranslateX, currentTranslateY)
+        updateImageBounds()
+        invalidate()
+    }
+    
+    private fun updateOriginalMatrix() {
         baseBitmap?.let {
             val viewWidth = width.toFloat()
             val viewHeight = height.toFloat()
@@ -1085,13 +1114,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 dx = (viewWidth - bitmapWidth * scale) * 0.5f
             }
 
-            currentScale = scale
-            currentTranslateX = dx
-            currentTranslateY = dy
-            imageMatrix.setScale(scale, scale)
-            imageMatrix.postTranslate(dx, dy)
-            updateImageBounds()
-            invalidate()
+            originalScale = scale
+            originalTranslateX = dx
+            originalTranslateY = dy
         }
     }
 }
