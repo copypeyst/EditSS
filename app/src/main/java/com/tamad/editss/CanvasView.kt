@@ -765,24 +765,42 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Always check for two-finger gestures first - this prevents double touch issues
-        if (shouldHandleTwoFingerGesture(event)) {
-            // Let the gesture detectors handle two-finger gestures
-            val scaleHandled = scaleGestureDetector.onTouchEvent(event)
-            val gestureHandled = gestureDetector.onTouchEvent(event)
-            
-            // Return true if either detector handled the event
-            if (scaleHandled || gestureHandled) {
-                return true
+        // Get the action using getActionMasked() which properly handles multi-touch
+        val action = event.actionMasked
+        
+        // Always check for multi-touch events first
+        when (action) {
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                // A secondary finger has touched the screen
+                if (event.pointerCount == 2 && baseBitmap != null) {
+                    // Let gesture detectors handle the two-finger gesture
+                    val scaleHandled = scaleGestureDetector.onTouchEvent(event)
+                    val gestureHandled = gestureDetector.onTouchEvent(event)
+                    return true // Always consume this event
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                // Handle multi-touch move events
+                if (event.pointerCount >= 2 && baseBitmap != null) {
+                    val scaleHandled = scaleGestureDetector.onTouchEvent(event)
+                    val gestureHandled = gestureDetector.onTouchEvent(event)
+                    return true // Always consume multi-touch move events
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                // A secondary finger has been lifted
+                if (event.pointerCount >= 2 && baseBitmap != null) {
+                    val scaleHandled = scaleGestureDetector.onTouchEvent(event)
+                    return true // Consume this event
+                }
             }
         }
 
-        val x = event.x
-        val y = event.y
-
-        // Only process single-finger events if we don't have multiple fingers
-        // This prevents the double-touch issue where single touch gets processed before two-finger is recognized
+        // Only process single-finger events
         if (event.pointerCount <= 1) {
+            val x = event.x
+            val y = event.y
+
             if (currentTool == ToolType.DRAW) {
                 val action = currentDrawingTool.onTouchEvent(event, paint)
                 action?.let {
@@ -916,8 +934,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
         
-        // If we have multiple fingers but gesture detectors didn't handle it, consume the event
-        return event.pointerCount <= 1
+        // Consume all multi-touch events that weren't handled by gesture detectors
+        return event.pointerCount >= 2
     }
 
     private fun getResizeHandle(x: Float, y: Float): Int {
