@@ -132,7 +132,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     // Track recent drawing actions to cancel if second finger is detected
     private var lastDrawingTime = 0L
     private var recentBitmapChanges = mutableListOf<EditAction.BitmapChange>()
-    private val CANCEL_DRAWING_WINDOW = 200L // 200ms window to cancel drawing
+    private var shouldCancelDrawing = false // Flag to prevent undo notifications
+    private val CANCEL_DRAWING_WINDOW = 500L // Extended 500ms window to cancel drawing
 
     
     var onCropApplied: ((Bitmap) -> Unit)? = null
@@ -671,8 +672,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Always check for two-finger gestures first - this prevents issues with mixed touch types
         if (event.pointerCount >= 2 && baseBitmap != null) {
             // Check if this is a second finger being detected (not just movement)
-            if (event.action == MotionEvent.ACTION_POINTER_DOWN) {
-                // Cancel any recent drawing that happened in the last 200ms
+            val actionIndex = event.actionIndex
+            val action = event.actionMasked
+            
+            if (action == MotionEvent.ACTION_POINTER_DOWN) {
+                // Cancel any recent drawing that happened in the last 500ms (extended window)
                 cancelRecentDrawingIfNeeded()
             }
             
@@ -693,34 +697,41 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (currentTool == ToolType.DRAW) {
             val action = currentDrawingTool.onTouchEvent(event, paint)
             action?.let {
+                // Store pre-drawing state BEFORE any bitmap modifications
+                val preDrawingBitmap = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                
                 if (isSketchMode) {
                     // In sketch mode, store strokes separately for transparency support
                     sketchStrokes.add(action)
                     
-                    // Save bitmap state for undo/redo (background changes)
-                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                    // Create action for tracking (for potential cancellation)
                     val bitmapChangeAction = EditAction.BitmapChange(
-                        previousBitmap = bitmapBeforeDrawing ?: return@let,
+                        previousBitmap = preDrawingBitmap ?: return@let,
                         newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
                     )
-                    
-                    // Track this drawing action for potential cancellation
                     trackRecentDrawing(bitmapChangeAction)
                     
-                    onBitmapChanged?.invoke(bitmapChangeAction)
+                    // Save bitmap state for undo/redo
+                    onBitmapChanged?.invoke(EditAction.BitmapChange(
+                        previousBitmap = preDrawingBitmap ?: return@let,
+                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                    ))
                 } else {
                     // In imported/captured image mode, use original behavior
-                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
                     mergeDrawingStrokeIntoBitmap(action)
+                    
+                    // Create action for tracking (for potential cancellation)
                     val bitmapChangeAction = EditAction.BitmapChange(
-                        previousBitmap = bitmapBeforeDrawing ?: return@let,
+                        previousBitmap = preDrawingBitmap ?: return@let,
                         newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
                     )
-                    
-                    // Track this drawing action for potential cancellation
                     trackRecentDrawing(bitmapChangeAction)
                     
-                    onBitmapChanged?.invoke(bitmapChangeAction)
+                    // Save bitmap state for undo/redo
+                    onBitmapChanged?.invoke(EditAction.BitmapChange(
+                        previousBitmap = preDrawingBitmap ?: return@let,
+                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                    ))
                 }
             }
             invalidate()
@@ -1179,13 +1190,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             // Get the most recent drawing action
             val lastAction = recentBitmapChanges.last()
             
+            // Set flag to prevent undo notifications during cancellation
+            shouldCancelDrawing = true
+            
             // Restore the previous bitmap to cancel the drawing
             baseBitmap = lastAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
             updateImageBounds()
             invalidate()
             
-            // Clear the tracking list
+            // Clear the tracking list and reset flag
             recentBitmapChanges.clear()
+            lastDrawingTime = 0L
+            shouldCancelDrawing = false
         }
     }
 }
