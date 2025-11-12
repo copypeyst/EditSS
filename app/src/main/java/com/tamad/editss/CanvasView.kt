@@ -811,12 +811,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         
         // Proper contrast and brightness calculation
         // Formula: new_value = ((old_value - 128) * contrast) + 128 + brightness
-        val brightnessOffset = brightness - (contrast - 1f) * 128f
+        // This ensures:
+        // - When contrast = 0: all values become 128 + brightness (neutral gray)
+        // - When contrast = 1: values remain at old_value + brightness (original + brightness)
+        // - When contrast > 1: increases contrast around 128
+        // - When contrast < 1: decreases contrast around 128
+        
+        val translation = brightness + (1f - contrast) * 128f
         
         colorMatrix.set(floatArrayOf(
-            contrast, 0f, 0f, 0f, brightnessOffset,
-            0f, contrast, 0f, 0f, brightnessOffset,
-            0f, 0f, contrast, 0f, brightnessOffset,
+            contrast, 0f, 0f, 0f, translation,
+            0f, contrast, 0f, 0f, translation,
+            0f, 0f, contrast, 0f, translation,
             0f, 0f, 0f, 1f, 0f
         ))
 
