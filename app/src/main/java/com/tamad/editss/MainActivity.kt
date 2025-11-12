@@ -731,8 +731,12 @@ class MainActivity : AppCompatActivity() {
                     uri = Uri.EMPTY,
                     origin = ImageOrigin.EDITED_INTERNAL,
                     canOverwrite = false,
-                    originalMimeType = "image/png" // Default to PNG
+                    originalMimeType = "image/jpeg" // Default to JPEG for sketch mode
                 )
+                
+                // Set JPEG as the selected format for sketch mode
+                selectedSaveFormat = "image/jpeg"
+                updateFormatSelectionUI()
                 updateSavePanelUI()
             }
         }
