@@ -41,6 +41,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isMovingCropRect = false
     private var isResizingCropRect = false
     private var resizeHandle: Int = 0 // 0=none, 1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right
+    
+    // Track drawing strokes for sketch mode transparency support
+    private val sketchStrokes = mutableListOf<DrawingAction>()
+    private var isSketchMode = false // Track if we're in sketch mode (no imported/captured image)
 
     // Gesture detection - REMOVED scale detector for crop mode
     private var lastTouchX = 0f
@@ -114,6 +118,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun setPaths(paths: List<DrawingAction>) {
         // Legacy method kept for compatibility - no longer used with bitmap-based drawing
+        invalidate()
+    }
+
+    fun setSketchMode(isSketch: Boolean) {
+        this.isSketchMode = isSketch
+        if (!isSketch) {
+            // Clear sketch strokes when leaving sketch mode
+            sketchStrokes.clear()
+        }
         invalidate()
     }
 
@@ -360,6 +373,38 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Since drawings are merged into bitmap, return a copy of baseBitmap
         return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
     }
+    
+    fun getTransparentDrawing(): Bitmap? {
+        if (isSketchMode) {
+            // Create transparent bitmap and render only strokes
+            baseBitmap?.let { originalBitmap ->
+                val transparentBitmap = Bitmap.createBitmap(
+                    originalBitmap.width,
+                    originalBitmap.height,
+                    Bitmap.Config.ARGB_8888
+                )
+                val canvas = Canvas(transparentBitmap)
+                val paint = Paint()
+                
+                // Render all sketch strokes
+                for (stroke in sketchStrokes) {
+                    paint.color = stroke.paint.color
+                    paint.strokeWidth = stroke.paint.strokeWidth
+                    paint.alpha = stroke.paint.alpha
+                    paint.style = stroke.paint.style
+                    paint.strokeJoin = stroke.paint.strokeJoin
+                    paint.strokeCap = stroke.paint.strokeCap
+                    paint.isAntiAlias = stroke.paint.isAntiAlias
+                    
+                    canvas.drawPath(stroke.path, paint)
+                }
+                
+                return transparentBitmap
+            }
+        }
+        // Non-sketch mode: use original method
+        return getDrawingOnTransparent()
+    }
 
     fun getFinalBitmap(): Bitmap? {
         // Since drawings are immediately merged into bitmap, just return baseBitmap
@@ -404,9 +449,22 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             canvas.drawBitmap(it, imageMatrix, imagePaint)
         }
 
-        // Paths are now immediately merged into bitmap during drawing
-        // No separate path rendering needed - this prevents drawing duplication
-        // Drawing paths should be empty after immediate bitmap merging
+        // Render sketch strokes if in sketch mode
+        if (isSketchMode) {
+            val paint = Paint().apply {
+                isAntiAlias = true
+                style = Paint.Style.STROKE
+                strokeJoin = Paint.Join.ROUND
+                strokeCap = Paint.Cap.ROUND
+            }
+            
+            for (stroke in sketchStrokes) {
+                paint.color = stroke.paint.color
+                paint.strokeWidth = stroke.paint.strokeWidth
+                paint.alpha = stroke.paint.alpha
+                canvas.drawPath(stroke.path, paint)
+            }
+        }
 
         currentDrawingTool.onDraw(canvas, paint)
 
@@ -481,18 +539,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (currentTool == ToolType.DRAW) {
             val action = currentDrawingTool.onTouchEvent(event, paint)
             action?.let {
-                // Save the bitmap state BEFORE drawing for proper undo/redo
-                val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                
-                // Immediately merge the drawing stroke into the base bitmap
-                mergeDrawingStrokeIntoBitmap(action)
-                
-                // Create ONLY a BitmapChange action for clean undo/redo (no conflicting DrawingAction)
-                val bitmapChangeAction = EditAction.BitmapChange(
-                    previousBitmap = bitmapBeforeDrawing ?: return@let, // Handle null case
-                    newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                )
-                onBitmapChanged?.invoke(bitmapChangeAction)
+                if (isSketchMode) {
+                    // In sketch mode, store strokes separately for transparency support
+                    sketchStrokes.add(action)
+                    
+                    // Save bitmap state for undo/redo (background changes)
+                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                    onBitmapChanged?.invoke(EditAction.BitmapChange(
+                        previousBitmap = bitmapBeforeDrawing ?: return@let,
+                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                    ))
+                } else {
+                    // In imported/captured image mode, use original behavior
+                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                    mergeDrawingStrokeIntoBitmap(action)
+                    onBitmapChanged?.invoke(EditAction.BitmapChange(
+                        previousBitmap = bitmapBeforeDrawing ?: return@let,
+                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                    ))
+                }
             }
             invalidate()
             return true

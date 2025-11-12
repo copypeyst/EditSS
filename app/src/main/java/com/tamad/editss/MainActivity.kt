@@ -724,6 +724,7 @@ class MainActivity : AppCompatActivity() {
                 
                 // Set it as the base for the drawing view
                 drawingView.setBitmap(whiteBitmap)
+                drawingView.setSketchMode(true) // Enable sketch mode for transparency
                 
                 // Create a dummy ImageInfo for sketch mode
                 currentImageInfo = ImageInfo(
@@ -946,6 +947,7 @@ class MainActivity : AppCompatActivity() {
     // Simple Coil-based image loading - replaces all complex crash prevention logic
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
         isSketchMode = false
+        drawingView.setSketchMode(false) // Disable sketch mode for imported/captured images
         // Clear any existing actions when a new image is loaded
         editViewModel.clearAllActions()
 
@@ -1260,7 +1262,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 val bitmapToSave: Bitmap?
                 if (isSketchMode && (selectedSaveFormat == "image/png" || selectedSaveFormat == "image/webp")) {
-                    bitmapToSave = drawingView.getDrawingOnTransparent()
+                    bitmapToSave = drawingView.getTransparentDrawing()
                 } else {
                     bitmapToSave = drawingView.getDrawing()
                 }
