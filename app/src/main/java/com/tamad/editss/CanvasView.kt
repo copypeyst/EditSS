@@ -284,13 +284,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun handleBitmapChangeUndo(action: EditAction.BitmapChange) {
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
+        
+        // Update bitmap without resetting matrix to preserve zoom/pan
+        updateImageBounds()
         invalidate()
     }
 
     fun handleBitmapChangeRedo(action: EditAction.BitmapChange) {
         baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
+        
+        // Update bitmap without resetting matrix to preserve zoom/pan
+        updateImageBounds()
         invalidate()
     }
 
