@@ -1158,21 +1158,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
     
-    // Helper methods for managing recent drawing to cancel when second finger detected
-    private fun trackRecentDrawing(action: EditAction.BitmapChange) {
-        lastDrawingTime = System.currentTimeMillis()
-        recentBitmapChanges.add(action)
-        
-        // Clean up old actions (older than CANCEL_DRAWING_WINDOW)
-        val currentTime = System.currentTimeMillis()
-        recentBitmapChanges.removeAll { (currentTime - lastDrawingTime) > CANCEL_DRAWING_WINDOW }
-        
-        // Limit the list size to prevent memory leaks
-        if (recentBitmapChanges.size > 10) {
-            recentBitmapChanges.removeAt(0)
-        }
-    }
-    
+    // Helper method for canceling recent in-progress drawing when second finger detected
     private fun cancelRecentDrawingIfNeeded() {
         val currentTime = System.currentTimeMillis()
         val timeSinceDrawing = currentTime - lastDrawingTime
