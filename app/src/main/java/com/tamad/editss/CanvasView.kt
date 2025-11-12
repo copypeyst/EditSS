@@ -80,8 +80,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             if (scaleFactor > 1.0f || (scaleFactor < 1.0f && currentScale > getDefaultScale())) {
                 // Apply zoom centered on the focal point
                 imageMatrix.postScale(scaleFactor, scaleFactor, focusX, focusY)
-                updateImageBounds()
-                invalidate()
+                
+                // Update image bounds without triggering any bitmap changes
+                baseBitmap?.let {
+                    val bitmapWidth = it.width.toFloat()
+                    val bitmapHeight = it.height.toFloat()
+                    imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
+                    imageMatrix.mapRect(imageBounds)
+                }
+                
+                invalidate() // Only redraw, no bitmap modifications
             }
             
             return true
@@ -94,7 +102,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val currentScale = currentMatrix[Matrix.MSCALE_X]
             
             if (currentScale <= getDefaultScale() + 0.001f) {
-                resetToDefaultView()
+                // Reset to default position without triggering bitmap changes
+                val defaultMatrix = calculateDefaultMatrix()
+                imageMatrix.set(defaultMatrix)
+                
+                baseBitmap?.let {
+                    val bitmapWidth = it.width.toFloat()
+                    val bitmapHeight = it.height.toFloat()
+                    imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
+                    imageMatrix.mapRect(imageBounds)
+                }
+                
+                invalidate() // Only redraw, no bitmap modifications
             }
         }
     })
@@ -117,8 +136,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     val clampedMatrix = clampImageMatrix()
                     imageMatrix.set(clampedMatrix)
                     
-                    updateImageBounds()
-                    invalidate()
+                    // Update image bounds without triggering any bitmap changes
+                    baseBitmap?.let {
+                        val bitmapWidth = it.width.toFloat()
+                        val bitmapHeight = it.height.toFloat()
+                        imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
+                        imageMatrix.mapRect(imageBounds)
+                    }
+                    
+                    invalidate() // Only redraw, no bitmap modifications
                     return true
                 }
             }
