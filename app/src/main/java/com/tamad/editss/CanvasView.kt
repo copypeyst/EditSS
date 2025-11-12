@@ -445,6 +445,26 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Since drawings are immediately merged into bitmap, just return baseBitmap
         return baseBitmap
     }
+    
+    fun convertTransparentToWhite(bitmap: Bitmap): Bitmap {
+        // Create white bitmap of same size
+        val whiteBitmap = Bitmap.createBitmap(
+            bitmap.width,
+            bitmap.height,
+            Bitmap.Config.ARGB_8888
+        )
+        val canvas = Canvas(whiteBitmap)
+        val paint = Paint()
+        
+        // Fill with white background
+        canvas.drawColor(Color.WHITE)
+        
+        // Draw the original bitmap on top
+        paint.isAntiAlias = true
+        canvas.drawBitmap(bitmap, 0f, 0f, paint)
+        
+        return whiteBitmap
+    }
 
     fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
         if (baseBitmap == null) return

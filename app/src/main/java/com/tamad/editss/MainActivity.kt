@@ -1280,7 +1280,15 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 } else {
-                    bitmapToSave = drawingView.getDrawing()
+                    bitmapToSave = drawingView.getDrawing()?.let { bitmap ->
+                        // For imported/captured images: if saving as JPEG and image has transparency,
+                        // convert transparent areas to white instead of letting them turn black
+                        if (selectedSaveFormat == "image/jpeg" && currentImageHasTransparency) {
+                            drawingView.convertTransparentToWhite(bitmap)
+                        } else {
+                            bitmap
+                        }
+                    }
                 }
 
                 if (bitmapToSave != null) {
