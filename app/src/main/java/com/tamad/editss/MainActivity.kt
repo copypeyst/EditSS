@@ -315,6 +315,12 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
+            
+            // In sketch mode, ensure JPEG stays as selected format
+            if (isSketchMode) {
+                selectedSaveFormat = "image/jpeg"
+                updateFormatSelectionUI()
+            }
         }
 
         toolCrop.setOnClickListener {
@@ -340,6 +346,12 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
+            
+            // In sketch mode, ensure JPEG stays as selected format
+            if (isSketchMode) {
+                selectedSaveFormat = "image/jpeg"
+                updateFormatSelectionUI()
+            }
         }
 
         // Initialize Save Panel buttons
@@ -732,6 +744,10 @@ class MainActivity : AppCompatActivity() {
                     canOverwrite = false,
                     originalMimeType = "image/png" // Default to PNG
                 )
+                
+                // Set JPEG as default selected format for sketch mode
+                selectedSaveFormat = "image/jpeg"
+                updateFormatSelectionUI() // This will set JPEG radio button as selected
                 updateSavePanelUI()
             }
         }

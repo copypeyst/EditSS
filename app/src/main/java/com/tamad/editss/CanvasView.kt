@@ -367,7 +367,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         transparentBitmap.getPixels(pixels, 0, transparentBitmap.width, 0, 0,
                                    transparentBitmap.width, transparentBitmap.height)
         
-        // Convert white pixels to transparent, keeping all other colors
+        // Use brightness-based approach to identify background pixels
         for (i in pixels.indices) {
             val pixel = pixels[i]
             val red = Color.red(pixel)
@@ -375,9 +375,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val blue = Color.blue(pixel)
             val alpha = Color.alpha(pixel)
             
-            // If the pixel is very close to white (and not transparent already), make it transparent
-            if (alpha > 0 && red >= 250 && green >= 250 && blue >= 250) {
-                pixels[i] = Color.TRANSPARENT // Fully transparent
+            if (alpha > 0) {
+                // Calculate brightness (luminance)
+                val brightness = (0.299 * red + 0.587 * green + 0.114 * blue).toInt()
+                
+                // If pixel is bright and has low color variation, it's likely background
+                val colorVariation = Math.abs(red - green) + Math.abs(green - blue) + Math.abs(blue - red)
+                
+                // Convert very bright, low-variation pixels to transparent
+                // This catches white/light gray backgrounds while preserving colored drawings
+                if (brightness >= 235 && colorVariation <= 15) {
+                    pixels[i] = Color.TRANSPARENT // Fully transparent
+                }
             }
         }
         
