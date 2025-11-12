@@ -91,17 +91,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 invalidate()
             }
             
-            // If we're at or very close to original scale, recenter
-            if (currentScale <= originalScale + 0.001f) {
-                resetDisplayView()
-            }
-            
             return true
         }
         
         override fun onScaleEnd(detector: ScaleGestureDetector) {
-            // Ensure we're exactly at original position when scale gesture ends
-            resetDisplayView()
+            // Only recenter if we actually tried to zoom out (scaleFactor < 1.0f)
+            if (detector.scaleFactor < 1.0f && currentScale <= originalScale + 0.001f) {
+                resetDisplayView()
+            }
         }
     })
     
