@@ -31,6 +31,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
+
     private var currentTool: ToolType = ToolType.DRAW
     private var currentCropMode: CropMode = CropMode.FREEFORM
 
@@ -45,7 +46,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val sketchStrokes = mutableListOf<DrawingAction>()
     private var isSketchMode = false // Track if we're in sketch mode (no imported/captured image)
 
-    // Single touch tracking
+    // Gesture detection - REMOVED scale detector for crop mode
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var cropStartX = 0f
@@ -129,12 +130,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var defaultTranslateX = 0f
     private var defaultTranslateY = 0f
 
-    // Track recent drawing actions to cancel if second finger is detected
-    private var lastDrawingTime = 0L
-    private var inProgressStroke: DrawingAction? = null // Track the stroke being drawn
-    private val CANCEL_DRAWING_WINDOW = 500L // Extended 500ms window to cancel drawing
-
-    
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onCropAction: ((CropAction) -> Unit)? = null // Legacy callback
@@ -670,15 +665,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         // Always check for two-finger gestures first - this prevents issues with mixed touch types
         if (event.pointerCount >= 2 && baseBitmap != null) {
-            // Check if this is a second finger being detected (not just movement)
-            val actionIndex = event.actionIndex
-            val action = event.actionMasked
-            
-            if (action == MotionEvent.ACTION_POINTER_DOWN) {
-                // Cancel any recent drawing that happened in the last 500ms (extended window)
-                cancelRecentDrawingIfNeeded()
-            }
-            
             // Let the gesture detectors handle two-finger gestures
             val scaleHandled = scaleGestureDetector.onTouchEvent(event)
             val gestureHandled = gestureDetector.onTouchEvent(event)
@@ -696,15 +682,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (currentTool == ToolType.DRAW) {
             val action = currentDrawingTool.onTouchEvent(event, paint)
             action?.let {
-                // Track in-progress stroke for potential cancellation if second finger detected
-                inProgressStroke = action
-                lastDrawingTime = System.currentTimeMillis()
-                
                 if (isSketchMode) {
                     // In sketch mode, store strokes separately for transparency support
                     sketchStrokes.add(action)
                     
-                    // Save bitmap state for undo/redo
+                    // Save bitmap state for undo/redo (background changes)
                     val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
                     onBitmapChanged?.invoke(EditAction.BitmapChange(
                         previousBitmap = bitmapBeforeDrawing ?: return@let,
@@ -712,10 +694,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     ))
                 } else {
                     // In imported/captured image mode, use original behavior
-                    mergeDrawingStrokeIntoBitmap(action)
-                    
-                    // Save bitmap state for undo/redo
                     val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                    mergeDrawingStrokeIntoBitmap(action)
                     onBitmapChanged?.invoke(EditAction.BitmapChange(
                         previousBitmap = bitmapBeforeDrawing ?: return@let,
                         newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
@@ -820,10 +800,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 return true
             }
             MotionEvent.ACTION_UP -> {
-                // Clear in-progress stroke when finger is lifted (stroke is finalized)
-                inProgressStroke = null
-                lastDrawingTime = 0L
-                
                 if (currentTool == ToolType.CROP) {
                     isCropping = false
                     isMovingCropRect = false
@@ -1156,26 +1132,5 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         imageMatrix.set(defaultMatrix)
         updateImageBounds()
         invalidate()
-    }
-    
-    // Helper method for canceling recent in-progress drawing when second finger detected
-    private fun cancelRecentDrawingIfNeeded() {
-        val currentTime = System.currentTimeMillis()
-        val timeSinceDrawing = currentTime - lastDrawingTime
-        
-        // Only cancel if there was a recent in-progress stroke
-        if (timeSinceDrawing <= CANCEL_DRAWING_WINDOW && inProgressStroke != null) {
-            // Remove the in-progress stroke from sketch strokes if in sketch mode
-            if (isSketchMode && sketchStrokes.isNotEmpty()) {
-                sketchStrokes.removeAt(sketchStrokes.size - 1) // Remove the last stroke
-            }
-            
-            // Clear the in-progress stroke tracking
-            inProgressStroke = null
-            lastDrawingTime = 0L
-            
-            // Redraw to show the stroke has been removed
-            invalidate()
-        }
     }
 }
