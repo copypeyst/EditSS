@@ -34,7 +34,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private var currentTool: ToolType = ToolType.DRAW
     private var currentCropMode: CropMode = CropMode.FREEFORM
-    private var isSketchMode = false // Track if this is sketch mode (transparent canvas)
 
     private var isCropModeActive = false // Track if crop mode is actually selected
     private var isCropping = false
@@ -111,11 +110,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 initializeDefaultCropRect()
             }
         }
-    }
-    
-    fun setSketchMode(enabled: Boolean) {
-        isSketchMode = enabled
-        invalidate()
     }
 
     fun setPaths(paths: List<DrawingAction>) {
@@ -363,7 +357,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun getDrawingOnTransparent(): Bitmap? {
-        // The bitmap is already transparent in sketch mode
+        // Since drawings are merged into bitmap, return a copy of baseBitmap
         return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
     }
 
@@ -397,15 +391,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
          override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        
-        // Add fake white background for sketch mode UI
-        if (isSketchMode) {
-            // Draw white background for visual reference in sketch mode
-            val whitePaint = Paint()
-            whitePaint.color = Color.WHITE
-            canvas.drawRect(imageBounds, whitePaint)
-        }
-        
         baseBitmap?.let {
             canvas.save()
             canvas.clipRect(imageBounds)
