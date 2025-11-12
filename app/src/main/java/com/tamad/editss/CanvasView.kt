@@ -60,10 +60,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     // Two-finger zoom and pan functionality
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        private var lastScaleFactor = 1.0f
-        
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            lastScaleFactor = 1.0f
             return baseBitmap != null // Only enable zoom if we have an image
         }
         
@@ -74,34 +71,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val focusX = detector.focusX
             val focusY = detector.focusY
             
-            // Get current matrix values
+            // Only allow zooming in (prevent going beyond default view)
             val currentMatrix = FloatArray(9)
             imageMatrix.getValues(currentMatrix)
             val currentScale = currentMatrix[Matrix.MSCALE_X]
-            val newScale = currentScale * scaleFactor
             
-            // Only allow zooming in (scaleFactor > 1) or maintain current zoom when zooming out beyond default
-            val shouldScale = if (scaleFactor > 1.0f) {
-                // Always allow zooming in
-                true
-            } else {
-                // Only allow zooming out if we're currently zoomed in beyond default
-                currentScale > getDefaultScale() + 0.001f
-            }
-            
-            if (shouldScale) {
+            if (scaleFactor > 1.0f || (scaleFactor < 1.0f && currentScale > getDefaultScale())) {
                 // Apply zoom centered on the focal point
                 imageMatrix.postScale(scaleFactor, scaleFactor, focusX, focusY)
                 updateImageBounds()
                 invalidate()
-            } else {
-                // If we're trying to zoom out beyond default scale, snap back to original position
-                if (scaleFactor < 1.0f && currentScale <= getDefaultScale() + 0.001f) {
-                    resetToDefaultView()
-                }
             }
             
-            lastScaleFactor = scaleFactor
             return true
         }
         
@@ -114,8 +95,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             if (currentScale <= getDefaultScale() + 0.001f) {
                 resetToDefaultView()
             }
-            
-            lastScaleFactor = 1.0f
         }
     })
     
@@ -124,7 +103,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
             // Only handle scroll if we have exactly 2 fingers touching
             if (e2.pointerCount == 2 && baseBitmap != null) {
-                // Always allow panning when zoomed in (beyond default view)
+                // Only allow panning when zoomed in (beyond default view)
                 val currentMatrix = FloatArray(9)
                 imageMatrix.getValues(currentMatrix)
                 val currentScale = currentMatrix[Matrix.MSCALE_X]
@@ -146,14 +125,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     })
     
-    // Helper to check if touch should be handled by two-finger gestures
-    private fun shouldHandleTwoFingerGesture(event: MotionEvent): Boolean {
-        return baseBitmap != null && event.pointerCount >= 2
-    }
-    
     private var defaultScale = 1f
     private var defaultTranslateX = 0f
     private var defaultTranslateY = 0f
+
+    // Track recent drawing actions to cancel if second finger is detected
+    private var lastDrawingTime = 0L
+    private var recentBitmapChanges = mutableListOf<EditAction.BitmapChange>()
+    private val CANCEL_DRAWING_WINDOW = 200L // 200ms window to cancel drawing
+
     
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
@@ -242,19 +222,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     // Handle crop undo - restore previous bitmap state
     fun handleCropUndo(cropAction: CropAction) {
-        // Store current zoom/pan state before modifying bitmap
-        val currentMatrix = Matrix(imageMatrix)
-        
         // Restore the bitmap to the state before the crop.
         baseBitmap = cropAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        
+        // Drawings are already merged into bitmap, no paths to clear
+        
+        // Update the image matrix to properly display the restored bitmap.
+        updateImageMatrix()
         
         // Clear any existing crop rectangle.
         cropRect.setEmpty()
         
-        // Update image bounds but preserve current zoom/pan
-        updateImageBounds()
-        
-        // Redraw the canvas with current zoom/pan state preserved
+        // Redraw the canvas.
         invalidate()
     }
 
@@ -270,115 +249,27 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // For now, we do nothing here, as the BitmapChange action should handle the actual bitmap update.
     }
 
-    // Helper methods for zoom and pan functionality
-    private fun getDefaultScale(): Float {
-        return defaultScale
-    }
-    
-    private fun calculateDefaultMatrix(): Matrix {
-        val matrix = Matrix()
-        baseBitmap?.let { bitmap ->
-            val viewWidth = width.toFloat()
-            val viewHeight = height.toFloat()
-            val bitmapWidth = bitmap.width.toFloat()
-            val bitmapHeight = bitmap.height.toFloat()
-
-            var scale: Float
-            var dx = 0f
-            var dy = 0f
-
-            if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
-                scale = viewWidth / bitmapWidth
-                dy = (viewHeight - bitmapHeight * scale) * 0.5f
-            } else {
-                scale = viewHeight / bitmapHeight
-                dx = (viewWidth - bitmapWidth * scale) * 0.5f
-            }
-
-            matrix.setScale(scale, scale)
-            matrix.postTranslate(dx, dy)
-        }
-        return matrix
-    }
-    
-    private fun clampImageMatrix(): Matrix {
-        val clampedMatrix = Matrix(imageMatrix)
-        val currentMatrix = FloatArray(9)
-        imageMatrix.getValues(currentMatrix)
-        val currentScale = currentMatrix[Matrix.MSCALE_X]
-        
-        baseBitmap?.let { bitmap ->
-            val bitmapWidth = bitmap.width.toFloat()
-            val bitmapHeight = bitmap.height.toFloat()
-            val viewWidth = width.toFloat()
-            val viewHeight = height.toFloat()
-            
-            // If we're at minimum scale (default), clamp translation to prevent going beyond bounds
-            if (currentScale <= getDefaultScale() + 0.001f) { // Small tolerance for floating point precision
-                val scaledBitmapWidth = bitmapWidth * currentScale
-                val scaledBitmapHeight = bitmapHeight * currentScale
-                
-                val currentDx = currentMatrix[Matrix.MTRANS_X]
-                val currentDy = currentMatrix[Matrix.MTRANS_Y]
-                
-                // Calculate allowed translation range
-                val maxDx = Math.max(0f, (viewWidth - scaledBitmapWidth) * 0.5f)
-                val maxDy = Math.max(0f, (viewHeight - scaledBitmapHeight) * 0.5f)
-                
-                val clampedDx = currentDx.coerceIn(-maxDx, maxDx)
-                val clampedDy = currentDy.coerceIn(-maxDy, maxDy)
-                
-                // Reset to default position if we're trying to go beyond bounds
-                if (Math.abs(clampedDx - currentDx) > 0.1f || Math.abs(clampedDy - currentDy) > 0.1f) {
-                    val defaultMatrix = calculateDefaultMatrix()
-                    return defaultMatrix
-                }
-            }
-        }
-        
-        return clampedMatrix
-    }
-    
-    private fun resetToDefaultView() {
-        val defaultMatrix = calculateDefaultMatrix()
-        imageMatrix.set(defaultMatrix)
-        updateImageBounds()
-        invalidate()
-    }
-
     fun handleAdjustUndo(action: AdjustAction) {
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        
-        // Only update bounds, don't reset zoom/pan
-        updateImageBounds()
-        
+        updateImageMatrix()
         invalidate()
     }
 
     fun handleAdjustRedo(action: AdjustAction) {
         baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        
-        // Only update bounds, don't reset zoom/pan
-        updateImageBounds()
-        
+        updateImageMatrix()
         invalidate()
     }
 
     fun handleBitmapChangeUndo(action: EditAction.BitmapChange) {
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        
-        // Only update bounds, don't reset zoom/pan
-        updateImageBounds()
-        
+        updateImageMatrix()
         invalidate()
     }
 
     fun handleBitmapChangeRedo(action: EditAction.BitmapChange) {
         baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        
-        // Only update bounds, don't reset zoom/pan
-        updateImageBounds()
-        
+        updateImageMatrix()
         invalidate()
     }
 
@@ -777,12 +668,22 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // BEST PRACTICE: Simple, clean multi-touch detection
-        // Always let gesture detectors handle multi-touch first
+        // Always check for two-finger gestures first - this prevents issues with mixed touch types
         if (event.pointerCount >= 2 && baseBitmap != null) {
+            // Check if this is a second finger being detected (not just movement)
+            if (event.action == MotionEvent.ACTION_POINTER_DOWN) {
+                // Cancel any recent drawing that happened in the last 200ms
+                cancelRecentDrawingIfNeeded()
+            }
+            
+            // Let the gesture detectors handle two-finger gestures
             val scaleHandled = scaleGestureDetector.onTouchEvent(event)
             val gestureHandled = gestureDetector.onTouchEvent(event)
-            return true // Always consume multi-touch events
+            
+            // Return true if either detector handled the event
+            if (scaleHandled || gestureHandled) {
+                return true
+            }
         }
 
         // Only process single-finger events
@@ -798,18 +699,28 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     
                     // Save bitmap state for undo/redo (background changes)
                     val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                    onBitmapChanged?.invoke(EditAction.BitmapChange(
+                    val bitmapChangeAction = EditAction.BitmapChange(
                         previousBitmap = bitmapBeforeDrawing ?: return@let,
                         newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                    ))
+                    )
+                    
+                    // Track this drawing action for potential cancellation
+                    trackRecentDrawing(bitmapChangeAction)
+                    
+                    onBitmapChanged?.invoke(bitmapChangeAction)
                 } else {
                     // In imported/captured image mode, use original behavior
                     val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
                     mergeDrawingStrokeIntoBitmap(action)
-                    onBitmapChanged?.invoke(EditAction.BitmapChange(
+                    val bitmapChangeAction = EditAction.BitmapChange(
                         previousBitmap = bitmapBeforeDrawing ?: return@let,
                         newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                    ))
+                    )
+                    
+                    // Track this drawing action for potential cancellation
+                    trackRecentDrawing(bitmapChangeAction)
+                    
+                    onBitmapChanged?.invoke(bitmapChangeAction)
                 }
             }
             invalidate()
@@ -920,6 +831,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
             else -> return false
         }
+        return true
     }
 
     private fun getResizeHandle(x: Float, y: Float): Int {
@@ -1165,5 +1077,115 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun resetAdjustments() {
         setAdjustments(0f, 1f, 1f)
+    }
+
+    // Helper methods for zoom and pan functionality
+    private fun getDefaultScale(): Float {
+        return defaultScale
+    }
+    
+    private fun calculateDefaultMatrix(): Matrix {
+        val matrix = Matrix()
+        baseBitmap?.let { bitmap ->
+            val viewWidth = width.toFloat()
+            val viewHeight = height.toFloat()
+            val bitmapWidth = bitmap.width.toFloat()
+            val bitmapHeight = bitmap.height.toFloat()
+
+            var scale: Float
+            var dx = 0f
+            var dy = 0f
+
+            if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
+                scale = viewWidth / bitmapWidth
+                dy = (viewHeight - bitmapHeight * scale) * 0.5f
+            } else {
+                scale = viewHeight / bitmapHeight
+                dx = (viewWidth - bitmapWidth * scale) * 0.5f
+            }
+
+            matrix.setScale(scale, scale)
+            matrix.postTranslate(dx, dy)
+        }
+        return matrix
+    }
+    
+    private fun clampImageMatrix(): Matrix {
+        val clampedMatrix = Matrix(imageMatrix)
+        val currentMatrix = FloatArray(9)
+        imageMatrix.getValues(currentMatrix)
+        val currentScale = currentMatrix[Matrix.MSCALE_X]
+        
+        baseBitmap?.let { bitmap ->
+            val bitmapWidth = bitmap.width.toFloat()
+            val bitmapHeight = bitmap.height.toFloat()
+            val viewWidth = width.toFloat()
+            val viewHeight = height.toFloat()
+            
+            // If we're at minimum scale (default), clamp translation to prevent going beyond bounds
+            if (currentScale <= getDefaultScale() + 0.001f) { // Small tolerance for floating point precision
+                val scaledBitmapWidth = bitmapWidth * currentScale
+                val scaledBitmapHeight = bitmapHeight * currentScale
+                
+                val currentDx = currentMatrix[Matrix.MTRANS_X]
+                val currentDy = currentMatrix[Matrix.MTRANS_Y]
+                
+                // Calculate allowed translation range
+                val maxDx = Math.max(0f, (viewWidth - scaledBitmapWidth) * 0.5f)
+                val maxDy = Math.max(0f, (viewHeight - scaledBitmapHeight) * 0.5f)
+                
+                val clampedDx = currentDx.coerceIn(-maxDx, maxDx)
+                val clampedDy = currentDy.coerceIn(-maxDy, maxDy)
+                
+                // Reset to default position if we're trying to go beyond bounds
+                if (Math.abs(clampedDx - currentDx) > 0.1f || Math.abs(clampedDy - currentDy) > 0.1f) {
+                    val defaultMatrix = calculateDefaultMatrix()
+                    return defaultMatrix
+                }
+            }
+        }
+        
+        return clampedMatrix
+    }
+    
+    private fun resetToDefaultView() {
+        val defaultMatrix = calculateDefaultMatrix()
+        imageMatrix.set(defaultMatrix)
+        updateImageBounds()
+        invalidate()
+    }
+    
+    // Helper methods for managing recent drawing to cancel when second finger detected
+    private fun trackRecentDrawing(action: EditAction.BitmapChange) {
+        lastDrawingTime = System.currentTimeMillis()
+        recentBitmapChanges.add(action)
+        
+        // Clean up old actions (older than CANCEL_DRAWING_WINDOW)
+        val currentTime = System.currentTimeMillis()
+        recentBitmapChanges.removeAll { (currentTime - lastDrawingTime) > CANCEL_DRAWING_WINDOW }
+        
+        // Limit the list size to prevent memory leaks
+        if (recentBitmapChanges.size > 10) {
+            recentBitmapChanges.removeAt(0)
+        }
+    }
+    
+    private fun cancelRecentDrawingIfNeeded() {
+        val currentTime = System.currentTimeMillis()
+        val timeSinceDrawing = currentTime - lastDrawingTime
+        
+        // Only cancel if the drawing was recent (within the cancel window)
+        if (timeSinceDrawing <= CANCEL_DRAWING_WINDOW && recentBitmapChanges.isNotEmpty()) {
+            // Get the most recent drawing action
+            val lastAction = recentBitmapChanges.last()
+            
+            // Restore the previous bitmap to cancel the drawing
+            baseBitmap = lastAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
+            updateImageBounds()
+            invalidate()
+            
+            // Clear the tracking list
+            recentBitmapChanges.clear()
+        }
     }
 }
