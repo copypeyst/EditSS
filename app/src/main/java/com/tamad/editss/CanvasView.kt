@@ -107,10 +107,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     // Two-finger pan detection
     private val gestureDetector = android.view.GestureDetector(context, object : android.view.GestureDetector.SimpleOnGestureListener() {
-        private var lastTwoFingerX = 0f
-        private var lastTwoFingerY = 0f
-        
-        override fun onScroll(e1: MotionEvent, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
             // Only handle scroll if we have exactly 2 fingers touching
             if (e2.pointerCount == 2 && baseBitmap != null) {
                 // Only allow panning when zoomed in (beyond default view)
