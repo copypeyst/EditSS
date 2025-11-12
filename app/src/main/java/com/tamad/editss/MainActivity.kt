@@ -729,13 +729,11 @@ class MainActivity : AppCompatActivity() {
                 val width = view.width
                 val height = view.height
                 
-                // Create a mutable white bitmap
-                val whiteBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(whiteBitmap)
-                canvas.drawColor(android.graphics.Color.WHITE)
+                // Create a fully transparent bitmap for sketch mode
+                val transparentBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                 
                 // Set it as the base for the drawing view
-                drawingView.setBitmap(whiteBitmap)
+                drawingView.setBitmap(transparentBitmap)
                 
                 // Create a dummy ImageInfo for sketch mode
                 currentImageInfo = ImageInfo(
@@ -794,7 +792,12 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 // Get bitmap from Coil
-                val bitmapToShare = drawingView.getDrawing()
+                val bitmapToShare = if (isSketchMode && (selectedSaveFormat == "image/png" || selectedSaveFormat == "image/webp")) {
+                    // For sketch mode with PNG/WebP, use the transparent bitmap directly
+                    drawingView.getDrawing()
+                } else {
+                    drawingView.getDrawing()
+                }
 
                 if (bitmapToShare != null) {
                     var shareUri: Uri? = null
@@ -1276,7 +1279,8 @@ class MainActivity : AppCompatActivity() {
             try {
                 val bitmapToSave: Bitmap?
                 if (isSketchMode && (selectedSaveFormat == "image/png" || selectedSaveFormat == "image/webp")) {
-                    bitmapToSave = drawingView.getDrawingOnTransparent()
+                    // For sketch mode with PNG/WebP, use the transparent bitmap directly
+                    bitmapToSave = drawingView.getDrawing() // Now already transparent
                 } else {
                     bitmapToSave = drawingView.getDrawing()
                 }

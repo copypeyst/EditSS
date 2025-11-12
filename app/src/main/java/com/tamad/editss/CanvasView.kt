@@ -357,44 +357,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun getDrawingOnTransparent(): Bitmap? {
-        val originalBitmap = baseBitmap ?: return null
-        
-        // Create a mutable copy to work with
-        val transparentBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        
-        // Get the pixel data
-        val pixels = IntArray(transparentBitmap.width * transparentBitmap.height)
-        transparentBitmap.getPixels(pixels, 0, transparentBitmap.width, 0, 0,
-                                   transparentBitmap.width, transparentBitmap.height)
-        
-        // Use brightness-based approach to identify background pixels
-        for (i in pixels.indices) {
-            val pixel = pixels[i]
-            val red = Color.red(pixel)
-            val green = Color.green(pixel)
-            val blue = Color.blue(pixel)
-            val alpha = Color.alpha(pixel)
-            
-            if (alpha > 0) {
-                // Calculate brightness (luminance)
-                val brightness = (0.299 * red + 0.587 * green + 0.114 * blue).toInt()
-                
-                // If pixel is bright and has low color variation, it's likely background
-                val colorVariation = Math.abs(red - green) + Math.abs(green - blue) + Math.abs(blue - red)
-                
-                // Convert very bright, low-variation pixels to transparent
-                // This catches white/light gray backgrounds while preserving colored drawings
-                if (brightness >= 235 && colorVariation <= 15) {
-                    pixels[i] = Color.TRANSPARENT // Fully transparent
-                }
-            }
-        }
-        
-        // Set the modified pixels back to the bitmap
-        transparentBitmap.setPixels(pixels, 0, transparentBitmap.width, 0, 0,
-                                   transparentBitmap.width, transparentBitmap.height)
-        
-        return transparentBitmap
+        // The bitmap is already transparent in sketch mode
+        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
     }
 
     fun getFinalBitmap(): Bitmap? {
