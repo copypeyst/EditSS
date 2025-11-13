@@ -80,6 +80,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adjustOptionsLayout: LinearLayout
     private lateinit var scrim: View
     private lateinit var transparencyWarningText: TextView
+    private lateinit var loadingIndicator: View
 
     private var currentActiveTool: ImageView? = null
 
@@ -106,6 +107,41 @@ class MainActivity : AppCompatActivity() {
     private var isImageLoadAttempted = false
     private var lastImageLoadFailed = false
     private var isSketchMode = false
+
+    private val allButtons by lazy {
+        listOf<View>(
+            findViewById(R.id.button_import),
+            findViewById(R.id.button_camera),
+            findViewById(R.id.button_undo),
+            findViewById(R.id.button_redo),
+            findViewById(R.id.button_share),
+            findViewById(R.id.button_save),
+            findViewById(R.id.tool_draw),
+            findViewById(R.id.tool_crop),
+            findViewById(R.id.tool_adjust),
+            findViewById(R.id.draw_mode_pen),
+            findViewById(R.id.draw_mode_circle),
+            findViewById(R.id.draw_mode_square),
+            findViewById(R.id.button_crop_apply),
+            findViewById(R.id.button_crop_cancel),
+            findViewById(R.id.button_adjust_apply),
+            findViewById(R.id.button_adjust_cancel),
+            findViewById(R.id.button_save_copy),
+            findViewById(R.id.button_overwrite)
+        )
+    }
+
+    private fun showLoading() {
+        loadingIndicator.visibility = View.VISIBLE
+        scrim.visibility = View.VISIBLE
+        allButtons.forEach { it.isEnabled = false }
+    }
+
+    private fun hideLoading() {
+        loadingIndicator.visibility = View.GONE
+        scrim.visibility = View.GONE
+        allButtons.forEach { it.isEnabled = true }
+    }
     
     // --- START: ADDED FOR OVERWRITE FIX ---
     // Handles the result of the delete confirmation dialog
@@ -142,7 +178,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     loadImageFromUri(cameraUri, false)
                 } catch (e: Exception) {
-                    Toast.makeText(this, getString(R.string.error_loading_camera_image, e.message), Toast.LENGTH_SHORT).show()
+                    showCustomToast(getString(R.string.error_loading_camera_image))
                     cleanupCameraFile(cameraUri)
                 }
                 currentCameraUri = null
@@ -214,6 +250,7 @@ class MainActivity : AppCompatActivity() {
         toolOptionsLayout = findViewById(R.id.tool_options)
         scrim = findViewById(R.id.scrim)
         transparencyWarningText = findViewById(R.id.transparency_warning_text)
+        loadingIndicator = findViewById(R.id.loading_indicator)
 
         // Initialize drawing controls
         drawSizeSlider = findViewById(R.id.draw_size_slider)
@@ -479,9 +516,8 @@ class MainActivity : AppCompatActivity() {
                 currentCropMode?.isSelected = false
                 currentCropMode = null
                 drawingView.setCropModeInactive()
-                Toast.makeText(this, "Image cropped successfully", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this, "No crop area selected", Toast.LENGTH_SHORT).show()
+                // No crop area was selected
             }
         }
 
@@ -559,7 +595,6 @@ class MainActivity : AppCompatActivity() {
                 val action = AdjustAction(previousBitmap, newBitmap)
                 editViewModel.pushAdjustAction(action)
                 drawingView.setBitmap(newBitmap)
-                Toast.makeText(this, "Adjustments applied", Toast.LENGTH_SHORT).show()
             }
 
             editViewModel.resetAdjustments()
@@ -747,7 +782,6 @@ class MainActivity : AppCompatActivity() {
             // This code runs AFTER the user responds to the delete confirmation dialog.
             if (result.resultCode == RESULT_OK) {
                 // User confirmed the deletion.
-                Toast.makeText(this, getString(R.string.original_file_deleted), Toast.LENGTH_SHORT).show()
                 
                 // Now, safely update our app's reference to point to the new file.
                 pendingOverwriteUri?.let {
@@ -760,7 +794,6 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 // User cancelled the deletion. The original file remains.
-                Toast.makeText(this, getString(R.string.original_file_was_not_deleted), Toast.LENGTH_SHORT).show()
                 // We still need to update our app's reference to the new file that was created.
                 pendingOverwriteUri?.let {
                     currentImageInfo = currentImageInfo?.copy(uri = it)
@@ -771,16 +804,26 @@ class MainActivity : AppCompatActivity() {
         // --- END: ADDED FOR OVERWRITE FIX ---
     }
 
+    private fun showCustomToast(message: String) {
+        val toast = Toast.makeText(this, message, Toast.LENGTH_SHORT)
+        // Position toast above the tool options panel
+        toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, 300)
+        toast.show()
+    }
+
     // Step 1 & 2: Implement sharing functionality
     // Item 1: Content URI sharing for saved images
     // Item 2: Cache-based sharing for unsaved edits
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
-            Toast.makeText(this, getString(R.string.no_image_to_share), Toast.LENGTH_SHORT).show()
+            showCustomToast(getString(R.string.no_image_to_share))
             return
         }
 
         lifecycleScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) {
+                showLoading()
+            }
             try {
                 // Get bitmap from Coil
                 val bitmapToShare = drawingView.getDrawing()
@@ -834,10 +877,10 @@ class MainActivity : AppCompatActivity() {
                                 
                                 val chooser = Intent.createChooser(shareIntent, getString(R.string.share_image))
                                 startActivity(chooser)
+                                showCustomToast(getString(R.string.image_shared))
 
-                                Toast.makeText(this@MainActivity, getString(R.string.sharing_image), Toast.LENGTH_SHORT).show()
                             } catch (e: Exception) {
-                                Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
+                                showCustomToast(getString(R.string.share_failed))
                             }
                         }
                     } else {
@@ -848,7 +891,11 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
+                    showCustomToast(getString(R.string.share_failed))
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    hideLoading()
                 }
             }
         }
@@ -884,7 +931,7 @@ class MainActivity : AppCompatActivity() {
                     val itemCount = clipData.itemCount
                     if (itemCount > 1) {
                         // Multiple images - reject for safety
-                    Toast.makeText(this, getString(R.string.multiple_images_not_supported), Toast.LENGTH_LONG).show()
+                    showCustomToast(getString(R.string.multiple_images_not_supported))
                         return
                     }
                     // Single image from clip data
@@ -908,7 +955,7 @@ class MainActivity : AppCompatActivity() {
             // Create private file in app's external files directory
             val imageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
             if (imageDir == null) {
-                Toast.makeText(this, getString(R.string.cannot_access_storage), Toast.LENGTH_SHORT).show()
+                showCustomToast(getString(R.string.cannot_access_storage))
                 return
             }
             
@@ -921,7 +968,7 @@ class MainActivity : AppCompatActivity() {
             
             if (!privateFile.exists()) {
                 if (!privateFile.createNewFile()) {
-                    Toast.makeText(this, getString(R.string.failed_to_create_temp_file), Toast.LENGTH_SHORT).show()
+                    showCustomToast(getString(R.string.failed_to_create_temp_file))
                     return
                 }
             }
@@ -944,7 +991,7 @@ class MainActivity : AppCompatActivity() {
             cameraCaptureLauncher.launch(intent)
             
         } catch (e: Exception) {
-            Toast.makeText(this, getString(R.string.camera_error, e.message), Toast.LENGTH_SHORT).show()
+            showCustomToast(getString(R.string.camera_error))
         }
     }
 
@@ -957,13 +1004,13 @@ class MainActivity : AppCompatActivity() {
 
         // Prevent loading while already loading
         if (isImageLoading) {
-            Toast.makeText(this, getString(R.string.image_is_still_loading), Toast.LENGTH_SHORT).show()
+            showCustomToast(getString(R.string.image_is_still_loading))
             return
         }
         
         // Prevent rapid successive attempts after failure
         if (isImageLoadAttempted && lastImageLoadFailed) {
-            Toast.makeText(this, getString(R.string.previous_load_failed), Toast.LENGTH_LONG).show()
+            showCustomToast(getString(R.string.previous_load_failed))
             return
         }
         
@@ -973,7 +1020,7 @@ class MainActivity : AppCompatActivity() {
         
         try {
             // Show loading indicator
-            Toast.makeText(this, getString(R.string.loading_image), Toast.LENGTH_SHORT).show()
+            showLoading()
             
             // Create Coil image request
             val request = ImageRequest.Builder(this)
@@ -998,8 +1045,6 @@ class MainActivity : AppCompatActivity() {
                             drawingView.requestLayout()
                             drawingView.invalidate()
                             
-                            Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
-                            
                             // Update UI based on canOverwrite
                             updateSavePanelUI()
                             
@@ -1018,9 +1063,10 @@ class MainActivity : AppCompatActivity() {
                             
                             lastImageLoadFailed = false
                         } catch (e: Exception) {
-                            handleImageLoadFailure(getString(R.string.error_displaying_image, e.message))
+                            handleImageLoadFailure()
                         } finally {
                             isImageLoading = false
+                            hideLoading()
                         }
                     }
                 }
@@ -1034,8 +1080,9 @@ class MainActivity : AppCompatActivity() {
                     },
                     onError = { _, result ->
                         // Loading failed
-                        handleImageLoadFailure(result.throwable?.message ?: "Unknown error")
+                        handleImageLoadFailure()
                         isImageLoading = false
+                        hideLoading()
                     }
                 )
                 .build()
@@ -1044,20 +1091,21 @@ class MainActivity : AppCompatActivity() {
             imageLoader.enqueue(request)
             
         } catch (e: Exception) {
-            handleImageLoadFailure("Image loading error: ${e.message}")
+            handleImageLoadFailure()
             isImageLoading = false
+            hideLoading()
         }
     }
     
     // Centralized failure handling
-    private fun handleImageLoadFailure(errorMessage: String) {
+    private fun handleImageLoadFailure() {
         lastImageLoadFailed = true
         runOnUiThread {
             try {
                 // Clear canvas on failed load
                 drawingView.setBitmap(null)
                 drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                Toast.makeText(this, getString(R.string.could_not_load_image, errorMessage), Toast.LENGTH_SHORT).show()
+                showCustomToast(getString(R.string.could_not_load_image))
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message}")
             }
@@ -1154,7 +1202,7 @@ class MainActivity : AppCompatActivity() {
             }
             oldImagePickerLauncher.launch(Intent.createChooser(intent, getString(R.string.select_picture)))
         } catch (e: Exception) {
-            Toast.makeText(this, getString(R.string.could_not_open_photo_picker, e.message), Toast.LENGTH_LONG).show()
+            showCustomToast(getString(R.string.could_not_open_photo_picker))
         }
     }
 
@@ -1258,11 +1306,14 @@ class MainActivity : AppCompatActivity() {
     // Updated function to save a copy using Coil to fetch the bitmap reliably.
     private fun saveImageAsCopy() {
         val imageInfo = currentImageInfo ?: run {
-            Toast.makeText(this, getString(R.string.no_image_to_save), Toast.LENGTH_SHORT).show()
+            showCustomToast(getString(R.string.no_image_to_save))
             return
         }
 
         lifecycleScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) {
+                showLoading()
+            }
             try {
                 val bitmapToSave: Bitmap?
                 if (isSketchMode) {
@@ -1332,14 +1383,14 @@ class MainActivity : AppCompatActivity() {
                                         arrayOf(selectedSaveFormat),
                                         null
                                     )
-                                }
+                                 }
                             } catch (e: Exception) {
                                 // MediaScannerConnection is not critical, just log the error
                             }
                         }
                         
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder), Toast.LENGTH_SHORT).show()
+                            showCustomToast(getString(R.string.image_saved_to_editss_folder))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
@@ -1352,7 +1403,11 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, e.message, Toast.LENGTH_SHORT).show()
+                    showCustomToast(getString(R.string.save_failed))
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    hideLoading()
                 }
             }
         }
@@ -1361,18 +1416,18 @@ class MainActivity : AppCompatActivity() {
     // FINAL, CORRECTED VERSION - This one avoids deletion and uses MediaStore update instead.
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
-            Toast.makeText(this, getString(R.string.no_image_to_overwrite), Toast.LENGTH_SHORT).show()
+            showCustomToast(getString(R.string.no_image_to_overwrite))
             return
         }
 
         if (!imageInfo.canOverwrite) {
-            Toast.makeText(this, getString(R.string.cannot_overwrite_this_image), Toast.LENGTH_SHORT).show()
+            showCustomToast(getString(R.string.cannot_overwrite_this_image))
             return
         }
         
         // Double-check that format hasn't changed, as a safeguard.
         if (selectedSaveFormat != imageInfo.originalMimeType) {
-            Toast.makeText(this, getString(R.string.format_changed_please_save_a_copy), Toast.LENGTH_LONG).show()
+            showCustomToast(getString(R.string.format_changed_please_save_a_copy))
             return
         }
 
@@ -1383,6 +1438,9 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
                 // User confirmed, proceed with overwrite
                 lifecycleScope.launch(Dispatchers.IO) {
+                    withContext(Dispatchers.Main) {
+                        showLoading()
+                    }
                     try {
                         val bitmapToSave = drawingView.getDrawing()
                             ?: throw Exception("Could not get image to overwrite")
@@ -1393,7 +1451,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
+                            showCustomToast(getString(R.string.image_overwritten_successfully))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
@@ -1405,7 +1463,11 @@ class MainActivity : AppCompatActivity() {
 
                     } catch (e: Exception) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, getString(R.string.overwrite_failed, e.message), Toast.LENGTH_SHORT).show()
+                            showCustomToast(getString(R.string.overwrite_failed))
+                        }
+                    } finally {
+                        withContext(Dispatchers.Main) {
+                            hideLoading()
                         }
                     }
                 }
@@ -1553,16 +1615,6 @@ class MainActivity : AppCompatActivity() {
             // Update selected format and UI
             selectedSaveFormat = detectedFormat
             updateFormatSelectionUI()
-            
-            // Show a subtle hint about the detected format
-            val formatName = when (detectedFormat) {
-                "image/jpeg" -> "JPEG"
-                "image/png" -> "PNG"
-                "image/webp" -> "WEBP"
-                else -> "Unknown"
-            }
-            
-            Toast.makeText(this, getString(R.string.detected_format, formatName), Toast.LENGTH_SHORT).show()
             
         } catch (e: Exception) {
             // If detection fails, keep current default
