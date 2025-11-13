@@ -1000,14 +1000,16 @@ class MainActivity : AppCompatActivity() {
                             
                             val filePath = getRealPathFromUri(uri)
                             val displayName = getDisplayNameFromUri(uri)
+                            val debugFilePath = if (filePath != null) filePath else "null"
+                            val debugDisplayName = if (displayName != null) displayName else "null"
                             val pathToShow = if (filePath != null) {
                                 filePath
                             } else if (displayName != null) {
-                                // Display filename with a path indicator to show we're getting the filename
                                 displayName
                             } else {
                                 "Debug: both null"
                             }
+                            showCustomToast("DEBUG: filePath=$debugFilePath, displayName=$debugDisplayName")
                             showCustomToast(getString(R.string.loaded_image_successfully, pathToShow))
                             
                             // Update UI based on canOverwrite
@@ -1408,14 +1410,16 @@ class MainActivity : AppCompatActivity() {
                         withContext(Dispatchers.Main) {
                             val filePath = getRealPathFromUri(imageInfo.uri)
                             val displayName = getDisplayNameFromUri(imageInfo.uri)
+                            val debugFilePath = if (filePath != null) filePath else "null"
+                            val debugDisplayName = if (displayName != null) displayName else "null"
                             val pathToShow = if (filePath != null) {
                                 filePath
                             } else if (displayName != null) {
-                                // Display filename - path extraction failed
                                 displayName
                             } else {
                                 "Debug: both null"
                             }
+                            showCustomToast("DEBUG: filePath=$debugFilePath, displayName=$debugDisplayName")
                             showCustomToast(getString(R.string.image_overwritten_successfully, pathToShow))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
