@@ -875,7 +875,7 @@ class MainActivity : AppCompatActivity() {
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
                                 
-                                val chooser = Intent.createChooser(shareIntent, getString(R.string.share_image))
+                                val chooser = Intent.createChooser(shareIntent, getString(R.string.share))
                                 startActivity(chooser)
                                 showCustomToast(getString(R.string.image_shared))
 
