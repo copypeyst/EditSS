@@ -1000,7 +1000,7 @@ class MainActivity : AppCompatActivity() {
                             
                             val filePath = getRealPathFromUri(uri)
                             val displayName = getDisplayNameFromUri(uri)
-                            val pathToShow = filePath ?: displayName ?: "Image"
+                            val pathToShow = filePath ?: displayName ?: "Debug: filePath=null, displayName=${displayName ?: "null"}"
                             showCustomToast(getString(R.string.loaded_image_successfully, pathToShow))
                             
                             // Update UI based on canOverwrite
@@ -1401,7 +1401,7 @@ class MainActivity : AppCompatActivity() {
                         withContext(Dispatchers.Main) {
                             val filePath = getRealPathFromUri(imageInfo.uri)
                             val displayName = getDisplayNameFromUri(imageInfo.uri)
-                            val pathToShow = filePath ?: displayName ?: "Unknown file"
+                            val pathToShow = filePath ?: displayName ?: "Debug: filePath=null, displayName=${displayName ?: "null"}"
                             showCustomToast(getString(R.string.image_overwritten_successfully, pathToShow))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
