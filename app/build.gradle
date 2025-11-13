@@ -36,6 +36,12 @@ android {
         viewBinding true
     }
 
+    // Item #21: Exclude 32-bit ABIs to reduce app size
+    // Your app has no native dependencies, so this is safe
+    ndk {
+        abiFilters 'arm64-v8a'
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
