@@ -1453,26 +1453,29 @@ class MainActivity : AppCompatActivity() {
             .setMessage(getString(R.string.overwrite_changes_message))
             .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
                 // User confirmed, proceed with overwrite
-                lifecycleScope.launch(Dispatchers.IO) {
+                lifecycleScope.launch {
                     try {
-                        // Show loading overlay to prevent spamming
+                        // Show loading overlay on main thread before background work
                         showLoadingSpinner()
                         
-                        val bitmapToSave = drawingView.getDrawing()
-                            ?: throw Exception("Could not get image to overwrite")
-                        
-                        // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
-                        contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
-                            compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
-                        }
-                        
-                        // Get file info and update UI on main thread
-                        val filePath = getRealPathFromUri(imageInfo.uri)
-                        val displayName = getDisplayNameFromUri(imageInfo.uri)
-                        val pathToShow = displayName ?: "Unknown file"
-                        
-                        withContext(Dispatchers.Main) {
+                        withContext(Dispatchers.IO) {
+                            val bitmapToSave = drawingView.getDrawing()
+                                ?: throw Exception("Could not get image to overwrite")
+                            
+                            // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
+                            contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
+                                compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                            }
+                            
+                            // Return file info for main thread
+                            Pair(
+                                getRealPathFromUri(imageInfo.uri),
+                                getDisplayNameFromUri(imageInfo.uri)
+                            )
+                        }.let { (filePath, displayName) ->
+                            // Back on main thread
                             hideLoadingSpinner()
+                            val pathToShow = displayName ?: "Unknown file"
                             showCustomToast(getString(R.string.image_overwritten_successfully, pathToShow))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
@@ -1483,10 +1486,8 @@ class MainActivity : AppCompatActivity() {
                             imageLoader.diskCache?.remove(imageInfo.uri.toString())
                         }
                     } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            hideLoadingSpinner()
-                            showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
-                        }
+                        hideLoadingSpinner()
+                        showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
                     }
                 }
                 dialog.dismiss()
