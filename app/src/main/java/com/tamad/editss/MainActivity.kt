@@ -998,7 +998,10 @@ class MainActivity : AppCompatActivity() {
                             drawingView.requestLayout()
                             drawingView.invalidate()
                             
-                            showCustomToast(getString(R.string.loaded_image_successfully, getDisplayNameFromUri(uri) ?: "Image"))
+                            val filePath = getRealPathFromUri(uri)
+                            val displayName = getDisplayNameFromUri(uri)
+                            val pathToShow = filePath ?: displayName ?: "Image"
+                            showCustomToast(getString(R.string.loaded_image_successfully, pathToShow))
                             
                             // Update UI based on canOverwrite
                             updateSavePanelUI()
@@ -1629,8 +1632,8 @@ class MainActivity : AppCompatActivity() {
         toolOptionsLayout?.let { toolPanel ->
             val location = IntArray(2)
             toolPanel.getLocationOnScreen(location)
-            // Position 20dp above the tool panel (converted to pixels)
-            val offsetInPixels = (toolPanel.height + 20 * resources.displayMetrics.density).toInt()
+            // Position 40dp above the tool panel (converted to pixels)
+            val offsetInPixels = (toolPanel.height + 40 * resources.displayMetrics.density).toInt()
             toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, offsetInPixels)
         } ?: run {
             // Fallback to screen bottom if tool_options not available
