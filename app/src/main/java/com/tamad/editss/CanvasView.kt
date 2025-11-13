@@ -64,7 +64,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isMultiTouchActive = false
     private var currentScale = 1f
     private var baseScale = 1f
-    private var minScale = 0.1f // Allow zooming out but will snap back
+    private var minScale = 1f // Base zoom level - user cannot zoom out beyond this
     private var maxScale = 4f // Maximum zoom level
     private var focusX = 0f
     private var focusY = 0f
@@ -105,17 +105,22 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val scaleFactor = detector.scaleFactor
                 
-                // Calculate new scale with constraints
-                var newScale = currentScale * scaleFactor
+                // Calculate new scale
+                val newScale = currentScale * scaleFactor
                 
-                // Allow zoom out below base, but snap back to center when scale ends
-                newScale = newScale.coerceIn(minScale, maxScale)
+                // Prevent zoom out below base zoom level
+                if (newScale < baseScale && scaleFactor < 1f) {
+                    return true // Don't allow zoom out below base
+                }
+                
+                // Clamp to max scale
+                val clampedScale = newScale.coerceIn(baseScale, maxScale)
                 
                 focusX = detector.focusX
                 focusY = detector.focusY
                 
                 // Apply zoom centered around pinch point
-                applyZoom(newScale, focusX, focusY, lastFocusX, lastFocusY)
+                applyZoom(clampedScale, focusX, focusY, lastFocusX, lastFocusY)
                 
                 lastFocusX = focusX
                 lastFocusY = focusY
@@ -132,8 +137,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
             override fun onScaleEnd(detector: ScaleGestureDetector) {
                 isMultiTouchActive = false
-                
-                // If we've zoomed out below base scale, snap back to center and base zoom
+                // Ensure scale doesn't go below base
                 if (currentScale < baseScale) {
                     currentScale = baseScale
                     panOffsetX = 0f
@@ -668,6 +672,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 return true
             }
             
+            // Let scale gesture detector handle multi-touch
             scaleGestureDetector?.onTouchEvent(event)
         }
 
@@ -675,43 +680,35 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (currentTool == ToolType.DRAW) {
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    // If we're in multi-touch mode from scale gesture detector, don't allow drawing
-                    if (isMultiTouchActive) {
-                        return true
-                    }
-                    
-                    // Start drawing (drawing should always work regardless of zoom level)
-                    val action = currentDrawingTool.onTouchEvent(event, paint)
-                    action?.let {
-                        isCurrentDrawingPath = it.path
-                        if (isSketchMode) {
-                            sketchStrokes.add(action)
-                            val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                            onBitmapChanged?.invoke(EditAction.BitmapChange(
-                                previousBitmap = bitmapBeforeDrawing ?: return@let,
-                                newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                            ))
-                        } else {
-                            val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                            mergeDrawingStrokeIntoBitmap(action)
-                            onBitmapChanged?.invoke(EditAction.BitmapChange(
-                                previousBitmap = bitmapBeforeDrawing ?: return@let,
-                                newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                            ))
+                    // Allow drawing when only one finger is down, even if scale detector might be active
+                    if (event.pointerCount == 1) {
+                        val action = currentDrawingTool.onTouchEvent(event, paint)
+                        action?.let {
+                            isCurrentDrawingPath = it.path
+                            if (isSketchMode) {
+                                sketchStrokes.add(action)
+                                val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                                onBitmapChanged?.invoke(EditAction.BitmapChange(
+                                    previousBitmap = bitmapBeforeDrawing ?: return@let,
+                                    newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                                ))
+                            } else {
+                                val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                                mergeDrawingStrokeIntoBitmap(action)
+                                onBitmapChanged?.invoke(EditAction.BitmapChange(
+                                    previousBitmap = bitmapBeforeDrawing ?: return@let,
+                                    newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                                ))
+                            }
                         }
+                        invalidate()
                     }
-                    invalidate()
                     return true
                 }
                 
                 MotionEvent.ACTION_MOVE -> {
-                    // If we're in multi-touch mode, let scale gesture detector handle it
-                    if (isMultiTouchActive) {
-                        return true
-                    }
-                    
-                    // Handle drawing movement
-                    if (isCurrentDrawingPath != null) {
+                    // Handle drawing movement when only one finger is down
+                    if (event.pointerCount == 1 && isCurrentDrawingPath != null) {
                         val action = currentDrawingTool.onTouchEvent(event, paint)
                         action?.let {
                             if (isSketchMode) {
@@ -737,7 +734,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     // Finish drawing - the stroke gets attached to bitmap
-                    isCurrentDrawingPath = null
+                    if (event.pointerCount <= 1) {
+                        isCurrentDrawingPath = null
+                    }
                     invalidate()
                     return true
                 }
@@ -1109,7 +1108,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         setAdjustments(0f, 1f, 1f)
     }
 
-    // Zoom and Pan helper methods
+    // Zoom helper methods
     private fun resetZoom() {
         currentScale = 1f
         baseScale = 1f
@@ -1129,21 +1128,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val deltaX = focusX - prevFocusX
             val deltaY = focusY - prevFocusY
             
-            // Apply the previous pan offset
+            // Apply the pan offset and finger movement
             panOffsetX = panOffsetX * scaleFactor + deltaX
             panOffsetY = panOffsetY * scaleFactor + deltaY
             
             currentScale = newScale
-            updateImageMatrix()
-            invalidate()
-        }
-    }
-    
-    private fun applyPan(dx: Float, dy: Float) {
-        if (currentScale > 1f) {
-            // Only allow panning when zoomed in
-            panOffsetX += dx
-            panOffsetY += dy
             updateImageMatrix()
             invalidate()
         }
