@@ -1330,8 +1330,8 @@ class MainActivity : AppCompatActivity() {
             // Show loading overlay to prevent spamming
             showLoadingSpinner("Saving image...")
             
-            try {
-                withContext(Dispatchers.IO) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
                     val bitmapToSave: Bitmap?
                     if (isSketchMode) {
                         when (selectedSaveFormat) {
@@ -1407,31 +1407,29 @@ class MainActivity : AppCompatActivity() {
                             }
                             
                             // Return success to main thread
-                            Result.success(Pair(filePath = getRealPathFromUri(uri), displayName = getDisplayNameFromUri(uri)))
+                            val filePath = getRealPathFromUri(uri)
+                            val displayName = getDisplayNameFromUri(uri)
+                            val pathToShow = filePath ?: displayName ?: "Unknown file"
+                            
+                            withContext(Dispatchers.Main) {
+                                hideLoadingSpinner()
+                                showCustomToast(getString(R.string.image_saved_to_editss_folder, pathToShow))
+                                savePanel.visibility = View.GONE
+                                scrim.visibility = View.GONE
+                                editViewModel.markActionsAsSaved()
+                            }
                         } else {
                             throw Exception(getString(R.string.save_failed))
                         }
                     } else {
                         throw Exception("No image to save")
                     }
-                }.also { result ->
-                    hideLoadingSpinner()
-                    result.fold(
-                        onSuccess = { (filePath, displayName) ->
-                            val pathToShow = filePath ?: displayName ?: "Unknown file"
-                            showCustomToast(getString(R.string.image_saved_to_editss_folder, pathToShow))
-                            savePanel.visibility = View.GONE
-                            scrim.visibility = View.GONE
-                            editViewModel.markActionsAsSaved()
-                        },
-                        onFailure = { exception ->
-                            showCustomToast(exception.message ?: "Unknown error")
-                        }
-                    )
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        hideLoadingSpinner()
+                        showCustomToast(e.message ?: "Unknown error")
+                    }
                 }
-            } catch (e: Exception) {
-                hideLoadingSpinner()
-                showCustomToast(e.message ?: "Unknown error")
             }
         }
     }
@@ -1460,47 +1458,40 @@ class MainActivity : AppCompatActivity() {
             .setMessage(getString(R.string.overwrite_changes_message))
             .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
                 // User confirmed, proceed with overwrite
-                lifecycleScope.launch(Dispatchers.Main) {
-                    // Show loading overlay to prevent spamming
-                    showLoadingSpinner("Overwriting image...")
-                    
+                lifecycleScope.launch(Dispatchers.IO) {
                     try {
-                        withContext(Dispatchers.IO) {
-                            val bitmapToSave = drawingView.getDrawing()
-                                ?: throw Exception("Could not get image to overwrite")
-                            
-                            // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
-                            contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
-                                compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
-                            }
-                            
-                            // Return success to main thread
-                            Result.success(Pair(
-                                filePath = getRealPathFromUri(imageInfo.uri),
-                                displayName = getDisplayNameFromUri(imageInfo.uri)
-                            ))
-                        }.also { result ->
+                        // Show loading overlay to prevent spamming
+                        showLoadingSpinner("Overwriting image...")
+                        
+                        val bitmapToSave = drawingView.getDrawing()
+                            ?: throw Exception("Could not get image to overwrite")
+                        
+                        // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
+                        contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
+                            compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                        }
+                        
+                        // Get file info and update UI on main thread
+                        val filePath = getRealPathFromUri(imageInfo.uri)
+                        val displayName = getDisplayNameFromUri(imageInfo.uri)
+                        val pathToShow = displayName ?: "Unknown file"
+                        
+                        withContext(Dispatchers.Main) {
                             hideLoadingSpinner()
-                            result.fold(
-                                onSuccess = { (filePath, displayName) ->
-                                    val pathToShow = displayName ?: "Unknown file"
-                                    showCustomToast(getString(R.string.image_overwritten_successfully, pathToShow))
-                                    savePanel.visibility = View.GONE
-                                    scrim.visibility = View.GONE
-                                    editViewModel.markActionsAsSaved()
+                            showCustomToast(getString(R.string.image_overwritten_successfully, pathToShow))
+                            savePanel.visibility = View.GONE
+                            scrim.visibility = View.GONE
+                            editViewModel.markActionsAsSaved()
 
-                                    // Invalidate Coil's cache for the overwritten URI to ensure a fresh load next time.
-                                    imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
-                                    imageLoader.diskCache?.remove(imageInfo.uri.toString())
-                                },
-                                onFailure = { exception ->
-                                    showCustomToast(getString(R.string.overwrite_failed, exception.message ?: "Unknown error"))
-                                }
-                            )
+                            // Invalidate Coil's cache for the overwritten URI to ensure a fresh load next time.
+                            imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
+                            imageLoader.diskCache?.remove(imageInfo.uri.toString())
                         }
                     } catch (e: Exception) {
-                        hideLoadingSpinner()
-                        showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
+                        withContext(Dispatchers.Main) {
+                            hideLoadingSpinner()
+                            showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
+                        }
                     }
                 }
                 dialog.dismiss()
