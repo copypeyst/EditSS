@@ -1012,7 +1012,8 @@ class MainActivity : AppCompatActivity() {
                             drawingView.invalidate()
                             
                             uxMessageManager.hideLoading()
-                            uxMessageManager.showMessage(getString(R.string.loaded_image_successfully, origin.name))
+                            val fileName = getDisplayNameFromUri(uri) ?: "Image"
+                            uxMessageManager.showMessage("Imported $fileName")
                             
                             // Update UI based on canOverwrite
                             updateSavePanelUI()
@@ -1356,7 +1357,7 @@ class MainActivity : AppCompatActivity() {
                         
                         withContext(Dispatchers.Main) {
                             uxMessageManager.hideLoading()
-                            uxMessageManager.showMessage(getString(R.string.image_saved_to_editss_folder))
+                            uxMessageManager.showMessage("Saved Successfully")
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
@@ -1413,7 +1414,7 @@ class MainActivity : AppCompatActivity() {
                         
                         withContext(Dispatchers.Main) {
                             uxMessageManager.hideLoading()
-                            uxMessageManager.showMessage(getString(R.string.image_overwritten_successfully))
+                            uxMessageManager.showMessage("Overwritten Successfully")
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
