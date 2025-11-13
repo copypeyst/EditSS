@@ -2,4 +2,8 @@
 <animated-rotate xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/ic_launcher_background"
     android:pivotX="50%"
-    android:pivotY="50%" />
+    android:pivotY="50%"
+    android:fromDegrees="0"
+    android:toDegrees="360"
+    android:duration="1000"
+    android:repeatCount="infinite" />

@@ -76,8 +76,5 @@
     <string name="confirm">Confirm</string>
     <string name="overwrite_changes_title">Overwrite Changes?</string>
     <string name="overwrite_changes_message">The original image will be replaced.</string>
-    <string name="saving_image">Saving image...</string>
-    <string name="overwriting_image">Overwriting image...</string>
-    <string name="opening_camera">Opening camera...</string>
 
 </resources>
