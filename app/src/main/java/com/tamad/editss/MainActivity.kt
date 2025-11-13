@@ -1000,16 +1000,7 @@ class MainActivity : AppCompatActivity() {
                             
                             val filePath = getRealPathFromUri(uri)
                             val displayName = getDisplayNameFromUri(uri)
-                            val debugFilePath = if (filePath != null) filePath else "null"
-                            val debugDisplayName = if (displayName != null) displayName else "null"
-                            val pathToShow = if (filePath != null) {
-                                filePath
-                            } else if (displayName != null) {
-                                displayName
-                            } else {
-                                "Debug: both null"
-                            }
-                            showCustomToast("DEBUG: filePath=$debugFilePath, displayName=$debugDisplayName")
+                            val pathToShow = displayName ?: "Image"
                             showCustomToast(getString(R.string.loaded_image_successfully, pathToShow))
                             
                             // Update UI based on canOverwrite
@@ -1410,16 +1401,7 @@ class MainActivity : AppCompatActivity() {
                         withContext(Dispatchers.Main) {
                             val filePath = getRealPathFromUri(imageInfo.uri)
                             val displayName = getDisplayNameFromUri(imageInfo.uri)
-                            val debugFilePath = if (filePath != null) filePath else "null"
-                            val debugDisplayName = if (displayName != null) displayName else "null"
-                            val pathToShow = if (filePath != null) {
-                                filePath
-                            } else if (displayName != null) {
-                                displayName
-                            } else {
-                                "Debug: both null"
-                            }
-                            showCustomToast("DEBUG: filePath=$debugFilePath, displayName=$debugDisplayName")
+                            val pathToShow = displayName ?: "Unknown file"
                             showCustomToast(getString(R.string.image_overwritten_successfully, pathToShow))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
@@ -1650,8 +1632,8 @@ class MainActivity : AppCompatActivity() {
         toolOptionsLayout?.let { toolPanel ->
             val location = IntArray(2)
             toolPanel.getLocationOnScreen(location)
-            // Position 40dp above the tool panel (converted to pixels)
-            val offsetInPixels = (toolPanel.height + 40 * resources.displayMetrics.density).toInt()
+            // Position 35dp above the tool panel (converted to pixels)
+            val offsetInPixels = (toolPanel.height + 35 * resources.displayMetrics.density).toInt()
             toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, offsetInPixels)
         } ?: run {
             // Fallback to screen bottom if tool_options not available
