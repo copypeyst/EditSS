@@ -1396,7 +1396,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Show confirmation dialog
-        AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
+        AlertDialog.Builder(this)
             .setTitle(getString(R.string.overwrite_changes_title))
             .setMessage(getString(R.string.overwrite_changes_message))
             .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->

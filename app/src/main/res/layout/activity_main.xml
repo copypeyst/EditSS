@@ -569,7 +569,9 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Loading Overlay - Absolutely on top of everything -->
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Loading Overlay - On top of absolutely everything -->
     <FrameLayout
         android:id="@+id/loading_overlay"
         android:layout_width="match_parent"
@@ -577,8 +579,7 @@
         android:background="@color/scrim_background"
         android:visibility="gone"
         android:clickable="true"
-        android:focusable="true"
-        android:elevation="999dp">
+        android:focusable="true">
         <ProgressBar
             android:id="@+id/loading_spinner"
             android:layout_width="50dp"
@@ -587,19 +588,18 @@
             android:indeterminate="true" />
     </FrameLayout>
 
-    <!-- UX Message Container - Above tool options, semi-transparent background -->
+    <!-- UX Message Container - Bottom of screen -->
     <FrameLayout
         android:id="@+id/message_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:elevation="100dp">
+        android:layout_height="match_parent"
+        android:layout_gravity="bottom">
         <LinearLayout
             android:id="@+id/message_box"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal|bottom"
-            android:layout_marginBottom="155dp"
+            android:layout_marginBottom="160dp"
             android:orientation="vertical"
             android:background="@drawable/rounded_dialog_background"
             android:padding="6dp"
@@ -614,9 +614,6 @@
                 android:maxWidth="200dp" />
         </LinearLayout>
     </FrameLayout>
-
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <!-- Scrim -->
     <View
