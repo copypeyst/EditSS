@@ -4,6 +4,7 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.MobileAds
 import androidx.activity.result.contract.ActivityResultContracts
+import android.util.Log
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
@@ -16,12 +17,12 @@ import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.RadioButton
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
+import android.widget.Toast
 import android.net.Uri
 import androidx.appcompat.app.AlertDialog
 import android.provider.MediaStore
@@ -117,13 +118,11 @@ class MainActivity : AppCompatActivity() {
     // Drawing tools ViewModel for shared state
     private lateinit var editViewModel: EditViewModel
     
-    // UX Message Manager for user feedback
-    private lateinit var uxMessageManager: UXMessageManager
-    
     // Drawing-related UI elements
     private lateinit var drawingView: CanvasView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
+    // --- END: ADDED FOR OVERWRITE FIX ---
 
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -143,8 +142,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     loadImageFromUri(cameraUri, false)
                 } catch (e: Exception) {
-                    uxMessageManager.hideLoading()
-                    uxMessageManager.showMessage(getString(R.string.error_loading_camera_image, e.message))
+                    Toast.makeText(this, getString(R.string.error_loading_camera_image, e.message), Toast.LENGTH_SHORT).show()
                     cleanupCameraFile(cameraUri)
                 }
                 currentCameraUri = null
@@ -152,7 +150,6 @@ class MainActivity : AppCompatActivity() {
         } else {
             val cameraUri = currentCameraUri
             if (cameraUri != null) {
-                uxMessageManager.hideLoading()
                 cleanupCameraFile(cameraUri)
             }
             currentCameraUri = null
@@ -212,14 +209,6 @@ class MainActivity : AppCompatActivity() {
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
-
-        // Initialize UX Message Manager
-        val messageContainer = findViewById<FrameLayout>(R.id.message_container)
-        val messageBox = findViewById<LinearLayout>(R.id.message_box)
-        val messageText = findViewById<TextView>(R.id.message_text)
-        val loadingOverlay = findViewById<FrameLayout>(R.id.loading_overlay)
-        val loadingSpinner = findViewById<ProgressBar>(R.id.loading_spinner)
-        uxMessageManager = UXMessageManager(messageContainer, messageBox, messageText, loadingOverlay, loadingSpinner)
 
         savePanel = findViewById(R.id.save_panel)
         toolOptionsLayout = findViewById(R.id.tool_options)
@@ -490,8 +479,9 @@ class MainActivity : AppCompatActivity() {
                 currentCropMode?.isSelected = false
                 currentCropMode = null
                 drawingView.setCropModeInactive()
+                Toast.makeText(this, "Image cropped successfully", Toast.LENGTH_SHORT).show()
             } else {
-                uxMessageManager.showMessage("No crop area selected")
+                Toast.makeText(this, "No crop area selected", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -569,6 +559,7 @@ class MainActivity : AppCompatActivity() {
                 val action = AdjustAction(previousBitmap, newBitmap)
                 editViewModel.pushAdjustAction(action)
                 drawingView.setBitmap(newBitmap)
+                Toast.makeText(this, "Adjustments applied", Toast.LENGTH_SHORT).show()
             }
 
             editViewModel.resetAdjustments()
@@ -756,7 +747,7 @@ class MainActivity : AppCompatActivity() {
             // This code runs AFTER the user responds to the delete confirmation dialog.
             if (result.resultCode == RESULT_OK) {
                 // User confirmed the deletion.
-                uxMessageManager.showMessage(getString(R.string.original_file_deleted))
+                Toast.makeText(this, getString(R.string.original_file_deleted), Toast.LENGTH_SHORT).show()
                 
                 // Now, safely update our app's reference to point to the new file.
                 pendingOverwriteUri?.let {
@@ -769,7 +760,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 // User cancelled the deletion. The original file remains.
-                uxMessageManager.showMessage(getString(R.string.original_file_was_not_deleted))
+                Toast.makeText(this, getString(R.string.original_file_was_not_deleted), Toast.LENGTH_SHORT).show()
                 // We still need to update our app's reference to the new file that was created.
                 pendingOverwriteUri?.let {
                     currentImageInfo = currentImageInfo?.copy(uri = it)
@@ -785,11 +776,10 @@ class MainActivity : AppCompatActivity() {
     // Item 2: Cache-based sharing for unsaved edits
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
-            uxMessageManager.showMessage(getString(R.string.no_image_to_share))
+            Toast.makeText(this, getString(R.string.no_image_to_share), Toast.LENGTH_SHORT).show()
             return
         }
 
-        uxMessageManager.showLoading()
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 // Get bitmap from Coil
@@ -845,10 +835,9 @@ class MainActivity : AppCompatActivity() {
                                 val chooser = Intent.createChooser(shareIntent, getString(R.string.share_image))
                                 startActivity(chooser)
 
-                                uxMessageManager.hideLoading()
+                                Toast.makeText(this@MainActivity, getString(R.string.sharing_image), Toast.LENGTH_SHORT).show()
                             } catch (e: Exception) {
-                                uxMessageManager.hideLoading()
-                                uxMessageManager.showMessage(getString(R.string.share_failed, e.message))
+                                Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
                             }
                         }
                     } else {
@@ -859,8 +848,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    uxMessageManager.hideLoading()
-                    uxMessageManager.showMessage(getString(R.string.share_failed, e.message))
+                    Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -896,7 +884,7 @@ class MainActivity : AppCompatActivity() {
                     val itemCount = clipData.itemCount
                     if (itemCount > 1) {
                         // Multiple images - reject for safety
-                        uxMessageManager.showMessage(getString(R.string.multiple_images_not_supported))
+                    Toast.makeText(this, getString(R.string.multiple_images_not_supported), Toast.LENGTH_LONG).show()
                         return
                     }
                     // Single image from clip data
@@ -920,7 +908,7 @@ class MainActivity : AppCompatActivity() {
             // Create private file in app's external files directory
             val imageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
             if (imageDir == null) {
-                uxMessageManager.showMessage(getString(R.string.cannot_access_storage))
+                Toast.makeText(this, getString(R.string.cannot_access_storage), Toast.LENGTH_SHORT).show()
                 return
             }
             
@@ -933,7 +921,7 @@ class MainActivity : AppCompatActivity() {
             
             if (!privateFile.exists()) {
                 if (!privateFile.createNewFile()) {
-                    uxMessageManager.showMessage(getString(R.string.failed_to_create_temp_file))
+                    Toast.makeText(this, getString(R.string.failed_to_create_temp_file), Toast.LENGTH_SHORT).show()
                     return
                 }
             }
@@ -952,12 +940,11 @@ class MainActivity : AppCompatActivity() {
             // Store the private file for handling result
             currentCameraUri = photoURI
             
-            uxMessageManager.showLoading()
             // Start camera activity
             cameraCaptureLauncher.launch(intent)
             
         } catch (e: Exception) {
-            uxMessageManager.showMessage(getString(R.string.camera_error, e.message))
+            Toast.makeText(this, getString(R.string.camera_error, e.message), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -970,13 +957,13 @@ class MainActivity : AppCompatActivity() {
 
         // Prevent loading while already loading
         if (isImageLoading) {
-            uxMessageManager.showMessage(getString(R.string.image_is_still_loading))
+            Toast.makeText(this, getString(R.string.image_is_still_loading), Toast.LENGTH_SHORT).show()
             return
         }
         
         // Prevent rapid successive attempts after failure
         if (isImageLoadAttempted && lastImageLoadFailed) {
-            uxMessageManager.showMessage(getString(R.string.previous_load_failed))
+            Toast.makeText(this, getString(R.string.previous_load_failed), Toast.LENGTH_LONG).show()
             return
         }
         
@@ -986,7 +973,7 @@ class MainActivity : AppCompatActivity() {
         
         try {
             // Show loading indicator
-            uxMessageManager.showLoading()
+            Toast.makeText(this, getString(R.string.loading_image), Toast.LENGTH_SHORT).show()
             
             // Create Coil image request
             val request = ImageRequest.Builder(this)
@@ -1011,9 +998,7 @@ class MainActivity : AppCompatActivity() {
                             drawingView.requestLayout()
                             drawingView.invalidate()
                             
-                            uxMessageManager.hideLoading()
-                            val fileName = getDisplayNameFromUri(uri) ?: "Image"
-                            uxMessageManager.showMessage("Imported $fileName")
+                            Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
                             
                             // Update UI based on canOverwrite
                             updateSavePanelUI()
@@ -1072,10 +1057,9 @@ class MainActivity : AppCompatActivity() {
                 // Clear canvas on failed load
                 drawingView.setBitmap(null)
                 drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                uxMessageManager.hideLoading()
-                uxMessageManager.showMessage(getString(R.string.could_not_load_image, errorMessage))
+                Toast.makeText(this, getString(R.string.could_not_load_image, errorMessage), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
-                // Silently fail - user message already shown
+                Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message}")
             }
         }
     }
@@ -1170,7 +1154,7 @@ class MainActivity : AppCompatActivity() {
             }
             oldImagePickerLauncher.launch(Intent.createChooser(intent, getString(R.string.select_picture)))
         } catch (e: Exception) {
-            uxMessageManager.showMessage(getString(R.string.could_not_open_photo_picker, e.message))
+            Toast.makeText(this, getString(R.string.could_not_open_photo_picker, e.message), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1274,11 +1258,10 @@ class MainActivity : AppCompatActivity() {
     // Updated function to save a copy using Coil to fetch the bitmap reliably.
     private fun saveImageAsCopy() {
         val imageInfo = currentImageInfo ?: run {
-            uxMessageManager.showMessage(getString(R.string.no_image_to_save))
+            Toast.makeText(this, getString(R.string.no_image_to_save), Toast.LENGTH_SHORT).show()
             return
         }
 
-        uxMessageManager.showLoading()
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val bitmapToSave: Bitmap?
@@ -1356,8 +1339,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         withContext(Dispatchers.Main) {
-                            uxMessageManager.hideLoading()
-                            uxMessageManager.showMessage("Saved Successfully")
+                            Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
@@ -1370,8 +1352,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    uxMessageManager.hideLoading()
-                    uxMessageManager.showMessage(e.message ?: "Save failed")
+                    Toast.makeText(this@MainActivity, e.message, Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -1380,28 +1361,27 @@ class MainActivity : AppCompatActivity() {
     // FINAL, CORRECTED VERSION - This one avoids deletion and uses MediaStore update instead.
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
-            uxMessageManager.showMessage(getString(R.string.no_image_to_overwrite))
+            Toast.makeText(this, getString(R.string.no_image_to_overwrite), Toast.LENGTH_SHORT).show()
             return
         }
 
         if (!imageInfo.canOverwrite) {
-            uxMessageManager.showMessage(getString(R.string.cannot_overwrite_this_image))
+            Toast.makeText(this, getString(R.string.cannot_overwrite_this_image), Toast.LENGTH_SHORT).show()
             return
         }
         
         // Double-check that format hasn't changed, as a safeguard.
         if (selectedSaveFormat != imageInfo.originalMimeType) {
-            uxMessageManager.showMessage(getString(R.string.format_changed_please_save_a_copy))
+            Toast.makeText(this, getString(R.string.format_changed_please_save_a_copy), Toast.LENGTH_LONG).show()
             return
         }
 
         // Show confirmation dialog
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
             .setTitle(getString(R.string.overwrite_changes_title))
             .setMessage(getString(R.string.overwrite_changes_message))
             .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
                 // User confirmed, proceed with overwrite
-                uxMessageManager.showLoading()
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
                         val bitmapToSave = drawingView.getDrawing()
@@ -1413,8 +1393,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         withContext(Dispatchers.Main) {
-                            uxMessageManager.hideLoading()
-                            uxMessageManager.showMessage("Overwritten Successfully")
+                            Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
@@ -1426,8 +1405,7 @@ class MainActivity : AppCompatActivity() {
 
                     } catch (e: Exception) {
                         withContext(Dispatchers.Main) {
-                            uxMessageManager.hideLoading()
-                            uxMessageManager.showMessage(getString(R.string.overwrite_failed, e.message))
+                            Toast.makeText(this@MainActivity, getString(R.string.overwrite_failed, e.message), Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -1575,6 +1553,16 @@ class MainActivity : AppCompatActivity() {
             // Update selected format and UI
             selectedSaveFormat = detectedFormat
             updateFormatSelectionUI()
+            
+            // Show a subtle hint about the detected format
+            val formatName = when (detectedFormat) {
+                "image/jpeg" -> "JPEG"
+                "image/png" -> "PNG"
+                "image/webp" -> "WEBP"
+                else -> "Unknown"
+            }
+            
+            Toast.makeText(this, getString(R.string.detected_format, formatName), Toast.LENGTH_SHORT).show()
             
         } catch (e: Exception) {
             // If detection fails, keep current default
