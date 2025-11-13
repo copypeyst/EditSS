@@ -64,7 +64,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isMultiTouchActive = false
     private var currentScale = 1f
     private var baseScale = 1f
-    private var minScale = 1f // Base zoom level - user cannot zoom out beyond this
+    private var minScale = 0.1f // Allow zooming out but will snap back
     private var maxScale = 4f // Maximum zoom level
     private var focusX = 0f
     private var focusY = 0f
@@ -72,11 +72,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var panOffsetY = 0f
     private var isDrawingCancelled = false // Track if drawing was cancelled due to second touch
     private var isCurrentDrawingPath: Path? = null // Track current drawing path for cancellation
-    
-    // Single finger pan state
-    private var isPanning = false
-    private var lastPanX = 0f
-    private var lastPanY = 0f
 
     
     var onCropApplied: ((Bitmap) -> Unit)? = null
@@ -111,12 +106,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 val scaleFactor = detector.scaleFactor
                 
                 // Calculate new scale with constraints
-                val newScale = (currentScale * scaleFactor).coerceIn(minScale, maxScale)
+                var newScale = currentScale * scaleFactor
                 
-                // Prevent zoom out beyond base zoom level
-                if (newScale < baseScale && detector.scaleFactor < 1f) {
-                    return true // Don't allow zoom out below base
-                }
+                // Allow zoom out below base, but snap back to center when scale ends
+                newScale = newScale.coerceIn(minScale, maxScale)
                 
                 focusX = detector.focusX
                 focusY = detector.focusY
@@ -139,9 +132,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
             override fun onScaleEnd(detector: ScaleGestureDetector) {
                 isMultiTouchActive = false
-                currentScale = currentScale.coerceIn(minScale, maxScale)
                 
-                // Ensure we don't go below base zoom - snap back to center if below
+                // If we've zoomed out below base scale, snap back to center and base zoom
                 if (currentScale < baseScale) {
                     currentScale = baseScale
                     panOffsetX = 0f
@@ -589,6 +581,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 paint.color = stroke.paint.color
                 paint.strokeWidth = stroke.paint.strokeWidth
                 paint.alpha = stroke.paint.alpha
+                paint.style = stroke.paint.style
+                paint.strokeJoin = stroke.paint.strokeJoin
+                paint.strokeCap = stroke.paint.strokeCap
+                paint.isAntiAlias = stroke.paint.isAntiAlias
                 canvas.drawPath(stroke.path, paint)
             }
         }
@@ -665,6 +661,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         // Handle pinch-to-zoom detection first - but only for draw mode
         if (currentTool == ToolType.DRAW) {
+            // Check if second touch is detected during drawing to cancel current stroke
+            if (event.pointerCount >= 2 && isCurrentDrawingPath != null) {
+                // Cancel the current in-progress drawing stroke
+                cancelCurrentDrawingStroke()
+                return true
+            }
+            
             scaleGestureDetector?.onTouchEvent(event)
         }
 
@@ -672,79 +675,43 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (currentTool == ToolType.DRAW) {
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    // Check if we're in multi-touch mode (from scale gesture detector)
-                    if (isMultiTouchActive || event.pointerCount >= 2) {
-                        // Cancel any ongoing drawing and prevent new drawing
-                        cancelDrawing()
-                        isDrawingCancelled = true
+                    // If we're in multi-touch mode from scale gesture detector, don't allow drawing
+                    if (isMultiTouchActive) {
                         return true
                     }
                     
-                    // Check if we can draw (not zoomed out below base)
-                    if (currentScale < 1f) {
-                        return true // Don't allow drawing when zoomed out below base
-                    }
-                    
-                    // Check if we should start panning (zoomed in) or drawing
-                    if (currentScale > 1f) {
-                        // When zoomed in, single finger can pan
-                        isPanning = true
-                        lastPanX = x
-                        lastPanY = y
-                        cancelDrawing() // Cancel any existing drawing
-                        return true
-                    } else {
-                        // Normal drawing when at base zoom
-                        val action = currentDrawingTool.onTouchEvent(event, paint)
-                        action?.let {
-                            isCurrentDrawingPath = it.path
-                            if (isSketchMode) {
-                                sketchStrokes.add(action)
-                                val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                                onBitmapChanged?.invoke(EditAction.BitmapChange(
-                                    previousBitmap = bitmapBeforeDrawing ?: return@let,
-                                    newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                                ))
-                            } else {
-                                val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                                mergeDrawingStrokeIntoBitmap(action)
-                                onBitmapChanged?.invoke(EditAction.BitmapChange(
-                                    previousBitmap = bitmapBeforeDrawing ?: return@let,
-                                    newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                                ))
-                            }
+                    // Start drawing (drawing should always work regardless of zoom level)
+                    val action = currentDrawingTool.onTouchEvent(event, paint)
+                    action?.let {
+                        isCurrentDrawingPath = it.path
+                        if (isSketchMode) {
+                            sketchStrokes.add(action)
+                            val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                            onBitmapChanged?.invoke(EditAction.BitmapChange(
+                                previousBitmap = bitmapBeforeDrawing ?: return@let,
+                                newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                            ))
+                        } else {
+                            val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                            mergeDrawingStrokeIntoBitmap(action)
+                            onBitmapChanged?.invoke(EditAction.BitmapChange(
+                                previousBitmap = bitmapBeforeDrawing ?: return@let,
+                                newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                            ))
                         }
-                        invalidate()
-                        return true
                     }
+                    invalidate()
+                    return true
                 }
                 
                 MotionEvent.ACTION_MOVE -> {
-                    // If in multi-touch mode, only handle pinch-to-zoom
-                    if (isMultiTouchActive || event.pointerCount >= 2) {
+                    // If we're in multi-touch mode, let scale gesture detector handle it
+                    if (isMultiTouchActive) {
                         return true
                     }
                     
-                    // Handle panning when zoomed in
-                    if (isPanning && currentScale > 1f) {
-                        val dx = x - lastPanX
-                        val dy = y - lastPanY
-                        
-                        // Apply pan
-                        applyPan(dx, dy)
-                        
-                        lastPanX = x
-                        lastPanY = y
-                        return true
-                    }
-                    
-                    // Check if we can draw
-                    if (currentScale < 1f || isDrawingCancelled) {
-                        return true // Don't allow drawing
-                    }
-                    
-                    // Handle drawing movement only when at base zoom
-                    if (currentScale == 1f) {
+                    // Handle drawing movement
+                    if (isCurrentDrawingPath != null) {
                         val action = currentDrawingTool.onTouchEvent(event, paint)
                         action?.let {
                             if (isSketchMode) {
@@ -769,10 +736,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 }
                 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    // Reset drawing and panning state
+                    // Finish drawing - the stroke gets attached to bitmap
                     isCurrentDrawingPath = null
-                    isDrawingCancelled = false
-                    isPanning = false
                     invalidate()
                     return true
                 }
@@ -888,11 +853,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return true
     }
 
-    private fun cancelDrawing() {
-        // Clear current drawing path
+    private fun cancelCurrentDrawingStroke() {
+        // Clear current drawing path without affecting already drawn strokes
         isCurrentDrawingPath = null
         
-        // Reset drawing tool state if it has state
+        // Reset drawing tool state
         currentDrawingTool.onTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_CANCEL, 0f, 0f, 0), paint)
         
         // Redraw to clear any temporary drawing state
@@ -1154,7 +1119,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Reset drawing state when resetting zoom
         isDrawingCancelled = false
         isCurrentDrawingPath = null
-        isPanning = false
     }
 
     private fun applyZoom(newScale: Float, focusX: Float, focusY: Float, prevFocusX: Float = focusX, prevFocusY: Float = focusY) {
