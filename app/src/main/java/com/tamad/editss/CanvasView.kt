@@ -31,6 +31,64 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
+    private var scaleFactor = 1.0f
+    private var lastFocusX = 0f
+    private var lastFocusY = 0f
+    private var translationX = 0f
+    private var translationY = 0f
+    private var isZooming = false
+
+    private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            scaleFactor *= detector.scaleFactor
+            scaleFactor = scaleFactor.coerceIn(1.0f, 5.0f) // Limit zoom out to 1.0x and zoom in to 5.0x
+
+            // Pan while zooming
+            val focusX = detector.focusX
+            val focusY = detector.focusY
+            translationX += focusX - lastFocusX
+            translationY += focusY - lastFocusY
+            lastFocusX = focusX
+            lastFocusY = focusY
+
+            updateImageMatrix()
+            invalidate()
+            return true
+        }
+
+        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            isZooming = true
+            lastFocusX = detector.focusX
+            lastFocusY = detector.focusY
+            return true
+        }
+
+        override fun onScaleEnd(detector: ScaleGestureDetector) {
+            isZooming = false
+            if (scaleFactor == 1.0f) {
+                // Snap back to center when zoomed out completely
+                val viewWidth = width.toFloat()
+                val viewHeight = height.toFloat()
+                baseBitmap?.let {
+                    val bitmapWidth = it.width.toFloat()
+                    val bitmapHeight = it.height.toFloat()
+                    val scale: Float
+                    if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
+                        scale = viewWidth / bitmapWidth
+                        translationX = 0f
+                        translationY = (viewHeight - bitmapHeight * scale) * 0.5f
+                    } else {
+                        scale = viewHeight / bitmapHeight
+                        translationX = (viewWidth - bitmapWidth * scale) * 0.5f
+                        translationY = 0f
+                    }
+                }
+                updateImageMatrix()
+                invalidate()
+            }
+        }
+    })
+
 
     private var currentTool: ToolType = ToolType.DRAW
     private var currentCropMode: CropMode = CropMode.FREEFORM
@@ -567,20 +625,20 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val bitmapWidth = it.width.toFloat()
             val bitmapHeight = it.height.toFloat()
 
-            val scale: Float
-            var dx = 0f
-            var dy = 0f
+            val baseScale: Float
+            var baseDx = 0f
+            var baseDy = 0f
 
             if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
-                scale = viewWidth / bitmapWidth
-                dy = (viewHeight - bitmapHeight * scale) * 0.5f
+                baseScale = viewWidth / bitmapWidth
+                baseDy = (viewHeight - bitmapHeight * baseScale) * 0.5f
             } else {
-                scale = viewHeight / bitmapHeight
-                dx = (viewWidth - bitmapWidth * scale) * 0.5f
+                baseScale = viewHeight / bitmapHeight
+                baseDx = (viewWidth - bitmapWidth * baseScale) * 0.5f
             }
 
-            imageMatrix.setScale(scale, scale)
-            imageMatrix.postTranslate(dx, dy)
+            imageMatrix.setScale(baseScale * scaleFactor, baseScale * scaleFactor)
+            imageMatrix.postTranslate(baseDx + translationX, baseDy + translationY)
 
             imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
             imageMatrix.mapRect(imageBounds)
@@ -588,8 +646,35 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        scaleGestureDetector.onTouchEvent(event)
+
         val x = event.x
         val y = event.y
+
+        if (isZooming || event.pointerCount > 1) {
+            // Handle panning with two fingers
+            when (event.actionMasked) {
+                MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_MOVE -> {
+                    if (event.pointerCount > 1) {
+                        val focusX = (event.getX(0) + event.getX(1)) / 2
+                        val focusY = (event.getY(0) + event.getY(1)) / 2
+                        if (lastFocusX != 0f || lastFocusY != 0f) {
+                            translationX += focusX - lastFocusX
+                            translationY += focusY - lastFocusY
+                        }
+                        lastFocusX = focusX
+                        lastFocusY = focusY
+                        updateImageMatrix()
+                        invalidate()
+                    }
+                }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    lastFocusX = 0f
+                    lastFocusY = 0f
+                }
+            }
+            return true
+        }
 
         if (currentTool == ToolType.DRAW) {
             val action = currentDrawingTool.onTouchEvent(event, paint)
@@ -617,6 +702,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             invalidate()
             return true
         }
+
+        // Pass the event to the scale gesture detector first
+        scaleGestureDetector.onTouchEvent(event)
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
