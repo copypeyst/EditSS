@@ -142,7 +142,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     loadImageFromUri(cameraUri, false)
                 } catch (e: Exception) {
-                    Toast.makeText(this, getString(R.string.error_loading_camera_image, e.message), Toast.LENGTH_SHORT).show()
+                    showCustomToast(getString(R.string.error_loading_camera_image, e.message))
                     cleanupCameraFile(cameraUri)
                 }
                 currentCameraUri = null
@@ -837,7 +837,7 @@ class MainActivity : AppCompatActivity() {
 
                                 // Toast removed: "Sharing image" - UX improvement
                             } catch (e: Exception) {
-                                Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
+                                showCustomToast(getString(R.string.share_failed, e.message))
                             }
                         }
                     } else {
@@ -848,7 +848,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
+                    showCustomToast(getString(R.string.share_failed, e.message))
                 }
             }
         }
@@ -908,7 +908,7 @@ class MainActivity : AppCompatActivity() {
             // Create private file in app's external files directory
             val imageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
             if (imageDir == null) {
-                Toast.makeText(this, getString(R.string.cannot_access_storage), Toast.LENGTH_SHORT).show()
+                showCustomToast(getString(R.string.cannot_access_storage))
                 return
             }
             
@@ -921,7 +921,7 @@ class MainActivity : AppCompatActivity() {
             
             if (!privateFile.exists()) {
                 if (!privateFile.createNewFile()) {
-                    Toast.makeText(this, getString(R.string.failed_to_create_temp_file), Toast.LENGTH_SHORT).show()
+                    showCustomToast(getString(R.string.failed_to_create_temp_file))
                     return
                 }
             }
@@ -944,7 +944,7 @@ class MainActivity : AppCompatActivity() {
             cameraCaptureLauncher.launch(intent)
             
         } catch (e: Exception) {
-            Toast.makeText(this, getString(R.string.camera_error, e.message), Toast.LENGTH_SHORT).show()
+            showCustomToast(getString(R.string.camera_error, e.message))
         }
     }
 
@@ -1057,7 +1057,7 @@ class MainActivity : AppCompatActivity() {
                 // Clear canvas on failed load
                 drawingView.setBitmap(null)
                 drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                Toast.makeText(this, getString(R.string.could_not_load_image, errorMessage), Toast.LENGTH_SHORT).show()
+                showCustomToast(getString(R.string.could_not_load_image, errorMessage))
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message}")
             }
@@ -1154,7 +1154,7 @@ class MainActivity : AppCompatActivity() {
             }
             oldImagePickerLauncher.launch(Intent.createChooser(intent, getString(R.string.select_picture)))
         } catch (e: Exception) {
-            Toast.makeText(this, getString(R.string.could_not_open_photo_picker, e.message), Toast.LENGTH_LONG).show()
+            showCustomToast(getString(R.string.could_not_open_photo_picker, e.message))
         }
     }
 
@@ -1342,7 +1342,7 @@ class MainActivity : AppCompatActivity() {
                             val filePath = getRealPathFromUri(uri)
                             val displayName = getDisplayNameFromUri(uri)
                             val pathToShow = filePath ?: displayName ?: "Unknown file"
-                            Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder, pathToShow), Toast.LENGTH_SHORT).show()
+                            showCustomToast(getString(R.string.image_saved_to_editss_folder, pathToShow))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
@@ -1355,7 +1355,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, e.message, Toast.LENGTH_SHORT).show()
+                    showCustomToast(e.message)
                 }
             }
         }
@@ -1399,7 +1399,7 @@ class MainActivity : AppCompatActivity() {
                             val filePath = getRealPathFromUri(imageInfo.uri)
                             val displayName = getDisplayNameFromUri(imageInfo.uri)
                             val pathToShow = filePath ?: displayName ?: "Unknown file"
-                            Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully, pathToShow), Toast.LENGTH_SHORT).show()
+                            showCustomToast(getString(R.string.image_overwritten_successfully, pathToShow))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
@@ -1411,7 +1411,7 @@ class MainActivity : AppCompatActivity() {
 
                     } catch (e: Exception) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, getString(R.string.overwrite_failed, e.message), Toast.LENGTH_SHORT).show()
+                            showCustomToast(getString(R.string.overwrite_failed, e.message))
                         }
                     }
                 }
@@ -1616,7 +1616,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Helper to show custom toast without app icon
-    private fun showCustomToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
+    private fun showCustomToast(message: String, duration: Int = Toast.LENGTH_LONG) {
         val layout = layoutInflater.inflate(R.layout.custom_toast, null)
         val textView = layout.findViewById<TextView>(R.id.toast_message)
         textView.text = message
@@ -1624,7 +1624,18 @@ class MainActivity : AppCompatActivity() {
         val toast = Toast(applicationContext)
         toast.view = layout
         toast.duration = duration
-        toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, 100)
+        
+        // Position toast at bottom of canvas (just above tool_options panel)
+        toolOptionsLayout?.let { toolPanel ->
+            val location = IntArray(2)
+            toolPanel.getLocationOnScreen(location)
+            // Position 20dp above the tool panel (converted to pixels)
+            val offsetInPixels = (toolPanel.height + 20 * resources.displayMetrics.density).toInt()
+            toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, offsetInPixels)
+        } ?: run {
+            // Fallback to screen bottom if tool_options not available
+            toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, 100)
+        }
         toast.show()
     }
 

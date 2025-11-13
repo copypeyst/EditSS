@@ -38,7 +38,7 @@
     <string name="image_is_still_loading">Image is still loading, please wait...</string>
     <string name="previous_load_failed">Previous load failed. Please try a different image.</string>
     <string name="loading_image">Loading image...</string>
-    <string name="loaded_image_successfully">Loaded %1$s</string>
+    <string name="loaded_image_successfully">Loaded: %1$s</string>
     <string name="error_displaying_image">Error displaying image: %1$s</string>
     <string name="could_not_load_image">Couldn\'t load image: %1$s</string>
     <string name="cannot_access_storage">Cannot access storage</string>
