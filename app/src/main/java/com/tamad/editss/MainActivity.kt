@@ -46,6 +46,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
+import android.view.Gravity
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -798,35 +799,6 @@ class MainActivity : AppCompatActivity() {
         }
         // --- END: ADDED FOR OVERWRITE FIX ---
     
-        // Update button loading states
-        private fun updateButtonStates() {
-            buttonSave.setImageResource(if (isSaving) R.drawable.button_loading_indicator else R.drawable.saveicon)
-            buttonImport.setImageResource(if (isImporting) R.drawable.button_loading_indicator else R.drawable.importicon)
-            buttonCamera.setImageResource(if (isCapturing) R.drawable.button_loading_indicator else R.drawable.cameraicon)
-            buttonShare.setImageResource(if (isSharing) R.drawable.button_loading_indicator else R.drawable.shareicon)
-    
-            buttonSave.isEnabled = !isSaving
-            buttonImport.isEnabled = !isImporting
-            buttonCamera.isEnabled = !isCapturing
-            buttonShare.isEnabled = !isSharing
-        }
-    
-        // Custom toast function positioned on top of tool options
-        private fun showCustomToast(message: String) {
-            val toast = Toast(this)
-            val view = layoutInflater.inflate(R.layout.custom_toast_layout, null)
-            val textView = view.findViewById<TextView>(R.id.toast_text)
-            textView.text = message
-            toast.view = view
-            toast.duration = Toast.LENGTH_SHORT
-    
-            // Position on top of tool options
-            val toolOptions = findViewById<View>(R.id.tool_options)
-            val location = IntArray(2)
-            toolOptions.getLocationOnScreen(location)
-            toast.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, location[1] - 100)
-            toast.show()
-        }
     }
 
     // Step 1 & 2: Implement sharing functionality
@@ -1687,4 +1659,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --- END: ADDED FOR OVERWRITE FIX ---
+
+    // Update button loading states
+    private fun updateButtonStates() {
+        buttonSave.setImageResource(if (isSaving) R.drawable.button_loading_indicator else R.drawable.saveicon)
+        buttonImport.setImageResource(if (isImporting) R.drawable.button_loading_indicator else R.drawable.importicon)
+        buttonCamera.setImageResource(if (isCapturing) R.drawable.button_loading_indicator else R.drawable.cameraicon)
+        buttonShare.setImageResource(if (isSharing) R.drawable.button_loading_indicator else R.drawable.shareicon)
+
+        buttonSave.isEnabled = !isSaving
+        buttonImport.isEnabled = !isImporting
+        buttonCamera.isEnabled = !isCapturing
+        buttonShare.isEnabled = !isSharing
+    }
+
+    // Custom toast function positioned on top of tool options
+    private fun showCustomToast(message: String) {
+        val toast = Toast(this)
+        val view = layoutInflater.inflate(R.layout.custom_toast_layout, null)
+        val textView = view.findViewById<TextView>(R.id.toast_text)
+        textView.text = message
+        toast.view = view
+        toast.duration = Toast.LENGTH_SHORT
+
+        // Position on top of tool options
+        val toolOptions = findViewById<View>(R.id.tool_options)
+        val location = IntArray(2)
+        toolOptions.getLocationOnScreen(location)
+        toast.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, location[1] - 100)
+        toast.show()
+    }
 }
