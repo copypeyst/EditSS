@@ -19,7 +19,8 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -59,8 +60,6 @@ dependencies {
     implementation libs.androidx.lifecycle.livedata.ktx
     implementation libs.androidx.lifecycle.viewmodel.ktx
     implementation libs.coil
-    implementation libs.coil.gif
-    implementation libs.coil.svg
     implementation 'com.google.android.gms:play-services-ads:23.0.0'
 
     testImplementation libs.junit
