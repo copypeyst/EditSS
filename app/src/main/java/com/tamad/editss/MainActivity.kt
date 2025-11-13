@@ -21,8 +21,12 @@ import android.widget.RadioButton
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.FrameLayout
+import android.widget.ProgressBar
 import androidx.core.content.ContextCompat
 import android.widget.Toast
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.widget.TextView
 import android.net.Uri
 import androidx.appcompat.app.AlertDialog
 import android.provider.MediaStore
@@ -80,7 +84,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adjustOptionsLayout: LinearLayout
     private lateinit var scrim: View
     private lateinit var transparencyWarningText: TextView
-    private lateinit var loadingIndicator: View
 
     private var currentActiveTool: ImageView? = null
 
@@ -107,43 +110,6 @@ class MainActivity : AppCompatActivity() {
     private var isImageLoadAttempted = false
     private var lastImageLoadFailed = false
     private var isSketchMode = false
-
-    private val allButtons by lazy {
-        listOf<View>(
-            findViewById(R.id.button_import),
-            findViewById(R.id.button_camera),
-            findViewById(R.id.button_undo),
-            findViewById(R.id.button_redo),
-            findViewById(R.id.button_share),
-            findViewById(R.id.button_save),
-            findViewById(R.id.tool_draw),
-            findViewById(R.id.tool_crop),
-            findViewById(R.id.tool_adjust),
-            findViewById(R.id.draw_mode_pen),
-            findViewById(R.id.draw_mode_circle),
-            findViewById(R.id.draw_mode_square),
-            findViewById(R.id.button_crop_apply),
-            findViewById(R.id.button_crop_cancel),
-            findViewById(R.id.button_adjust_apply),
-            findViewById(R.id.button_adjust_cancel),
-            findViewById(R.id.button_save_copy),
-            findViewById(R.id.button_overwrite)
-        )
-    }
-
-    private fun showLoading() {
-        loadingIndicator.visibility = View.VISIBLE
-        scrim.visibility = View.VISIBLE
-        scrim.bringToFront()
-        loadingIndicator.bringToFront()
-        allButtons.forEach { it.isEnabled = false }
-    }
-
-    private fun hideLoading() {
-        loadingIndicator.visibility = View.GONE
-        scrim.visibility = View.GONE
-        allButtons.forEach { it.isEnabled = true }
-    }
     
     // --- START: ADDED FOR OVERWRITE FIX ---
     // Handles the result of the delete confirmation dialog
@@ -160,6 +126,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var drawingView: CanvasView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
+    
+    // Button loading states
+    private var isSaveLoading = false
+    private var isImportLoading = false
+    private var isCameraLoading = false
+    private var isShareLoading = false
     // --- END: ADDED FOR OVERWRITE FIX ---
 
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -180,7 +152,8 @@ class MainActivity : AppCompatActivity() {
                 try {
                     loadImageFromUri(cameraUri, false)
                 } catch (e: Exception) {
-                    showCustomToast(getString(R.string.error_loading_camera_image))
+                    setButtonLoadingState(buttonCamera, false, false)
+                    showCustomToast(getString(R.string.error_loading_camera_image, e.message))
                     cleanupCameraFile(cameraUri)
                 }
                 currentCameraUri = null
@@ -188,6 +161,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             val cameraUri = currentCameraUri
             if (cameraUri != null) {
+                setButtonLoadingState(buttonCamera, false, false)
                 cleanupCameraFile(cameraUri)
             }
             currentCameraUri = null
@@ -252,7 +226,6 @@ class MainActivity : AppCompatActivity() {
         toolOptionsLayout = findViewById(R.id.tool_options)
         scrim = findViewById(R.id.scrim)
         transparencyWarningText = findViewById(R.id.transparency_warning_text)
-        loadingIndicator = findViewById(R.id.loading_indicator)
 
         // Initialize drawing controls
         drawSizeSlider = findViewById(R.id.draw_size_slider)
@@ -275,6 +248,8 @@ class MainActivity : AppCompatActivity() {
 
         // Save Panel Logic
         buttonSave.setOnClickListener {
+            if (isButtonLoading(buttonSave)) return@setOnClickListener
+            
             if (savePanel.visibility == View.VISIBLE) {
                 savePanel.visibility = View.GONE
                 scrim.visibility = View.GONE
@@ -291,6 +266,8 @@ class MainActivity : AppCompatActivity() {
 
         // Import Button Logic
         buttonImport.setOnClickListener {
+            if (isButtonLoading(buttonImport)) return@setOnClickListener
+            
             if (editViewModel.hasUnsavedChanges) {
                 AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
                     .setTitle(getString(R.string.discard_changes_title))
@@ -298,6 +275,8 @@ class MainActivity : AppCompatActivity() {
                     .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
                         editViewModel.clearAllActions()
                         if (hasImagePermission()) {
+                            setButtonLoadingState(buttonImport, true, true)
+                            showCustomToast(getString(R.string.loading_image), true)
                             openImagePicker()
                         } else {
                             requestImagePermission()
@@ -310,6 +289,8 @@ class MainActivity : AppCompatActivity() {
                     .show()
             } else {
                 if (hasImagePermission()) {
+                    setButtonLoadingState(buttonImport, true, true)
+                    showCustomToast(getString(R.string.loading_image), true)
                     openImagePicker()
                 } else {
                     requestImagePermission()
@@ -319,12 +300,16 @@ class MainActivity : AppCompatActivity() {
 
         // Camera Button Logic - Step 13: Create writable URI in MediaStore for camera capture
         buttonCamera.setOnClickListener {
+            if (isButtonLoading(buttonCamera)) return@setOnClickListener
+            
             if (editViewModel.hasUnsavedChanges) {
                 AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
                     .setTitle(getString(R.string.discard_changes_title))
                     .setMessage(getString(R.string.discard_changes_message))
                     .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
                         editViewModel.clearAllActions()
+                        setButtonLoadingState(buttonCamera, true, true)
+                        showCustomToast(getString(R.string.opening_camera), true)
                         captureImageFromCamera()
                         dialog.dismiss()
                     }
@@ -333,12 +318,18 @@ class MainActivity : AppCompatActivity() {
                     }
                     .show()
             } else {
+                setButtonLoadingState(buttonCamera, true, true)
+                showCustomToast(getString(R.string.opening_camera), true)
                 captureImageFromCamera()
             }
         }
 
         // Step 1 & 2: Share Button Logic - Content URI sharing for saved images, cache-based for unsaved edits
         buttonShare.setOnClickListener {
+            if (isButtonLoading(buttonShare)) return@setOnClickListener
+            
+            setButtonLoadingState(buttonShare, true, true)
+            showCustomToast(getString(R.string.sharing_image), true)
             shareCurrentImage()
         }
 
@@ -387,10 +378,18 @@ class MainActivity : AppCompatActivity() {
         
         // Step 21, 22, 23: Save button click handlers
         buttonSaveCopy.setOnClickListener {
+            if (isButtonLoading(buttonSave)) return@setOnClickListener
+            
+            setButtonLoadingState(buttonSave, true, true)
+            showCustomToast(getString(R.string.saving_image), true)
             saveImageAsCopy()
         }
         
         buttonOverwrite.setOnClickListener {
+            if (isButtonLoading(buttonSave)) return@setOnClickListener
+            
+            setButtonLoadingState(buttonSave, true, true)
+            showCustomToast(getString(R.string.overwriting_image), true)
             overwriteCurrentImage()
         }
 
@@ -518,8 +517,9 @@ class MainActivity : AppCompatActivity() {
                 currentCropMode?.isSelected = false
                 currentCropMode = null
                 drawingView.setCropModeInactive()
+                // Success feedback is visual, no toast needed
             } else {
-                // No crop area was selected
+                // User feedback is clear from UI state, no toast needed
             }
         }
 
@@ -597,6 +597,7 @@ class MainActivity : AppCompatActivity() {
                 val action = AdjustAction(previousBitmap, newBitmap)
                 editViewModel.pushAdjustAction(action)
                 drawingView.setBitmap(newBitmap)
+                // Success feedback is visual, no toast needed
             }
 
             editViewModel.resetAdjustments()
@@ -784,6 +785,7 @@ class MainActivity : AppCompatActivity() {
             // This code runs AFTER the user responds to the delete confirmation dialog.
             if (result.resultCode == RESULT_OK) {
                 // User confirmed the deletion.
+                Toast.makeText(this, getString(R.string.original_file_deleted), Toast.LENGTH_SHORT).show()
                 
                 // Now, safely update our app's reference to point to the new file.
                 pendingOverwriteUri?.let {
@@ -796,6 +798,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 // User cancelled the deletion. The original file remains.
+                Toast.makeText(this, getString(R.string.original_file_was_not_deleted), Toast.LENGTH_SHORT).show()
                 // We still need to update our app's reference to the new file that was created.
                 pendingOverwriteUri?.let {
                     currentImageInfo = currentImageInfo?.copy(uri = it)
@@ -806,32 +809,17 @@ class MainActivity : AppCompatActivity() {
         // --- END: ADDED FOR OVERWRITE FIX ---
     }
 
-    private fun showCustomToast(message: String) {
-        val layout = layoutInflater.inflate(R.layout.custom_toast, findViewById(R.id.custom_toast_container))
-        val text: TextView = layout.findViewById(R.id.text)
-        text.text = message
-        with (Toast(applicationContext)) {
-            val yOffset = toolOptionsLayout.height + findViewById<LinearLayout>(R.id.tools).height + 50
-            setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, yOffset)
-            duration = Toast.LENGTH_SHORT
-            view = layout
-            show()
-        }
-    }
-
     // Step 1 & 2: Implement sharing functionality
     // Item 1: Content URI sharing for saved images
     // Item 2: Cache-based sharing for unsaved edits
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
+            setButtonLoadingState(buttonShare, false, false)
             showCustomToast(getString(R.string.no_image_to_share))
             return
         }
 
         lifecycleScope.launch(Dispatchers.IO) {
-            withContext(Dispatchers.Main) {
-                showLoading()
-            }
             try {
                 // Get bitmap from Coil
                 val bitmapToShare = drawingView.getDrawing()
@@ -883,12 +871,14 @@ class MainActivity : AppCompatActivity() {
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
                                 
-                                val chooser = Intent.createChooser(shareIntent, getString(R.string.share))
+                                val chooser = Intent.createChooser(shareIntent, getString(R.string.share_image))
                                 startActivity(chooser)
-                                showCustomToast(getString(R.string.image_shared))
 
+                                setButtonLoadingState(buttonShare, false, false)
+                                showCustomToast(getString(R.string.sharing_image))
                             } catch (e: Exception) {
-                                showCustomToast(getString(R.string.share_failed))
+                                setButtonLoadingState(buttonShare, false, false)
+                                showCustomToast(getString(R.string.share_failed, e.message))
                             }
                         }
                     } else {
@@ -899,11 +889,8 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    showCustomToast(getString(R.string.share_failed))
-                }
-            } finally {
-                withContext(Dispatchers.Main) {
-                    hideLoading()
+                    setButtonLoadingState(buttonShare, false, false)
+                    showCustomToast(getString(R.string.share_failed, e.message))
                 }
             }
         }
@@ -939,7 +926,7 @@ class MainActivity : AppCompatActivity() {
                     val itemCount = clipData.itemCount
                     if (itemCount > 1) {
                         // Multiple images - reject for safety
-                    showCustomToast(getString(R.string.multiple_images_not_supported))
+                    Toast.makeText(this, getString(R.string.multiple_images_not_supported), Toast.LENGTH_LONG).show()
                         return
                     }
                     // Single image from clip data
@@ -963,6 +950,7 @@ class MainActivity : AppCompatActivity() {
             // Create private file in app's external files directory
             val imageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
             if (imageDir == null) {
+                setButtonLoadingState(buttonCamera, false, false)
                 showCustomToast(getString(R.string.cannot_access_storage))
                 return
             }
@@ -976,6 +964,7 @@ class MainActivity : AppCompatActivity() {
             
             if (!privateFile.exists()) {
                 if (!privateFile.createNewFile()) {
+                    setButtonLoadingState(buttonCamera, false, false)
                     showCustomToast(getString(R.string.failed_to_create_temp_file))
                     return
                 }
@@ -999,7 +988,8 @@ class MainActivity : AppCompatActivity() {
             cameraCaptureLauncher.launch(intent)
             
         } catch (e: Exception) {
-            showCustomToast(getString(R.string.camera_error))
+            setButtonLoadingState(buttonCamera, false, false)
+            showCustomToast(getString(R.string.camera_error, e.message))
         }
     }
 
@@ -1012,13 +1002,13 @@ class MainActivity : AppCompatActivity() {
 
         // Prevent loading while already loading
         if (isImageLoading) {
-            showCustomToast(getString(R.string.image_is_still_loading))
+            // Already loading, prevent duplicate requests
             return
         }
         
         // Prevent rapid successive attempts after failure
         if (isImageLoadAttempted && lastImageLoadFailed) {
-            showCustomToast(getString(R.string.previous_load_failed))
+            // Previous attempt failed, prevent rapid retries
             return
         }
         
@@ -1027,9 +1017,6 @@ class MainActivity : AppCompatActivity() {
         lastImageLoadFailed = false
         
         try {
-            // Show loading indicator
-            showLoading()
-            
             // Create Coil image request
             val request = ImageRequest.Builder(this)
                 .data(uri)
@@ -1070,11 +1057,13 @@ class MainActivity : AppCompatActivity() {
                             }
                             
                             lastImageLoadFailed = false
+                            // Stop import loading state
+                            setButtonLoadingState(buttonImport, false, false)
                         } catch (e: Exception) {
-                            handleImageLoadFailure()
+                            handleImageLoadFailure(getString(R.string.error_displaying_image, e.message))
                         } finally {
                             isImageLoading = false
-                            hideLoading()
+                            setButtonLoadingState(buttonImport, false, false)
                         }
                     }
                 }
@@ -1088,9 +1077,9 @@ class MainActivity : AppCompatActivity() {
                     },
                     onError = { _, result ->
                         // Loading failed
-                        handleImageLoadFailure()
+                        setButtonLoadingState(buttonImport, false, false)
+                        handleImageLoadFailure(result.throwable?.message ?: "Unknown error")
                         isImageLoading = false
-                        hideLoading()
                     }
                 )
                 .build()
@@ -1099,21 +1088,20 @@ class MainActivity : AppCompatActivity() {
             imageLoader.enqueue(request)
             
         } catch (e: Exception) {
-            handleImageLoadFailure()
+            handleImageLoadFailure("Image loading error: ${e.message}")
             isImageLoading = false
-            hideLoading()
         }
     }
     
     // Centralized failure handling
-    private fun handleImageLoadFailure() {
+    private fun handleImageLoadFailure(errorMessage: String) {
         lastImageLoadFailed = true
         runOnUiThread {
             try {
                 // Clear canvas on failed load
                 drawingView.setBitmap(null)
                 drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                showCustomToast(getString(R.string.could_not_load_image))
+                Toast.makeText(this, getString(R.string.could_not_load_image, errorMessage), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message}")
             }
@@ -1210,7 +1198,7 @@ class MainActivity : AppCompatActivity() {
             }
             oldImagePickerLauncher.launch(Intent.createChooser(intent, getString(R.string.select_picture)))
         } catch (e: Exception) {
-            showCustomToast(getString(R.string.could_not_open_photo_picker))
+            Toast.makeText(this, getString(R.string.could_not_open_photo_picker, e.message), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1314,14 +1302,11 @@ class MainActivity : AppCompatActivity() {
     // Updated function to save a copy using Coil to fetch the bitmap reliably.
     private fun saveImageAsCopy() {
         val imageInfo = currentImageInfo ?: run {
-            showCustomToast(getString(R.string.no_image_to_save))
+            Toast.makeText(this, getString(R.string.no_image_to_save), Toast.LENGTH_SHORT).show()
             return
         }
 
         lifecycleScope.launch(Dispatchers.IO) {
-            withContext(Dispatchers.Main) {
-                showLoading()
-            }
             try {
                 val bitmapToSave: Bitmap?
                 if (isSketchMode) {
@@ -1391,13 +1376,14 @@ class MainActivity : AppCompatActivity() {
                                         arrayOf(selectedSaveFormat),
                                         null
                                     )
-                                 }
+                                }
                             } catch (e: Exception) {
                                 // MediaScannerConnection is not critical, just log the error
                             }
                         }
                         
                         withContext(Dispatchers.Main) {
+                            setButtonLoadingState(buttonSave, false, false)
                             showCustomToast(getString(R.string.image_saved_to_editss_folder))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
@@ -1411,11 +1397,8 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    showCustomToast(getString(R.string.save_failed))
-                }
-            } finally {
-                withContext(Dispatchers.Main) {
-                    hideLoading()
+                    setButtonLoadingState(buttonSave, false, false)
+                    showCustomToast(e.message)
                 }
             }
         }
@@ -1424,17 +1407,20 @@ class MainActivity : AppCompatActivity() {
     // FINAL, CORRECTED VERSION - This one avoids deletion and uses MediaStore update instead.
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
+            setButtonLoadingState(buttonSave, false, false)
             showCustomToast(getString(R.string.no_image_to_overwrite))
             return
         }
 
         if (!imageInfo.canOverwrite) {
+            setButtonLoadingState(buttonSave, false, false)
             showCustomToast(getString(R.string.cannot_overwrite_this_image))
             return
         }
         
         // Double-check that format hasn't changed, as a safeguard.
         if (selectedSaveFormat != imageInfo.originalMimeType) {
+            setButtonLoadingState(buttonSave, false, false)
             showCustomToast(getString(R.string.format_changed_please_save_a_copy))
             return
         }
@@ -1446,9 +1432,6 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
                 // User confirmed, proceed with overwrite
                 lifecycleScope.launch(Dispatchers.IO) {
-                    withContext(Dispatchers.Main) {
-                        showLoading()
-                    }
                     try {
                         val bitmapToSave = drawingView.getDrawing()
                             ?: throw Exception("Could not get image to overwrite")
@@ -1459,6 +1442,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         withContext(Dispatchers.Main) {
+                            setButtonLoadingState(buttonSave, false, false)
                             showCustomToast(getString(R.string.image_overwritten_successfully))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
@@ -1471,11 +1455,8 @@ class MainActivity : AppCompatActivity() {
 
                     } catch (e: Exception) {
                         withContext(Dispatchers.Main) {
-                            showCustomToast(getString(R.string.overwrite_failed))
-                        }
-                    } finally {
-                        withContext(Dispatchers.Main) {
-                            hideLoading()
+                            setButtonLoadingState(buttonSave, false, false)
+                            showCustomToast(getString(R.string.overwrite_failed, e.message))
                         }
                     }
                 }
@@ -1624,6 +1605,16 @@ class MainActivity : AppCompatActivity() {
             selectedSaveFormat = detectedFormat
             updateFormatSelectionUI()
             
+            // Show a subtle hint about the detected format
+            val formatName = when (detectedFormat) {
+                "image/jpeg" -> "JPEG"
+                "image/png" -> "PNG"
+                "image/webp" -> "WEBP"
+                else -> "Unknown"
+            }
+            
+            // Auto-detection is silent, no toast needed
+            
         } catch (e: Exception) {
             // If detection fails, keep current default
             selectedSaveFormat = "image/jpeg"
@@ -1685,4 +1676,60 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --- END: ADDED FOR OVERWRITE FIX ---
+
+    // Universal Toast Management System
+    private fun showCustomToast(message: String, showLoading: Boolean = false) {
+        val inflater = layoutInflater
+        val layout = inflater.inflate(R.layout.custom_toast_layout, null)
+        
+        val messageText = layout.findViewById<TextView>(R.id.toast_message_text)
+        val progressIndicator = layout.findViewById<ProgressBar>(R.id.progress_indicator)
+        
+        messageText.text = message
+        progressIndicator.visibility = if (showLoading) android.view.View.VISIBLE else android.view.View.GONE
+        
+        val toast = Toast(applicationContext)
+        toast.view = layout
+        toast.duration = Toast.LENGTH_SHORT
+        
+        // Position toast above tool options
+        toast.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, toolOptionsLayout.height + 50)
+        toast.show()
+    }
+
+    private fun setButtonLoadingState(button: ImageView, isLoading: Boolean, loadingState: Boolean) {
+        when (button.id) {
+            R.id.button_save -> isSaveLoading = loadingState
+            R.id.button_import -> isImportLoading = loadingState
+            R.id.button_camera -> isCameraLoading = loadingState
+            R.id.button_share -> isShareLoading = loadingState
+        }
+        
+        button.isEnabled = !loadingState
+        button.alpha = if (loadingState) 0.5f else 1.0f
+        
+        if (loadingState) {
+            button.setImageResource(R.drawable.button_loading_indicator)
+        } else {
+            // Restore original icon based on button ID
+            val originalIcon = when (button.id) {
+                R.id.button_save -> R.drawable.saveicon
+                R.id.button_import -> R.drawable.importicon
+                R.id.button_camera -> R.drawable.cameraicon
+                R.id.button_share -> R.drawable.shareicon
+                else -> R.drawable.saveicon
+            }
+            button.setImageResource(originalIcon)
+        }
+    }
+
+    private fun isButtonLoading(button: ImageView): Boolean {
+        return when (button.id) {
+            R.id.button_save -> isSaveLoading
+            R.id.button_import -> isImportLoading
+            R.id.button_camera -> isCameraLoading
+            R.id.button_share -> isShareLoading
+            else -> false
+        }
+    }
 }
