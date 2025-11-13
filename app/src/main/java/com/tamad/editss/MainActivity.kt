@@ -81,6 +81,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scrim: View
     private lateinit var transparencyWarningText: TextView
 
+    // Loading overlay elements
+    private lateinit var overlayContainer: FrameLayout
+    private lateinit var loadingSpinnerLayout: LinearLayout
+    private lateinit var loadingText: TextView
+
     private var currentActiveTool: ImageView? = null
 
     private var currentCropMode: View? = null
@@ -209,6 +214,11 @@ class MainActivity : AppCompatActivity() {
         val toolDraw: ImageView = findViewById(R.id.tool_draw)
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
+
+        // Initialize loading overlay elements
+        overlayContainer = findViewById(R.id.overlay_container)
+        loadingSpinnerLayout = findViewById(R.id.loading_spinner_layout)
+        loadingText = findViewById(R.id.loading_text)
 
         savePanel = findViewById(R.id.save_panel)
         toolOptionsLayout = findViewById(R.id.tool_options)
@@ -972,8 +982,8 @@ class MainActivity : AppCompatActivity() {
         lastImageLoadFailed = false
         
         try {
-            // Show loading indicator
-            // Toast removed: "Loading image" - UX improvement
+            // Show loading overlay
+            showLoadingSpinner("Loading image...")
             
             // Create Coil image request
             val request = ImageRequest.Builder(this)
@@ -983,6 +993,9 @@ class MainActivity : AppCompatActivity() {
                     // Success callback
                     runOnUiThread {
                         try {
+                            // Hide loading overlay
+                            hideLoadingSpinner()
+                            
                             // Step 8: Track image origin and set canOverwrite flag appropriately
                             val origin = determineImageOrigin(uri)
                             val canOverwrite = determineCanOverwrite(origin)
@@ -1021,6 +1034,7 @@ class MainActivity : AppCompatActivity() {
                             
                             lastImageLoadFailed = false
                         } catch (e: Exception) {
+                            hideLoadingSpinner()
                             handleImageLoadFailure(getString(R.string.error_displaying_image, e.message ?: "Unknown error"))
                         } finally {
                             isImageLoading = false
@@ -1030,15 +1044,18 @@ class MainActivity : AppCompatActivity() {
                 .error(R.drawable.ic_launcher_background) // Use existing drawable as error placeholder
                 .listener(
                     onStart = {
-                        // Loading started
+                        // Loading started - overlay already shown above
                     },
                     onSuccess = { _, _ ->
-                        // Loading successful
+                        // Loading successful - handled in target callback above
                     },
                     onError = { _, result ->
                         // Loading failed
-                        handleImageLoadFailure(result.throwable?.message ?: "Unknown error")
-                        isImageLoading = false
+                        runOnUiThread {
+                            hideLoadingSpinner()
+                            handleImageLoadFailure(result.throwable?.message ?: "Unknown error")
+                            isImageLoading = false
+                        }
                     }
                 )
                 .build()
@@ -1047,8 +1064,11 @@ class MainActivity : AppCompatActivity() {
             imageLoader.enqueue(request)
             
         } catch (e: Exception) {
-            handleImageLoadFailure("Image loading error: ${e.message ?: "Unknown error"}")
-            isImageLoading = false
+            runOnUiThread {
+                hideLoadingSpinner()
+                handleImageLoadFailure("Image loading error: ${e.message ?: "Unknown error"}")
+                isImageLoading = false
+            }
         }
     }
     
@@ -1123,6 +1143,47 @@ class MainActivity : AppCompatActivity() {
             ImageOrigin.CAMERA_CAPTURED, ImageOrigin.EDITED_INTERNAL -> true
             ImageOrigin.IMPORTED_WRITABLE -> hasImagePermission()
             ImageOrigin.IMPORTED_READONLY -> false
+        }
+    }
+
+    // Loading overlay functions
+    private fun showLoadingSpinner(message: String = "Loading...") {
+        loadingText.text = message
+        overlayContainer.visibility = View.VISIBLE
+        
+        // Disable all interactive elements while loading
+        disableAllInteractiveElements(true)
+    }
+
+    private fun hideLoadingSpinner() {
+        overlayContainer.visibility = View.GONE
+        
+        // Re-enable all interactive elements
+        disableAllInteractiveElements(false)
+    }
+
+    private fun disableAllInteractiveElements(disabled: Boolean) {
+        // Disable main action buttons
+        findViewById<ImageView>(R.id.button_import)?.isEnabled = !disabled
+        findViewById<ImageView>(R.id.button_camera)?.isEnabled = !disabled
+        findViewById<ImageView>(R.id.button_undo)?.isEnabled = !disabled
+        findViewById<ImageView>(R.id.button_redo)?.isEnabled = !disabled
+        findViewById<ImageView>(R.id.button_share)?.isEnabled = !disabled
+        findViewById<ImageView>(R.id.button_save)?.isEnabled = !disabled
+        
+        // Disable tool buttons
+        findViewById<ImageView>(R.id.tool_draw)?.isEnabled = !disabled
+        findViewById<ImageView>(R.id.tool_crop)?.isEnabled = !disabled
+        findViewById<ImageView>(R.id.tool_adjust)?.isEnabled = !disabled
+        
+        // Disable save panel if visible
+        if (savePanel.visibility == View.VISIBLE) {
+            savePanel.isEnabled = !disabled
+        }
+        
+        // Disable tool options if visible
+        if (toolOptionsLayout.visibility == View.VISIBLE) {
+            toolOptionsLayout.isEnabled = !disabled
         }
     }
 
@@ -1265,101 +1326,112 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        lifecycleScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(Dispatchers.Main) {
+            // Show loading overlay to prevent spamming
+            showLoadingSpinner("Saving image...")
+            
             try {
-                val bitmapToSave: Bitmap?
-                if (isSketchMode) {
-                    when (selectedSaveFormat) {
-                        "image/png", "image/webp" -> {
-                            // For transparent formats, use transparent version
-                            bitmapToSave = drawingView.getTransparentDrawing()
-                        }
-                        "image/jpeg" -> {
-                            // For JPEG, render strokes on white background
-                            bitmapToSave = drawingView.getSketchDrawingOnWhite()
-                        }
-                        else -> {
-                            bitmapToSave = drawingView.getDrawing()
-                        }
-                    }
-                } else {
-                    bitmapToSave = drawingView.getDrawing()?.let { bitmap ->
-                        // For imported/captured images: if saving as JPEG and image has transparency,
-                        // convert transparent areas to white instead of letting them turn black
-                        if (selectedSaveFormat == "image/jpeg" && currentImageHasTransparency) {
-                            drawingView.convertTransparentToWhite(bitmap)
-                        } else {
-                            bitmap
-                        }
-                    }
-                }
-
-                if (bitmapToSave != null) {
-                    // Generate filename based on image origin
-                    val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
-                    val uniqueDisplayName = if (imageInfo.origin == ImageOrigin.CAMERA_CAPTURED) {
-                        // For camera images, use proper naming format without "- Copy" suffix
-                        generateUniqueCameraName()
-                    } else {
-                        // For imported images, use copy naming logic
-                        val originalDisplayName = getDisplayNameFromUri(imageInfo.uri) ?: "Image"
-                        generateUniqueCopyName(originalDisplayName, picturesDirectory)
-                    }
-
-                    // MODIFIED: Save to dedicated app folder "EditSS"
-                    val values = ContentValues().apply {
-                        put(MediaStore.Images.Media.DISPLAY_NAME, uniqueDisplayName)
-                        put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
-                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/EditSS")
-                        put(MediaStore.Images.Media.IS_PENDING, 1)
-                    }
-                    
-                    val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                    if (uri != null) {
-                        contentResolver.openOutputStream(uri)?.use { outputStream ->
-                            compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
-                        }
-                        
-                        values.clear()
-                        values.put(MediaStore.Images.Media.IS_PENDING, 0)
-                        contentResolver.update(uri, values, null, null)
-                        
-                        // Step 26: MediaScannerConnection for Android 9 and older
-                        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-                            try {
-                                val filePath = getRealPathFromUri(uri)
-                                if (filePath != null) {
-                                    MediaScannerConnection.scanFile(
-                                        this@MainActivity,
-                                        arrayOf(filePath),
-                                        arrayOf(selectedSaveFormat),
-                                        null
-                                    )
-                                }
-                            } catch (e: Exception) {
-                                // MediaScannerConnection is not critical, just log the error
+                withContext(Dispatchers.IO) {
+                    val bitmapToSave: Bitmap?
+                    if (isSketchMode) {
+                        when (selectedSaveFormat) {
+                            "image/png", "image/webp" -> {
+                                // For transparent formats, use transparent version
+                                bitmapToSave = drawingView.getTransparentDrawing()
+                            }
+                            "image/jpeg" -> {
+                                // For JPEG, render strokes on white background
+                                bitmapToSave = drawingView.getSketchDrawingOnWhite()
+                            }
+                            else -> {
+                                bitmapToSave = drawingView.getDrawing()
                             }
                         }
+                    } else {
+                        bitmapToSave = drawingView.getDrawing()?.let { bitmap ->
+                            // For imported/captured images: if saving as JPEG and image has transparency,
+                            // convert transparent areas to white instead of letting them turn black
+                            if (selectedSaveFormat == "image/jpeg" && currentImageHasTransparency) {
+                                drawingView.convertTransparentToWhite(bitmap)
+                            } else {
+                                bitmap
+                            }
+                        }
+                    }
+
+                    if (bitmapToSave != null) {
+                        // Generate filename based on image origin
+                        val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
+                        val uniqueDisplayName = if (imageInfo.origin == ImageOrigin.CAMERA_CAPTURED) {
+                            // For camera images, use proper naming format without "- Copy" suffix
+                            generateUniqueCameraName()
+                        } else {
+                            // For imported images, use copy naming logic
+                            val originalDisplayName = getDisplayNameFromUri(imageInfo.uri) ?: "Image"
+                            generateUniqueCopyName(originalDisplayName, picturesDirectory)
+                        }
+
+                        // MODIFIED: Save to dedicated app folder "EditSS"
+                        val values = ContentValues().apply {
+                            put(MediaStore.Images.Media.DISPLAY_NAME, uniqueDisplayName)
+                            put(MediaStore.Images.Media.MIME_TYPE, selectedSaveFormat)
+                            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/EditSS")
+                            put(MediaStore.Images.Media.IS_PENDING, 1)
+                        }
                         
-                        withContext(Dispatchers.Main) {
-                            val filePath = getRealPathFromUri(uri)
-                            val displayName = getDisplayNameFromUri(uri)
+                        val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                        if (uri != null) {
+                            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                                compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                            }
+                            
+                            values.clear()
+                            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                            contentResolver.update(uri, values, null, null)
+                            
+                            // Step 26: MediaScannerConnection for Android 9 and older
+                            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                                try {
+                                    val filePath = getRealPathFromUri(uri)
+                                    if (filePath != null) {
+                                        MediaScannerConnection.scanFile(
+                                            this@MainActivity,
+                                            arrayOf(filePath),
+                                            arrayOf(selectedSaveFormat),
+                                            null
+                                        )
+                                    }
+                                } catch (e: Exception) {
+                                    // MediaScannerConnection is not critical, just log the error
+                                }
+                            }
+                            
+                            // Return success to main thread
+                            Result.success(Pair(filePath = getRealPathFromUri(uri), displayName = getDisplayNameFromUri(uri)))
+                        } else {
+                            throw Exception(getString(R.string.save_failed))
+                        }
+                    } else {
+                        throw Exception("No image to save")
+                    }
+                }.also { result ->
+                    hideLoadingSpinner()
+                    result.fold(
+                        onSuccess = { (filePath, displayName) ->
                             val pathToShow = filePath ?: displayName ?: "Unknown file"
                             showCustomToast(getString(R.string.image_saved_to_editss_folder, pathToShow))
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
+                        },
+                        onFailure = { exception ->
+                            showCustomToast(exception.message ?: "Unknown error")
                         }
-                    } else {
-                        throw Exception(getString(R.string.save_failed))
-                    }
-                } else {
-                    throw Exception("No image to save")
+                    )
                 }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    showCustomToast(e.message ?: "Unknown error")
-                }
+                hideLoadingSpinner()
+                showCustomToast(e.message ?: "Unknown error")
             }
         }
     }
@@ -1388,34 +1460,47 @@ class MainActivity : AppCompatActivity() {
             .setMessage(getString(R.string.overwrite_changes_message))
             .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
                 // User confirmed, proceed with overwrite
-                lifecycleScope.launch(Dispatchers.IO) {
+                lifecycleScope.launch(Dispatchers.Main) {
+                    // Show loading overlay to prevent spamming
+                    showLoadingSpinner("Overwriting image...")
+                    
                     try {
-                        val bitmapToSave = drawingView.getDrawing()
-                            ?: throw Exception("Could not get image to overwrite")
-                        
-                        // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
-                        contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
-                            compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
-                        }
-                        
-                        withContext(Dispatchers.Main) {
-                            val filePath = getRealPathFromUri(imageInfo.uri)
-                            val displayName = getDisplayNameFromUri(imageInfo.uri)
-                            val pathToShow = displayName ?: "Unknown file"
-                            showCustomToast(getString(R.string.image_overwritten_successfully, pathToShow))
-                            savePanel.visibility = View.GONE
-                            scrim.visibility = View.GONE
-                            editViewModel.markActionsAsSaved()
+                        withContext(Dispatchers.IO) {
+                            val bitmapToSave = drawingView.getDrawing()
+                                ?: throw Exception("Could not get image to overwrite")
+                            
+                            // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
+                            contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
+                                compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
+                            }
+                            
+                            // Return success to main thread
+                            Result.success(Pair(
+                                filePath = getRealPathFromUri(imageInfo.uri),
+                                displayName = getDisplayNameFromUri(imageInfo.uri)
+                            ))
+                        }.also { result ->
+                            hideLoadingSpinner()
+                            result.fold(
+                                onSuccess = { (filePath, displayName) ->
+                                    val pathToShow = displayName ?: "Unknown file"
+                                    showCustomToast(getString(R.string.image_overwritten_successfully, pathToShow))
+                                    savePanel.visibility = View.GONE
+                                    scrim.visibility = View.GONE
+                                    editViewModel.markActionsAsSaved()
 
-                            // Invalidate Coil's cache for the overwritten URI to ensure a fresh load next time.
-                            imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
-                            imageLoader.diskCache?.remove(imageInfo.uri.toString())
+                                    // Invalidate Coil's cache for the overwritten URI to ensure a fresh load next time.
+                                    imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
+                                    imageLoader.diskCache?.remove(imageInfo.uri.toString())
+                                },
+                                onFailure = { exception ->
+                                    showCustomToast(getString(R.string.overwrite_failed, exception.message ?: "Unknown error"))
+                                }
+                            )
                         }
-
                     } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
-                        }
+                        hideLoadingSpinner()
+                        showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
                     }
                 }
                 dialog.dismiss()

@@ -4,7 +4,7 @@
     android:layout_height="wrap_content"
     android:background="@android:color/transparent"
     android:orientation="horizontal"
-    android:minWidth="0dp">
+    android:padding="8dp">
 
     <TextView
         android:id="@+id/toast_message"
@@ -15,8 +15,6 @@
         android:background="@drawable/custom_toast_background"
         android:padding="4dp"
         android:gravity="center"
-        android:textAlignment="center"
-        android:maxLines="3"
-        android:minWidth="0dp" />
+        android:textAlignment="center" />
 
 </LinearLayout>
