@@ -142,7 +142,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     loadImageFromUri(cameraUri, false)
                 } catch (e: Exception) {
-                    showCustomToast(getString(R.string.error_loading_camera_image, e.message))
+                    showCustomToast(getString(R.string.error_loading_camera_image, e.message ?: "Unknown error"))
                     cleanupCameraFile(cameraUri)
                 }
                 currentCameraUri = null
@@ -837,7 +837,7 @@ class MainActivity : AppCompatActivity() {
 
                                 // Toast removed: "Sharing image" - UX improvement
                             } catch (e: Exception) {
-                                showCustomToast(getString(R.string.share_failed, e.message))
+                                showCustomToast(getString(R.string.share_failed, e.message ?: "Unknown error"))
                             }
                         }
                     } else {
@@ -848,7 +848,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    showCustomToast(getString(R.string.share_failed, e.message))
+                    showCustomToast(getString(R.string.share_failed, e.message ?: "Unknown error"))
                 }
             }
         }
@@ -944,7 +944,7 @@ class MainActivity : AppCompatActivity() {
             cameraCaptureLauncher.launch(intent)
             
         } catch (e: Exception) {
-            showCustomToast(getString(R.string.camera_error, e.message))
+            showCustomToast(getString(R.string.camera_error, e.message ?: "Unknown error"))
         }
     }
 
@@ -1018,7 +1018,7 @@ class MainActivity : AppCompatActivity() {
                             
                             lastImageLoadFailed = false
                         } catch (e: Exception) {
-                            handleImageLoadFailure(getString(R.string.error_displaying_image, e.message))
+                            handleImageLoadFailure(getString(R.string.error_displaying_image, e.message ?: "Unknown error"))
                         } finally {
                             isImageLoading = false
                         }
@@ -1044,7 +1044,7 @@ class MainActivity : AppCompatActivity() {
             imageLoader.enqueue(request)
             
         } catch (e: Exception) {
-            handleImageLoadFailure("Image loading error: ${e.message}")
+            handleImageLoadFailure("Image loading error: ${e.message ?: "Unknown error"}")
             isImageLoading = false
         }
     }
@@ -1059,7 +1059,7 @@ class MainActivity : AppCompatActivity() {
                 drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 showCustomToast(getString(R.string.could_not_load_image, errorMessage))
             } catch (e: Exception) {
-                Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message}")
+                Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message ?: "Unknown error"}")
             }
         }
     }
@@ -1154,7 +1154,7 @@ class MainActivity : AppCompatActivity() {
             }
             oldImagePickerLauncher.launch(Intent.createChooser(intent, getString(R.string.select_picture)))
         } catch (e: Exception) {
-            showCustomToast(getString(R.string.could_not_open_photo_picker, e.message))
+            showCustomToast(getString(R.string.could_not_open_photo_picker, e.message ?: "Unknown error"))
         }
     }
 
@@ -1355,7 +1355,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    showCustomToast(e.message)
+                    showCustomToast(e.message ?: "Unknown error")
                 }
             }
         }
@@ -1411,7 +1411,7 @@ class MainActivity : AppCompatActivity() {
 
                     } catch (e: Exception) {
                         withContext(Dispatchers.Main) {
-                            showCustomToast(getString(R.string.overwrite_failed, e.message))
+                            showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
                         }
                     }
                 }
@@ -1596,7 +1596,7 @@ class MainActivity : AppCompatActivity() {
             
             bitmap.compress(compressFormat, quality, outputStream)
         } catch (e: Exception) {
-            throw Exception("Failed to compress image: ${e.message}")
+            throw Exception("Failed to compress image: ${e.message ?: "Unknown error"}")
         }
     }
 
