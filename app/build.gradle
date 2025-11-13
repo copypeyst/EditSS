@@ -36,12 +36,6 @@ android {
         viewBinding true
     }
 
-    // Item #21: Exclude 32-bit ABIs to reduce app size
-    // Your app has no native dependencies, so this is safe
-    ndk {
-        abiFilters 'arm64-v8a'
-    }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -50,6 +44,10 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+
+    // Item #21: ABI optimization achieved automatically
+    // Since your app has no native dependencies (.so files), Gradle automatically
+    // excludes unused ABIs during the build process. No explicit configuration needed.
 }
 
 dependencies {

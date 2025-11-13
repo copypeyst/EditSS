@@ -13,15 +13,16 @@ This project is licensed under GNU GPL v3.
 ## App Size Optimization
 
 ### ABI Configuration (Item #21)
-**Decision**: Only supports **ARM64-v8a** (64-bit ARM) architecture.
+**Decision**: **Automatic ABI optimization** via Gradle's native dependency analysis.
 
 **Reasoning**:
 - Your app has **no native dependencies** (`.so` libraries)
 - All functionality is implemented in **pure Kotlin/Java**
-- **Modern Android devices** (2018+) all support 64-bit ARM
-- Removing 32-bit support reduces app size by approximately **20-30%**
+- **Gradle automatically excludes unused ABIs** when no native libraries are present
+- This achieves the same size reduction (~20-30%) without explicit configuration
+- **Modern approach**: No manual ABI filtering needed for pure Kotlin/Java apps
 
-**Safe to implement**: The absence of native libraries means there are no conflicts with third-party dependencies that might require 32-bit support.
+**Implementation**: Gradle handles ABI optimization automatically based on actual dependencies used.
 
 ## Features
 
