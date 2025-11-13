@@ -719,35 +719,12 @@
         android:focusable="true"
         android:background="#80000000">
 
-        <!-- Loading Spinner -->
-        <LinearLayout
-            android:id="@+id/loading_spinner_layout"
+        <!-- Simple Loading Spinner -->
+        <ProgressBar
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:orientation="vertical"
-            android:padding="24dp"
-            android:background="@drawable/loading_dialog_background"
-            android:clickable="true"
-            android:focusable="true">
-
-            <ProgressBar
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:indeterminateTint="@android:color/white" />
-
-            <TextView
-                android:id="@+id/loading_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="Loading..."
-                android:textColor="@android:color/white"
-                android:textSize="16sp"
-                android:gravity="center" />
-
-        </LinearLayout>
+            android:indeterminateTint="@android:color/white" />
 
     </FrameLayout>
 

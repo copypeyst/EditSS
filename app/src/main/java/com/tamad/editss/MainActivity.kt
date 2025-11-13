@@ -83,8 +83,6 @@ class MainActivity : AppCompatActivity() {
 
     // Loading overlay elements
     private lateinit var overlayContainer: FrameLayout
-    private lateinit var loadingSpinnerLayout: LinearLayout
-    private lateinit var loadingText: TextView
 
     private var currentActiveTool: ImageView? = null
 
@@ -217,8 +215,6 @@ class MainActivity : AppCompatActivity() {
 
         // Initialize loading overlay elements
         overlayContainer = findViewById(R.id.overlay_container)
-        loadingSpinnerLayout = findViewById(R.id.loading_spinner_layout)
-        loadingText = findViewById(R.id.loading_text)
 
         savePanel = findViewById(R.id.save_panel)
         toolOptionsLayout = findViewById(R.id.tool_options)
@@ -983,7 +979,7 @@ class MainActivity : AppCompatActivity() {
         
         try {
             // Show loading overlay
-            showLoadingSpinner("Loading image...")
+            showLoadingSpinner()
             
             // Create Coil image request
             val request = ImageRequest.Builder(this)
@@ -1147,8 +1143,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Loading overlay functions
-    private fun showLoadingSpinner(message: String = "Loading...") {
-        loadingText.text = message
+    private fun showLoadingSpinner() {
         overlayContainer.visibility = View.VISIBLE
         
         // Disable all interactive elements while loading
@@ -1328,7 +1323,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.Main) {
             // Show loading overlay to prevent spamming
-            showLoadingSpinner("Saving image...")
+            showLoadingSpinner()
             
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
@@ -1461,7 +1456,7 @@ class MainActivity : AppCompatActivity() {
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
                         // Show loading overlay to prevent spamming
-                        showLoadingSpinner("Overwriting image...")
+                        showLoadingSpinner()
                         
                         val bitmapToSave = drawingView.getDrawing()
                             ?: throw Exception("Could not get image to overwrite")
