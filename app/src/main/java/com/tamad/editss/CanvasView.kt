@@ -37,6 +37,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var translationX = 0f
     private var translationY = 0f
     private var isZooming = false
+    private var isDrawing = false
 
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -65,27 +66,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
             isZooming = false
-            if (scaleFactor == 1.0f) {
-                // Snap back to center when zoomed out completely
-                val viewWidth = width.toFloat()
-                val viewHeight = height.toFloat()
-                baseBitmap?.let {
-                    val bitmapWidth = it.width.toFloat()
-                    val bitmapHeight = it.height.toFloat()
-                    val scale: Float
-                    if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
-                        scale = viewWidth / bitmapWidth
-                        translationX = 0f
-                        translationY = (viewHeight - bitmapHeight * scale) * 0.5f
-                    } else {
-                        scale = viewHeight / bitmapHeight
-                        translationX = (viewWidth - bitmapWidth * scale) * 0.5f
-                        translationY = 0f
-                    }
-                }
-                updateImageMatrix()
-                invalidate()
-            }
+            // Always reset zoom and translation when pinch ends
+            scaleFactor = 1.0f
+            translationX = 0f
+            translationY = 0f
+            lastFocusX = 0f
+            lastFocusY = 0f
+            updateImageMatrix()
+            invalidate()
         }
     })
 
@@ -651,32 +639,49 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val x = event.x
         val y = event.y
 
+        // Handle multi-touch: cancel drawing if second touch is detected
+        if (event.pointerCount > 1 && isDrawing && currentTool == ToolType.DRAW) {
+            // Cancel the current drawing
+            currentDrawingTool.onTouchEvent(MotionEvent.obtain(event.downTime, event.eventTime, MotionEvent.ACTION_CANCEL, event.x, event.y, 0), paint)
+            isDrawing = false
+            invalidate()
+            return true
+        }
+
         if (isZooming || event.pointerCount > 1) {
-            // Handle panning with two fingers
-            when (event.actionMasked) {
-                MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_MOVE -> {
-                    if (event.pointerCount > 1) {
-                        val focusX = (event.getX(0) + event.getX(1)) / 2
-                        val focusY = (event.getY(0) + event.getY(1)) / 2
-                        if (lastFocusX != 0f || lastFocusY != 0f) {
-                            translationX += focusX - lastFocusX
-                            translationY += focusY - lastFocusY
+            // Only allow panning when zoomed in (scaleFactor > 1.0f)
+            if (scaleFactor > 1.0f) {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_MOVE -> {
+                        if (event.pointerCount > 1) {
+                            val focusX = (event.getX(0) + event.getX(1)) / 2
+                            val focusY = (event.getY(0) + event.getY(1)) / 2
+                            if (lastFocusX != 0f || lastFocusY != 0f) {
+                                translationX += focusX - lastFocusX
+                                translationY += focusY - lastFocusY
+                            }
+                            lastFocusX = focusX
+                            lastFocusY = focusY
+                            updateImageMatrix()
+                            invalidate()
                         }
-                        lastFocusX = focusX
-                        lastFocusY = focusY
-                        updateImageMatrix()
-                        invalidate()
                     }
-                }
-                MotionEvent.ACTION_POINTER_UP -> {
-                    lastFocusX = 0f
-                    lastFocusY = 0f
+                    MotionEvent.ACTION_POINTER_UP -> {
+                        lastFocusX = 0f
+                        lastFocusY = 0f
+                    }
                 }
             }
             return true
         }
 
         if (currentTool == ToolType.DRAW) {
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> isDrawing = true
+                MotionEvent.ACTION_UP -> isDrawing = false
+                MotionEvent.ACTION_CANCEL -> isDrawing = false
+            }
+            
             val action = currentDrawingTool.onTouchEvent(event, paint)
             action?.let {
                 if (isSketchMode) {

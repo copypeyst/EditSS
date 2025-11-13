@@ -40,6 +40,12 @@ class SquareTool : DrawingTool {
                 }
                 return null
             }
+            MotionEvent.ACTION_CANCEL -> {
+                // Cancel the drawing without returning an action
+                isDrawing = false
+                currentPath.reset()
+                return null
+            }
             else -> return null
         }
     }
