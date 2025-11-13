@@ -17,7 +17,7 @@ class UXMessageManager(
 
     private var messageJob: Job? = null
 
-    fun showMessage(message: String, durationMs: Long = 3000) {
+    fun showMessage(message: String, durationMs: Long = 2000) {
         messageJob?.cancel()
         messageText.text = message
         messageBox.visibility = View.VISIBLE

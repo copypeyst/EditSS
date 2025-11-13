@@ -143,6 +143,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     loadImageFromUri(cameraUri, false)
                 } catch (e: Exception) {
+                    uxMessageManager.hideLoading()
                     uxMessageManager.showMessage(getString(R.string.error_loading_camera_image, e.message))
                     cleanupCameraFile(cameraUri)
                 }
@@ -151,6 +152,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             val cameraUri = currentCameraUri
             if (cameraUri != null) {
+                uxMessageManager.hideLoading()
                 cleanupCameraFile(cameraUri)
             }
             currentCameraUri = null
@@ -488,7 +490,6 @@ class MainActivity : AppCompatActivity() {
                 currentCropMode?.isSelected = false
                 currentCropMode = null
                 drawingView.setCropModeInactive()
-                uxMessageManager.showMessage("Image cropped successfully")
             } else {
                 uxMessageManager.showMessage("No crop area selected")
             }
@@ -568,7 +569,6 @@ class MainActivity : AppCompatActivity() {
                 val action = AdjustAction(previousBitmap, newBitmap)
                 editViewModel.pushAdjustAction(action)
                 drawingView.setBitmap(newBitmap)
-                uxMessageManager.showMessage("Adjustments applied")
             }
 
             editViewModel.resetAdjustments()
@@ -846,8 +846,8 @@ class MainActivity : AppCompatActivity() {
                                 startActivity(chooser)
 
                                 uxMessageManager.hideLoading()
-                                uxMessageManager.showMessage(getString(R.string.sharing_image))
                             } catch (e: Exception) {
+                                uxMessageManager.hideLoading()
                                 uxMessageManager.showMessage(getString(R.string.share_failed, e.message))
                             }
                         }
@@ -952,6 +952,7 @@ class MainActivity : AppCompatActivity() {
             // Store the private file for handling result
             currentCameraUri = photoURI
             
+            uxMessageManager.showLoading()
             // Start camera activity
             cameraCaptureLauncher.launch(intent)
             
