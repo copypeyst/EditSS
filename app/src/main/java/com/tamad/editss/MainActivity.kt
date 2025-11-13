@@ -134,6 +134,8 @@ class MainActivity : AppCompatActivity() {
     private fun showLoading() {
         loadingIndicator.visibility = View.VISIBLE
         scrim.visibility = View.VISIBLE
+        scrim.bringToFront()
+        loadingIndicator.bringToFront()
         allButtons.forEach { it.isEnabled = false }
     }
 
@@ -805,10 +807,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showCustomToast(message: String) {
-        val toast = Toast.makeText(this, message, Toast.LENGTH_SHORT)
-        // Position toast above the tool options panel
-        toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, 300)
-        toast.show()
+        val layout = layoutInflater.inflate(R.layout.custom_toast, findViewById(R.id.custom_toast_container))
+        val text: TextView = layout.findViewById(R.id.text)
+        text.text = message
+        with (Toast(applicationContext)) {
+            val yOffset = toolOptionsLayout.height + findViewById<LinearLayout>(R.id.tools).height + 50
+            setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, yOffset)
+            duration = Toast.LENGTH_SHORT
+            view = layout
+            show()
+        }
     }
 
     // Step 1 & 2: Implement sharing functionality
