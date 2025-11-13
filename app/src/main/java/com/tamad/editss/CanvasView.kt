@@ -46,7 +46,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val sketchStrokes = mutableListOf<DrawingAction>()
     private var isSketchMode = false // Track if we're in sketch mode (no imported/captured image)
 
-    // Gesture detection - REMOVED scale detector for crop mode
+    // Gesture detection
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var cropStartX = 0f
@@ -58,75 +58,21 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var brightness = 0f
     private var contrast = 1f
     private var saturation = 1f
-
-    // Zoom/Pan state
-    private var zoomScale = 1f
-    private var zoomTranslateX = 0f
-    private var zoomTranslateY = 0f
-    private var baseMatrix = Matrix()
-
-    // Two-finger zoom and pan (purely display-only)
-    private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        private var attemptedScaleBelowBase = false
-        
-        override fun onScale(detector: ScaleGestureDetector): Boolean {
-            if (baseBitmap == null) return false
-            
-            val scaleFactor = detector.scaleFactor
-            val focusX = detector.focusX
-            val focusY = detector.focusY
-            
-            // Calculate what scale would be without constraints
-            val rawScale = zoomScale * scaleFactor
-            
-            // Track if user is trying to zoom out below base scale
-            if (scaleFactor < 1.0f && rawScale < 1.0f) {
-                attemptedScaleBelowBase = true
-            }
-            
-            // Only allow zooming in or maintaining current level
-            if (scaleFactor >= 1.0f || rawScale >= 1.0f) {
-                zoomScale = Math.max(rawScale, 1.0f)
-                
-                // Apply zoom transformation
-                imageMatrix.setScale(zoomScale, zoomScale, focusX, focusY)
-                imageMatrix.postTranslate(zoomTranslateX, zoomTranslateY)
-                
-                updateImageBounds()
-                invalidate()
-            }
-            
-            return true
-        }
-        
-        override fun onScaleEnd(detector: ScaleGestureDetector) {
-            // If user tried to zoom out beyond base, recenter
-            if (attemptedScaleBelowBase) {
-                resetToBaseView()
-            }
-            attemptedScaleBelowBase = false
-        }
-    })
     
-    // Two-finger pan
-    private val gestureDetector = android.view.GestureDetector(context, object : android.view.GestureDetector.SimpleOnGestureListener() {
-        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            if (e2.pointerCount == 2 && baseBitmap != null && zoomScale > 1.0f) {
-                // Pan in opposite direction of finger movement
-                zoomTranslateX -= distanceX
-                zoomTranslateY -= distanceY
-                
-                imageMatrix.setScale(zoomScale, zoomScale)
-                imageMatrix.postTranslate(zoomTranslateX, zoomTranslateY)
-                
-                updateImageBounds()
-                invalidate()
-                return true
-            }
-            return false
-        }
-    })
+    // Pinch-to-zoom and pan state
+    private var scaleGestureDetector: ScaleGestureDetector? = null
+    private var isMultiTouchActive = false
+    private var currentScale = 1f
+    private var baseScale = 1f
+    private var minScale = 1f // Base zoom level - user cannot zoom out beyond this
+    private var maxScale = 4f // Maximum zoom level
+    private var focusX = 0f
+    private var focusY = 0f
+    private var panOffsetX = 0f
+    private var panOffsetY = 0f
+    private var isDrawingCancelled = false // Track if drawing was cancelled due to second touch
 
+    
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onCropAction: ((CropAction) -> Unit)? = null // Legacy callback
@@ -149,6 +95,45 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
         cropCornerPaint.alpha = 192 // 75% opacity
+
+        // Initialize ScaleGestureDetector for pinch-to-zoom
+        scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val scaleFactor = detector.scaleFactor
+                
+                // Calculate new scale with constraints
+                val newScale = (currentScale * scaleFactor).coerceIn(minScale, maxScale)
+                
+                // Prevent zoom out beyond base zoom level
+                if (newScale < baseScale) {
+                    return true
+                }
+                
+                // Calculate zoom center
+                focusX = detector.focusX
+                focusY = detector.focusY
+                
+                // Apply zoom
+                applyZoom(newScale, focusX, focusY)
+                
+                return true
+            }
+
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                isMultiTouchActive = true
+                return true
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                isMultiTouchActive = false
+                currentScale = currentScale.coerceIn(minScale, maxScale)
+                // Ensure we don't go below base zoom
+                if (currentScale < baseScale) {
+                    currentScale = baseScale
+                    applyZoom(baseScale, width / 2f, height / 2f)
+                }
+            }
+        })
     }
 
     enum class ToolType {
@@ -172,7 +157,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
         background = resources.getDrawable(R.drawable.outer_bounds, null)
 
-        updateImageMatrix()
+        // Reset zoom to base level when setting new bitmap
+        resetZoom()
+        
+        updateImageMatrixForCrop()
         invalidate()
 
         // Re-initialize crop rectangle after image is set
@@ -220,7 +208,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Drawings are already merged into bitmap, no paths to clear
         
         // Update the image matrix to properly display the restored bitmap.
-        updateImageMatrix()
+        updateImageMatrixForCrop()
         
         // Clear any existing crop rectangle.
         cropRect.setEmpty()
@@ -243,51 +231,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun handleAdjustUndo(action: AdjustAction) {
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
+        updateImageMatrixForCrop()
         invalidate()
     }
 
     fun handleAdjustRedo(action: AdjustAction) {
         baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
+        updateImageMatrixForCrop()
         invalidate()
     }
 
     fun handleBitmapChangeUndo(action: EditAction.BitmapChange) {
-        // Preserve zoom state
-        val savedZoomScale = zoomScale
-        val savedZoomTranslateX = zoomTranslateX
-        val savedZoomTranslateY = zoomTranslateY
-        
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        
-        // Reapply saved zoom state
-        zoomScale = savedZoomScale
-        zoomTranslateX = savedZoomTranslateX
-        zoomTranslateY = savedZoomTranslateY
-        
-        imageMatrix.setScale(zoomScale, zoomScale)
-        imageMatrix.postTranslate(zoomTranslateX, zoomTranslateY)
-        updateImageBounds()
+        updateImageMatrixForCrop()
         invalidate()
     }
 
     fun handleBitmapChangeRedo(action: EditAction.BitmapChange) {
-        // Preserve zoom state
-        val savedZoomScale = zoomScale
-        val savedZoomTranslateX = zoomTranslateX
-        val savedZoomTranslateY = zoomTranslateY
-        
         baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        
-        // Reapply saved zoom state
-        zoomScale = savedZoomScale
-        zoomTranslateX = savedZoomTranslateX
-        zoomTranslateY = savedZoomTranslateY
-        
-        imageMatrix.setScale(zoomScale, zoomScale)
-        imageMatrix.postTranslate(zoomTranslateX, zoomTranslateY)
-        updateImageBounds()
+        updateImageMatrixForCrop()
         invalidate()
     }
 
@@ -433,7 +395,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         // Clear the crop rectangle and update UI
         cropRect.setEmpty()
-        updateImageMatrix()
+        updateImageMatrixForCrop()
         invalidate()
         onCropApplied?.invoke(baseBitmap!!)
 
@@ -579,7 +541,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
-            updateImageMatrix()
+            updateImageMatrixForCrop()
         }
     
          override fun onDraw(canvas: Canvas) {
@@ -653,14 +615,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         canvas.drawRect(cropRect.right - cornerSize, cropRect.bottom - cornerSize, cropRect.right, cropRect.bottom, cropCornerPaint)
     }
 
-    private fun updateImageMatrix() {
+    private fun updateImageMatrixForCrop() {
         baseBitmap?.let {
             val viewWidth = width.toFloat()
             val viewHeight = height.toFloat()
             val bitmapWidth = it.width.toFloat()
             val bitmapHeight = it.height.toFloat()
 
-            var scale: Float
+            val scale: Float
             var dx = 0f
             var dy = 0f
 
@@ -672,18 +634,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 dx = (viewWidth - bitmapWidth * scale) * 0.5f
             }
 
-            // Store base matrix for recentering
-            baseMatrix.setScale(scale, scale)
-            baseMatrix.postTranslate(dx, dy)
-            
-            // Reset zoom state to base
-            zoomScale = 1f
-            zoomTranslateX = 0f
-            zoomTranslateY = 0f
-
-            // Apply current zoom state
-            imageMatrix.setScale(zoomScale, zoomScale)
-            imageMatrix.postTranslate(zoomTranslateX, zoomTranslateY)
+            imageMatrix.setScale(scale, scale)
+            imageMatrix.postTranslate(dx, dy)
 
             imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
             imageMatrix.mapRect(imageBounds)
@@ -691,43 +643,50 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Handle two-finger gestures first
-        if (event.pointerCount >= 2 && baseBitmap != null) {
-            val scaleHandled = scaleGestureDetector.onTouchEvent(event)
-            val gestureHandled = gestureDetector.onTouchEvent(event)
-            if (scaleHandled || gestureHandled) {
-                return true
-            }
-        }
-
         val x = event.x
         val y = event.y
 
-        if (currentTool == ToolType.DRAW) {
-            val action = currentDrawingTool.onTouchEvent(event, paint)
-            action?.let {
-                if (isSketchMode) {
-                    // In sketch mode, store strokes separately for transparency support
-                    sketchStrokes.add(action)
-                    
-                    // Save bitmap state for undo/redo (background changes)
-                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                    onBitmapChanged?.invoke(EditAction.BitmapChange(
-                        previousBitmap = bitmapBeforeDrawing ?: return@let,
-                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                    ))
-                } else {
-                    // In imported/captured image mode, use original behavior
-                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                    mergeDrawingStrokeIntoBitmap(action)
-                    onBitmapChanged?.invoke(EditAction.BitmapChange(
-                        previousBitmap = bitmapBeforeDrawing ?: return@let,
-                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                    ))
-                }
-            }
-            invalidate()
+        // Handle pinch-to-zoom detection first
+        scaleGestureDetector?.onTouchEvent(event)
+        
+        // Check for multi-touch to cancel drawing
+        if (event.pointerCount >= 2 && currentTool == ToolType.DRAW) {
+            isDrawingCancelled = true
+            // Cancel current drawing action and don't allow drawing during multi-touch
             return true
+        }
+
+        if (currentTool == ToolType.DRAW) {
+            // Only allow drawing when not in multi-touch mode
+            if (!isMultiTouchActive) {
+                val action = currentDrawingTool.onTouchEvent(event, paint)
+                action?.let {
+                    if (isSketchMode) {
+                        // In sketch mode, store strokes separately for transparency support
+                        sketchStrokes.add(action)
+                        
+                        // Save bitmap state for undo/redo (background changes)
+                        val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                        onBitmapChanged?.invoke(EditAction.BitmapChange(
+                            previousBitmap = bitmapBeforeDrawing ?: return@let,
+                            newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                        ))
+                    } else {
+                        // In imported/captured image mode, use original behavior
+                        val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                        mergeDrawingStrokeIntoBitmap(action)
+                        onBitmapChanged?.invoke(EditAction.BitmapChange(
+                            previousBitmap = bitmapBeforeDrawing ?: return@let,
+                            newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                        ))
+                    }
+                }
+                invalidate()
+                return true
+            } else {
+                // Multi-touch active - only allow zoom/pan, no drawing
+                return true
+            }
         }
 
         when (event.action) {
@@ -830,6 +789,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     isResizingCropRect = false
                     resizeHandle = 0
                 }
+                isDrawingCancelled = false // Reset drawing cancellation flag
                 return true
             }
             else -> return false
@@ -1082,13 +1042,55 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         setAdjustments(0f, 1f, 1f)
     }
 
-    // Reset to base view (original position)
-    private fun resetToBaseView() {
-        zoomScale = 1f
-        zoomTranslateX = 0f
-        zoomTranslateY = 0f
-        imageMatrix.set(baseMatrix)
-        updateImageBounds()
+    // Zoom and Pan helper methods
+    private fun resetZoom() {
+        currentScale = 1f
+        baseScale = 1f
+        panOffsetX = 0f
+        panOffsetY = 0f
+    }
+
+    private fun applyZoom(newScale: Float, focusX: Float, focusY: Float) {
+        val scaleDifference = newScale - currentScale
+        
+        // Calculate new pan offset to keep focus point stationary
+        panOffsetX += (1f - newScale / currentScale) * (focusX - width / 2f)
+        panOffsetY += (1f - newScale / currentScale) * (focusY - height / 2f)
+        
+        currentScale = newScale
+        updateImageMatrix()
         invalidate()
+    }
+
+    private fun updateImageMatrix() {
+        baseBitmap?.let {
+            val viewWidth = width.toFloat()
+            val viewHeight = height.toFloat()
+            val bitmapWidth = it.width.toFloat()
+            val bitmapHeight = it.height.toFloat()
+
+            val scale: Float
+            var dx = 0f
+            var dy = 0f
+
+            if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
+                scale = viewWidth / bitmapWidth
+                dy = (viewHeight - bitmapHeight * scale) * 0.5f
+            } else {
+                scale = viewHeight / bitmapHeight
+                dx = (viewWidth - bitmapWidth * scale) * 0.5f
+            }
+
+            // Apply base scale and zoom scale
+            val totalScale = scale * currentScale
+            
+            imageMatrix.setScale(totalScale, totalScale)
+            
+            // Apply base translation and zoom pan offset
+            imageMatrix.postTranslate(dx + panOffsetX, dy + panOffsetY)
+
+            imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
+            imageMatrix.mapRect(imageBounds)
+        }
     }
 }
