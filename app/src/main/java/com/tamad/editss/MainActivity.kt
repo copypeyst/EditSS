@@ -479,9 +479,9 @@ class MainActivity : AppCompatActivity() {
                 currentCropMode?.isSelected = false
                 currentCropMode = null
                 drawingView.setCropModeInactive()
-                Toast.makeText(this, "Image cropped successfully", Toast.LENGTH_SHORT).show()
+                // Toast removed: "Image cropped successfully" - UX improvement
             } else {
-                Toast.makeText(this, "No crop area selected", Toast.LENGTH_SHORT).show()
+                // Toast removed: "No crop area selected" - UX improvement
             }
         }
 
@@ -559,7 +559,7 @@ class MainActivity : AppCompatActivity() {
                 val action = AdjustAction(previousBitmap, newBitmap)
                 editViewModel.pushAdjustAction(action)
                 drawingView.setBitmap(newBitmap)
-                Toast.makeText(this, "Adjustments applied", Toast.LENGTH_SHORT).show()
+                // Toast removed: "Adjustments applied" - UX improvement
             }
 
             editViewModel.resetAdjustments()
@@ -747,7 +747,7 @@ class MainActivity : AppCompatActivity() {
             // This code runs AFTER the user responds to the delete confirmation dialog.
             if (result.resultCode == RESULT_OK) {
                 // User confirmed the deletion.
-                Toast.makeText(this, getString(R.string.original_file_deleted), Toast.LENGTH_SHORT).show()
+                // Toast removed: "Original file deleted" - UX improvement
                 
                 // Now, safely update our app's reference to point to the new file.
                 pendingOverwriteUri?.let {
@@ -760,7 +760,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 // User cancelled the deletion. The original file remains.
-                Toast.makeText(this, getString(R.string.original_file_was_not_deleted), Toast.LENGTH_SHORT).show()
+                // Toast removed: "Original file was not deleted" - UX improvement
                 // We still need to update our app's reference to the new file that was created.
                 pendingOverwriteUri?.let {
                     currentImageInfo = currentImageInfo?.copy(uri = it)
@@ -776,7 +776,7 @@ class MainActivity : AppCompatActivity() {
     // Item 2: Cache-based sharing for unsaved edits
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
-            Toast.makeText(this, getString(R.string.no_image_to_share), Toast.LENGTH_SHORT).show()
+            // Toast removed: "No image to share" - UX improvement
             return
         }
 
@@ -835,7 +835,7 @@ class MainActivity : AppCompatActivity() {
                                 val chooser = Intent.createChooser(shareIntent, getString(R.string.share_image))
                                 startActivity(chooser)
 
-                                Toast.makeText(this@MainActivity, getString(R.string.sharing_image), Toast.LENGTH_SHORT).show()
+                                // Toast removed: "Sharing image" - UX improvement
                             } catch (e: Exception) {
                                 Toast.makeText(this@MainActivity, getString(R.string.share_failed, e.message), Toast.LENGTH_SHORT).show()
                             }
@@ -884,7 +884,7 @@ class MainActivity : AppCompatActivity() {
                     val itemCount = clipData.itemCount
                     if (itemCount > 1) {
                         // Multiple images - reject for safety
-                    Toast.makeText(this, getString(R.string.multiple_images_not_supported), Toast.LENGTH_LONG).show()
+                    // Toast removed: "Multiple images not supported" - UX improvement
                         return
                     }
                     // Single image from clip data
@@ -957,13 +957,13 @@ class MainActivity : AppCompatActivity() {
 
         // Prevent loading while already loading
         if (isImageLoading) {
-            Toast.makeText(this, getString(R.string.image_is_still_loading), Toast.LENGTH_SHORT).show()
+            // Toast removed: "Image is still loading" - UX improvement
             return
         }
         
         // Prevent rapid successive attempts after failure
         if (isImageLoadAttempted && lastImageLoadFailed) {
-            Toast.makeText(this, getString(R.string.previous_load_failed), Toast.LENGTH_LONG).show()
+            // Toast removed: "Previous load failed" - UX improvement
             return
         }
         
@@ -973,7 +973,7 @@ class MainActivity : AppCompatActivity() {
         
         try {
             // Show loading indicator
-            Toast.makeText(this, getString(R.string.loading_image), Toast.LENGTH_SHORT).show()
+            // Toast removed: "Loading image" - UX improvement
             
             // Create Coil image request
             val request = ImageRequest.Builder(this)
@@ -998,7 +998,7 @@ class MainActivity : AppCompatActivity() {
                             drawingView.requestLayout()
                             drawingView.invalidate()
                             
-                            Toast.makeText(this, getString(R.string.loaded_image_successfully, origin.name), Toast.LENGTH_SHORT).show()
+                            showCustomToast(getString(R.string.loaded_image_successfully, getDisplayNameFromUri(uri) ?: "Image"))
                             
                             // Update UI based on canOverwrite
                             updateSavePanelUI()
@@ -1258,7 +1258,7 @@ class MainActivity : AppCompatActivity() {
     // Updated function to save a copy using Coil to fetch the bitmap reliably.
     private fun saveImageAsCopy() {
         val imageInfo = currentImageInfo ?: run {
-            Toast.makeText(this, getString(R.string.no_image_to_save), Toast.LENGTH_SHORT).show()
+            // Toast removed: "No image to save" - UX improvement
             return
         }
 
@@ -1339,7 +1339,10 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder), Toast.LENGTH_SHORT).show()
+                            val filePath = getRealPathFromUri(uri)
+                            val displayName = getDisplayNameFromUri(uri)
+                            val pathToShow = filePath ?: displayName ?: "Unknown file"
+                            Toast.makeText(this@MainActivity, getString(R.string.image_saved_to_editss_folder, pathToShow), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
@@ -1361,18 +1364,18 @@ class MainActivity : AppCompatActivity() {
     // FINAL, CORRECTED VERSION - This one avoids deletion and uses MediaStore update instead.
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
-            Toast.makeText(this, getString(R.string.no_image_to_overwrite), Toast.LENGTH_SHORT).show()
+            // Toast removed: "No image to overwrite" - UX improvement
             return
         }
 
         if (!imageInfo.canOverwrite) {
-            Toast.makeText(this, getString(R.string.cannot_overwrite_this_image), Toast.LENGTH_SHORT).show()
+            // Toast removed: "Cannot overwrite this image" - UX improvement
             return
         }
         
         // Double-check that format hasn't changed, as a safeguard.
         if (selectedSaveFormat != imageInfo.originalMimeType) {
-            Toast.makeText(this, getString(R.string.format_changed_please_save_a_copy), Toast.LENGTH_LONG).show()
+            // Toast removed: "Format changed please save a copy" - UX improvement
             return
         }
 
@@ -1393,7 +1396,10 @@ class MainActivity : AppCompatActivity() {
                         }
                         
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully), Toast.LENGTH_SHORT).show()
+                            val filePath = getRealPathFromUri(imageInfo.uri)
+                            val displayName = getDisplayNameFromUri(imageInfo.uri)
+                            val pathToShow = filePath ?: displayName ?: "Unknown file"
+                            Toast.makeText(this@MainActivity, getString(R.string.image_overwritten_successfully, pathToShow), Toast.LENGTH_SHORT).show()
                             savePanel.visibility = View.GONE
                             scrim.visibility = View.GONE
                             editViewModel.markActionsAsSaved()
@@ -1562,7 +1568,7 @@ class MainActivity : AppCompatActivity() {
                 else -> "Unknown"
             }
             
-            Toast.makeText(this, getString(R.string.detected_format, formatName), Toast.LENGTH_SHORT).show()
+            // Toast removed: "Detected format" - too technical, UX improvement
             
         } catch (e: Exception) {
             // If detection fails, keep current default
@@ -1608,7 +1614,20 @@ class MainActivity : AppCompatActivity() {
             null
         }
     }
-    
+
+    // Helper to show custom toast without app icon
+    private fun showCustomToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
+        val layout = layoutInflater.inflate(R.layout.custom_toast, null)
+        val textView = layout.findViewById<TextView>(R.id.toast_message)
+        textView.text = message
+        
+        val toast = Toast(applicationContext)
+        toast.view = layout
+        toast.duration = duration
+        toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, 100)
+        toast.show()
+    }
+
     // Helper to get real file path from content URI for MediaScannerConnection
     private fun getRealPathFromUri(uri: Uri): String? {
         return try {
