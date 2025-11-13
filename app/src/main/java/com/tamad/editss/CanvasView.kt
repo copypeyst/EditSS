@@ -66,14 +66,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
             isZooming = false
-            // Always reset zoom and translation when pinch ends
-            scaleFactor = 1.0f
-            translationX = 0f
-            translationY = 0f
+            // Only reset zoom and translation when zoomed out to default
+            if (scaleFactor <= 1.0f) {
+                scaleFactor = 1.0f
+                translationX = 0f
+                translationY = 0f
+                updateImageMatrix()
+                invalidate()
+            }
             lastFocusX = 0f
             lastFocusY = 0f
-            updateImageMatrix()
-            invalidate()
         }
     })
 
