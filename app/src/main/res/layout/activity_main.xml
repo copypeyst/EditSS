@@ -171,7 +171,7 @@
         <LinearLayout
             android:id="@+id/draw_options"
             android:layout_width="match_parent"
-            android:layout_height="140dp"
+            android:layout_height="120dp"
             android:orientation="vertical"
             android:visibility="gone">
 
@@ -222,7 +222,7 @@
                     android:id="@+id/color_green_container"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:layout_marginEnd="25dp">
+                    android:layout_marginEnd="15dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -241,7 +241,7 @@
                     android:id="@+id/color_blue_container"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:layout_marginEnd="25dp">
+                    android:layout_marginEnd="15dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -260,7 +260,7 @@
                     android:id="@+id/color_yellow_container"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:layout_marginEnd="25dp">
+                    android:layout_marginEnd="15dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -279,7 +279,7 @@
                     android:id="@+id/color_orange_container"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:layout_marginEnd="25dp">
+                    android:layout_marginEnd="15dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -298,7 +298,7 @@
                     android:id="@+id/color_pink_container"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:layout_marginEnd="25dp">
+                    android:layout_marginEnd="15dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -317,7 +317,7 @@
                     android:id="@+id/color_black_container"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:layout_marginEnd="25dp">
+                    android:layout_marginEnd="15dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -353,10 +353,10 @@
             </LinearLayout>
 
             <!-- Size/Opacity Sliders -->
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/size" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp" android:layout_marginTop="-10dp"/>
-            <SeekBar android:id="@+id/draw_size_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="-10dp" android:layout_marginBottom="-10dp"/>
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/opacity" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp" android:layout_marginTop="-10dp"/>
-            <SeekBar android:id="@+id/draw_opacity_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="-10dp" android:layout_marginBottom="-10dp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/size" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp" android:layout_marginTop="-2dp"/>
+            <SeekBar android:id="@+id/draw_size_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="-2dp" android:layout_marginBottom="-2dp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/opacity" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp" android:layout_marginTop="-2dp"/>
+            <SeekBar android:id="@+id/draw_opacity_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="-2dp" android:layout_marginBottom="-2dp"/>
 
         </LinearLayout>
 
@@ -364,7 +364,7 @@
     <LinearLayout
         android:id="@+id/crop_options"
         android:layout_width="match_parent"
-        android:layout_height="130dp"
+        android:layout_height="120dp"
         android:orientation="vertical"
         android:visibility="gone">
         <LinearLayout
@@ -385,7 +385,7 @@
                 <ImageView
                     android:id="@+id/crop_mode_freeform"
                     android:layout_width="85dp"
-                    android:layout_height="75dp"
+                    android:layout_height="35dp"
                     android:src="@drawable/cropfreeformicon"
                     android:contentDescription="@string/freeform_crop"
                     android:background="@drawable/tool_button_background"
@@ -413,7 +413,7 @@
                 <ImageView
                     android:id="@+id/crop_mode_square"
                     android:layout_width="85dp"
-                    android:layout_height="75dp"
+                    android:layout_height="35dp"
                     android:src="@drawable/cropsquareicon"
                     android:contentDescription="@string/square_crop"
                     android:background="@drawable/tool_button_background"
@@ -441,7 +441,7 @@
                 <ImageView
                     android:id="@+id/crop_mode_portrait"
                     android:layout_width="85dp"
-                    android:layout_height="75dp"
+                    android:layout_height="35dp"
                     android:src="@drawable/cropportraiticon"
                     android:contentDescription="@string/portrait_crop"
                     android:background="@drawable/tool_button_background"
@@ -468,7 +468,7 @@
                 <ImageView
                     android:id="@+id/crop_mode_landscape"
                     android:layout_width="85dp"
-                    android:layout_height="75dp"
+                    android:layout_height="35dp"
                     android:src="@drawable/croplandscapeicon"
                     android:contentDescription="@string/landscape_crop"
                     android:background="@drawable/tool_button_background"
@@ -517,7 +517,7 @@
         <LinearLayout
             android:id="@+id/adjust_options"
             android:layout_width="match_parent"
-            android:layout_height="140dp"
+            android:layout_height="120dp"
             android:orientation="vertical"
             android:gravity="center_vertical"
             android:visibility="gone">
