@@ -60,6 +60,7 @@ dependencies {
     implementation libs.androidx.lifecycle.viewmodel.ktx
     implementation libs.coil
     implementation 'com.google.android.gms:play-services-ads:23.0.0'
+    implementation libs.androidx.splashscreen
 
     testImplementation libs.junit
     androidTestImplementation libs.androidx.junit

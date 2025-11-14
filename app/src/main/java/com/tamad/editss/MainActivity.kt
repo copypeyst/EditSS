@@ -46,6 +46,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
@@ -187,6 +188,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
