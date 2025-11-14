@@ -38,11 +38,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var translationY = 0f
     private var isZooming = false
     private var isDrawing = false
+    private var lastPointerCount = 1 // Track pointer count for scale detection
 
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            // Only allow scaling if there are multiple touch points
-            if (detector.focusedPointersCount < 2) {
+            // Only allow scaling if we had multiple touch points previously
+            if (this@CanvasView.lastPointerCount < 2) {
                 return false
             }
             
@@ -63,8 +65,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
 
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            // Only allow scaling to begin if there are multiple touch points
-            if (detector.focusedPointersCount < 2) {
+            // Only allow scaling to begin if we detected multiple touch points
+            if (this@CanvasView.lastPointerCount < 2) {
                 return false
             }
             
@@ -642,6 +644,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        // Track pointer count for scale detection
+        lastPointerCount = event.pointerCount
+        
         scaleGestureDetector.onTouchEvent(event)
 
         val x = event.x
@@ -710,9 +715,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             invalidate()
             return true
         }
-
-        // Pass the event to the scale gesture detector first
-        scaleGestureDetector.onTouchEvent(event)
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
