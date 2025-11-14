@@ -726,7 +726,7 @@ class MainActivity : AppCompatActivity() {
                 // Create a mutable white bitmap
                 val whiteBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                 val canvas = android.graphics.Canvas(whiteBitmap)
-                canvas.drawColor(android.graphics.Color.WHITE)
+                canvas.drawColor(android.graphics.Color.BLACK)
                 
                 // Set it as the base for the drawing view
                 drawingView.setBitmap(whiteBitmap)
