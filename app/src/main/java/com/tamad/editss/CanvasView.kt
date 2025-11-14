@@ -278,8 +278,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun setCropMode(cropMode: CropMode) {
         this.currentCropMode = cropMode
         this.isCropModeActive = true // Mark that a crop mode is now active
-        // Also set the tool type to CROP to ensure crop rectangle initializes when image is imported
-        this.currentTool = ToolType.CROP
         if (currentTool == ToolType.CROP) {
             initializeDefaultCropRect()
         }
