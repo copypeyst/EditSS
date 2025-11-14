@@ -13,6 +13,8 @@
         <!-- Hide action bar -->
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
+        <!-- Set splash screen icon background to black -->
+        <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="S">@android:color/black</item>
         <!-- Customize your theme here. -->
     </style>
 </resources>
