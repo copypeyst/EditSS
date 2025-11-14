@@ -412,8 +412,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         )
         onBitmapChanged?.invoke(bitmapChangeAction) // Push the BitmapChange to the ViewModel
 
-        // Clear the crop rectangle and update UI
+        // Clear the crop rectangle and reset zoom to default view (recenter)
         cropRect.setEmpty()
+        scaleFactor = 1.0f
+        translationX = 0f
+        translationY = 0f
         updateImageMatrix()
         invalidate()
         onCropApplied?.invoke(baseBitmap!!)
