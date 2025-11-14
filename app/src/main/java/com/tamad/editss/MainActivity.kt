@@ -332,6 +332,8 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Keep drawing view visible for cropping
             drawingView.setToolType(CanvasView.ToolType.CROP) // Set crop mode
+            // Also set a default crop mode to ensure crop rectangle initializes
+            drawingView.setCropMode(CropMode.FREEFORM)
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
