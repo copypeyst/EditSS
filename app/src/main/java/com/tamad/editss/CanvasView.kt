@@ -170,10 +170,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
 
         // Re-initialize crop rectangle after image is set
-        // Simulate pressing the crop option button again when a new image is loaded
+        // Only if crop tool is currently selected and a crop mode is active
         post {
-            // Always re-apply the current crop mode to adjust the marquee to fit the new image
-            setCropMode(currentCropMode)
+            if (currentTool == ToolType.CROP && isCropModeActive) {
+                setCropMode(currentCropMode)
+            }
         }
     }
 
