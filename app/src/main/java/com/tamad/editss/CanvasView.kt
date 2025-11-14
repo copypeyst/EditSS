@@ -239,7 +239,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
         if (isSketchMode && action.associatedStroke != null) {
-            undoneSketchSt-rokes.add(action.associatedStroke)
+            undoneSketchStrokes.add(action.associatedStroke)
             sketchStrokes.remove(action.associatedStroke)
         }
 
