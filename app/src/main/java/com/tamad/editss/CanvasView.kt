@@ -686,19 +686,23 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             
             val action = currentDrawingTool.onTouchEvent(event, paint)
             action?.let {
-                // In both sketch and imported modes, merge stroke into bitmap for undo/redo
                 val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                mergeDrawingStrokeIntoBitmap(action)
-
                 if (isSketchMode) {
-                    // In sketch mode, also store strokes separately for transparency support
+                    // In sketch mode, store strokes separately for transparency support
                     sketchStrokes.add(action)
+                    mergeDrawingStrokeIntoBitmap(action) // Merge into bitmap for undo/redo
+                } else {
+                    // In imported/captured image mode, use original behavior
+                    mergeDrawingStrokeIntoBitmap(action)
                 }
 
-                onBitmapChanged?.invoke(EditAction.BitmapChange(
-                    previousBitmap = bitmapBeforeDrawing ?: return@let,
-                    newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-                ))
+                // Centralized bitmap change invocation
+                if (bitmapBeforeDrawing != null) {
+                    onBitmapChanged?.invoke(EditAction.BitmapChange(
+                        previousBitmap = bitmapBeforeDrawing,
+                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                    ))
+                }
             }
             invalidate()
             return true
