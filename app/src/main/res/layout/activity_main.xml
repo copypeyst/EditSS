@@ -197,15 +197,15 @@
                 android:orientation="horizontal"
                 android:gravity="center"
                 android:layout_marginBottom="0dp"
-                android:paddingStart="8dp"
-                android:paddingEnd="0dp"
-                android:layout_marginTop="4dp">
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:layout_marginTop="2dp">
 
                 <FrameLayout
                     android:id="@+id/color_red_container"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_marginEnd="8dp">
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="5dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -222,9 +222,9 @@
 
                 <FrameLayout
                     android:id="@+id/color_green_container"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_marginEnd="8dp">
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="5dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -241,9 +241,9 @@
 
                 <FrameLayout
                     android:id="@+id/color_blue_container"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_marginEnd="8dp">
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="5dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -260,9 +260,9 @@
 
                 <FrameLayout
                     android:id="@+id/color_yellow_container"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_marginEnd="8dp">
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="5dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -279,9 +279,9 @@
 
                 <FrameLayout
                     android:id="@+id/color_orange_container"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_marginEnd="8dp">
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="5dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -298,9 +298,9 @@
 
                 <FrameLayout
                     android:id="@+id/color_pink_container"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_marginEnd="8dp">
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="5dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -317,9 +317,9 @@
 
                 <FrameLayout
                     android:id="@+id/color_black_container"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_marginEnd="8dp">
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="5dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -336,8 +336,8 @@
 
                 <FrameLayout
                     android:id="@+id/color_white_container"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp">
+                    android:layout_width="24dp"
+                    android:layout_height="24dp">
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -355,10 +355,10 @@
             </LinearLayout>
 
             <!-- Size/Opacity Sliders -->
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/size" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
-            <SeekBar android:id="@+id/draw_size_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="0dp"/>
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/opacity" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp"/>
-            <SeekBar android:id="@+id/draw_opacity_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="0dp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/size" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp" android:layout_marginTop="0dp"/>
+            <SeekBar android:id="@+id/draw_size_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="0dp" android:layout_marginBottom="0dp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/opacity" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp" android:layout_marginTop="0dp"/>
+            <SeekBar android:id="@+id/draw_opacity_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="0dp" android:layout_marginBottom="0dp"/>
 
         </LinearLayout>
 
