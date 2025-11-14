@@ -41,6 +41,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
+            // Only allow scaling if there are multiple touch points
+            if (detector.focusedPointersCount < 2) {
+                return false
+            }
+            
             scaleFactor *= detector.scaleFactor
             scaleFactor = scaleFactor.coerceIn(1.0f, 5.0f) // Limit zoom out to 1.0x and zoom in to 5.0x
 
@@ -58,6 +63,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
 
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            // Only allow scaling to begin if there are multiple touch points
+            if (detector.focusedPointersCount < 2) {
+                return false
+            }
+            
             isZooming = true
             lastFocusX = detector.focusX
             lastFocusY = detector.focusY
