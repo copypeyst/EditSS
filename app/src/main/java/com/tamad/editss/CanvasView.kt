@@ -32,8 +32,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val imageBounds = RectF()
 
     private var scaleFactor = 1.0f
-    private var lastFocusX = 0f
-    private var lastFocusY = 0f
+    private var lastFocusX = 0f // For multi-touch panning
+    private var lastFocusY = 0f // For multi-touch panning
     private var translationX = 0f
     private var translationY = 0f
     private var isZooming = false
@@ -48,17 +48,29 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 return false
             }
             
+            val oldScaleFactor = scaleFactor
             scaleFactor *= detector.scaleFactor
             scaleFactor = scaleFactor.coerceIn(1.0f, 5.0f) // Limit zoom out to 1.0x and zoom in to 5.0x
 
-            // Pan while zooming
-            val focusX = detector.focusX
-            val focusY = detector.focusY
-            translationX += focusX - lastFocusX
-            translationY += focusY - lastFocusY
-            lastFocusX = focusX
-            lastFocusY = focusY
+            // Transform focus point to image coordinates to anchor zoom properly
+            val inverseMatrix = Matrix()
+            imageMatrix.invert(inverseMatrix)
+            val focusPoint = floatArrayOf(detector.focusX, detector.focusY)
+            val imagePoint = floatArrayOf(0f, 0f)
+            inverseMatrix.mapPoints(imagePoint, focusPoint)
 
+            // Update image matrix with new scale
+            updateImageMatrix()
+
+            // Transform back to screen coordinates to find where the image point should be
+            val screenPoint = floatArrayOf(0f, 0f)
+            imageMatrix.mapPoints(screenPoint, imagePoint)
+
+            // Adjust translation so the image point stays under the focus
+            translationX += detector.focusX - screenPoint[0]
+            translationY += detector.focusY - screenPoint[1]
+
+            // Update image matrix with adjusted translation
             updateImageMatrix()
             invalidate()
             return true
@@ -71,8 +83,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
             
             isZooming = true
-            lastFocusX = detector.focusX
-            lastFocusY = detector.focusY
             return true
         }
 
@@ -86,8 +96,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 updateImageMatrix()
                 invalidate()
             }
-            lastFocusX = 0f
-            lastFocusY = 0f
         }
     })
 
