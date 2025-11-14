@@ -159,7 +159,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         // Re-initialize crop rectangle after image is set
         post {
-            if (currentTool == ToolType.CROP) {
+            if (currentTool == ToolType.CROP || isCropModeActive) {
                 initializeDefaultCropRect()
             }
         }
