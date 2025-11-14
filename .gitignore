@@ -42,6 +42,7 @@ LICENSE
 preview.html
 GitHubActions.md
 .kilocode/
+.kilocodemodes/
 platform-tools/
 .claude/
 screenshots/
