@@ -92,7 +92,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     // Track drawing strokes for sketch mode transparency support
     private val sketchStrokes = mutableListOf<DrawingAction>()
-    private val undoneSketchStrokes = mutableListOf<DrawingAction>()
     private var isSketchMode = false // Track if we're in sketch mode (no imported/captured image)
 
     // Gesture detection - REMOVED scale detector for crop mode
@@ -237,24 +236,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun handleBitmapChangeUndo(action: EditAction.BitmapChange) {
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-
-        if (isSketchMode && action.associatedStroke != null) {
-            undoneSketchStrokes.add(action.associatedStroke)
-            sketchStrokes.remove(action.associatedStroke)
-        }
-
         updateImageMatrix()
         invalidate()
     }
 
     fun handleBitmapChangeRedo(action: EditAction.BitmapChange) {
         baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-
-        if (isSketchMode && action.associatedStroke != null) {
-            sketchStrokes.add(action.associatedStroke)
-            undoneSketchStrokes.remove(action.associatedStroke)
-        }
-
         updateImageMatrix()
         invalidate()
     }
@@ -565,6 +552,23 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             canvas.drawBitmap(it, imageMatrix, imagePaint)
         }
 
+        // Render sketch strokes if in sketch mode
+        if (isSketchMode) {
+            val paint = Paint().apply {
+                isAntiAlias = true
+                style = Paint.Style.STROKE
+                strokeJoin = Paint.Join.ROUND
+                strokeCap = Paint.Cap.ROUND
+            }
+            
+            for (stroke in sketchStrokes) {
+                paint.color = stroke.paint.color
+                paint.strokeWidth = stroke.paint.strokeWidth
+                paint.alpha = stroke.paint.alpha
+                canvas.drawPath(stroke.path, paint)
+            }
+        }
+
         currentDrawingTool.onDraw(canvas, paint)
 
         // Draw crop overlay if in crop mode
@@ -674,20 +678,31 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
 
         if (currentTool == ToolType.DRAW) {
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> isDrawing = true
+                MotionEvent.ACTION_UP -> isDrawing = false
+                MotionEvent.ACTION_CANCEL -> isDrawing = false
+            }
+            
             val action = currentDrawingTool.onTouchEvent(event, paint)
             action?.let {
-                val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
                 if (isSketchMode) {
+                    // In sketch mode, store strokes separately for transparency support
                     sketchStrokes.add(action)
-                    undoneSketchStrokes.clear() // Clear redo stack on new action
-                }
-                mergeDrawingStrokeIntoBitmap(action)
-
-                if (bitmapBeforeDrawing != null) {
+                    
+                    // Save bitmap state for undo/redo (background changes)
+                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
                     onBitmapChanged?.invoke(EditAction.BitmapChange(
-                        previousBitmap = bitmapBeforeDrawing,
-                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true),
-                        associatedStroke = if (isSketchMode) action else null
+                        previousBitmap = bitmapBeforeDrawing ?: return@let,
+                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+                    ))
+                } else {
+                    // In imported/captured image mode, use original behavior
+                    val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                    mergeDrawingStrokeIntoBitmap(action)
+                    onBitmapChanged?.invoke(EditAction.BitmapChange(
+                        previousBitmap = bitmapBeforeDrawing ?: return@let,
+                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
                     ))
                 }
             }
