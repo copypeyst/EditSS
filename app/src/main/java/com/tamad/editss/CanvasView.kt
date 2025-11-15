@@ -474,21 +474,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
-
-        if (isSketchMode) {
-            val transformationMatrix = Matrix()
-            transformationMatrix.postConcat(inverseMatrix)
-            transformationMatrix.postTranslate(-left, -top)
-
-            val transformedStrokes = mutableListOf<DrawingAction>()
-            for (stroke in sketchStrokes) {
-                val newPath = Path()
-                stroke.path.transform(transformationMatrix, newPath)
-                transformedStrokes.add(DrawingAction(newPath, stroke.paint))
-            }
-            sketchStrokes.clear()
-            sketchStrokes.addAll(transformedStrokes)
-        }
         
         // Create ONLY a BitmapChange action for clean undo/redo - no separate CropAction
         val bitmapChangeAction = EditAction.BitmapChange(
@@ -532,6 +517,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val whiteBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(whiteBitmap)
             canvas.drawColor(Color.WHITE)
+            canvas.concat(imageMatrix)
             for (stroke in sketchStrokes) {
                 canvas.drawPath(stroke.path, stroke.paint)
             }
@@ -545,6 +531,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             if (baseBitmap == null) return null
             val transparentBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(transparentBitmap)
+            canvas.concat(imageMatrix)
             for (stroke in sketchStrokes) {
                 canvas.drawPath(stroke.path, stroke.paint)
             }
@@ -555,31 +542,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     fun getTransparentDrawing(): Bitmap? {
         if (isSketchMode) {
-            // Create transparent bitmap and render only strokes
-            baseBitmap?.let { originalBitmap ->
-                val transparentBitmap = Bitmap.createBitmap(
-                    originalBitmap.width,
-                    originalBitmap.height,
-                    Bitmap.Config.ARGB_8888
-                )
-                val canvas = Canvas(transparentBitmap)
-                val paint = Paint()
-                
-                // Render all sketch strokes
-                for (stroke in sketchStrokes) {
-                    paint.color = stroke.paint.color
-                    paint.strokeWidth = stroke.paint.strokeWidth
-                    paint.alpha = stroke.paint.alpha
-                    paint.style = stroke.paint.style
-                    paint.strokeJoin = stroke.paint.strokeJoin
-                    paint.strokeCap = stroke.paint.strokeCap
-                    paint.isAntiAlias = stroke.paint.isAntiAlias
-                    
-                    canvas.drawPath(stroke.path, paint)
-                }
-                
-                return transparentBitmap
-            }
+            return getDrawingOnTransparent()
         }
         // Non-sketch mode: use original method
         return getDrawingOnTransparent()
@@ -587,34 +550,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     fun getSketchDrawingOnWhite(): Bitmap? {
         if (isSketchMode) {
-            // Create white bitmap and render strokes on top
-            baseBitmap?.let { originalBitmap ->
-                val whiteBitmap = Bitmap.createBitmap(
-                    originalBitmap.width,
-                    originalBitmap.height,
-                    Bitmap.Config.ARGB_8888
-                )
-                val canvas = Canvas(whiteBitmap)
-                val paint = Paint()
-                
-                // Fill with white background
-                canvas.drawColor(Color.WHITE)
-                
-                // Render all sketch strokes
-                for (stroke in sketchStrokes) {
-                    paint.color = stroke.paint.color
-                    paint.strokeWidth = stroke.paint.strokeWidth
-                    paint.alpha = stroke.paint.alpha
-                    paint.style = stroke.paint.style
-                    paint.strokeJoin = stroke.paint.strokeJoin
-                    paint.strokeCap = stroke.paint.strokeCap
-                    paint.isAntiAlias = stroke.paint.isAntiAlias
-                    
-                    canvas.drawPath(stroke.path, paint)
-                }
-                
-                return whiteBitmap
-            }
+            return getDrawing()
         }
         // Non-sketch mode: use original method
         return getDrawing()
@@ -684,9 +620,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
 
         if (isSketchMode) {
+            canvas.save()
+            canvas.concat(imageMatrix)
             for (stroke in sketchStrokes) {
                 canvas.drawPath(stroke.path, stroke.paint)
             }
+            canvas.restore()
         }
 
         currentDrawingTool.onDraw(canvas, paint)
