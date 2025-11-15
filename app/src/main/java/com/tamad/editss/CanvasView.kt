@@ -441,6 +441,48 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         clampCropRectToVisibleImage()
     }
 
+    private fun clampCropRectToBoundsPreservingAspect() {
+        // Special clamping for moving operations that preserves aspect ratio
+        if (imageBounds.width() <= 0) return
+
+        val visibleBounds = getVisibleImageBounds()
+        val currentWidth = cropRect.width()
+        val currentHeight = cropRect.height()
+        
+        // Calculate the maximum allowed dimensions that preserve aspect ratio
+        var maxWidth = visibleBounds.width()
+        var maxHeight = visibleBounds.height()
+        
+        // Determine aspect ratio
+        val aspectRatio = if (currentHeight > 0) currentWidth / currentHeight else 1f
+        
+        // Adjust max dimensions to maintain aspect ratio
+        if (maxWidth / maxHeight > aspectRatio) {
+            // Width is the constraining factor
+            maxWidth = maxHeight * aspectRatio
+        } else {
+            // Height is the constraining factor
+            maxHeight = maxWidth / aspectRatio
+        }
+        
+        // Center the rectangle in the visible bounds and clamp
+        val centerX = (visibleBounds.left + visibleBounds.right) / 2
+        val centerY = (visibleBounds.top + visibleBounds.bottom) / 2
+        
+        var left = centerX - maxWidth / 2
+        var top = centerY - maxHeight / 2
+        var right = centerX + maxWidth / 2
+        var bottom = centerY + maxHeight / 2
+        
+        // Clamp to visible bounds
+        left = left.coerceIn(visibleBounds.left, visibleBounds.right - maxWidth)
+        top = top.coerceIn(visibleBounds.top, visibleBounds.bottom - maxHeight)
+        right = left + maxWidth
+        bottom = top + maxHeight
+        
+        cropRect.set(left, top, right, bottom)
+    }
+
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
@@ -887,8 +929,23 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                         cropRect.right = cropStartRight + dx
                         cropRect.bottom = cropStartBottom + dy
     
-                        // Final safety clamp to both image and screen boundaries
-                        clampCropRectToBounds()
+                        // Apply aspect-ratio-preserving clamping for crop modes with fixed ratios
+                        var aspectRatio = 0f
+                        when (currentCropMode) {
+                            CropMode.SQUARE -> aspectRatio = 1f
+                            CropMode.PORTRAIT -> aspectRatio = 9f / 16f
+                            CropMode.LANDSCAPE -> aspectRatio = 16f / 9f
+                            CropMode.FREEFORM -> { /* No aspect ratio constraint */ }
+                        }
+                        
+                        if (aspectRatio > 0) {
+                            // Use aspect-ratio-preserving clamping
+                            clampCropRectToBoundsPreservingAspect()
+                        } else {
+                            // Use standard clamping for freeform mode
+                            clampCropRectToBounds()
+                        }
+
                         invalidate()
                     } else if (isCropping) {
                         updateCropRect(x, y)
