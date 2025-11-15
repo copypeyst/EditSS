@@ -196,7 +196,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (!isSketch) {
             // Clear sketch strokes when leaving sketch mode
             sketchStrokes.clear()
-            undoneSketchStrokes.clear()
         }
         invalidate()
     }
@@ -474,26 +473,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             (bottom - top).toInt()
         )
 
-        // If in sketch mode, we need to transform the strokes to match the new cropped canvas
-        if (isSketchMode) {
-            val dx = -left
-            val dy = -top
-            val transformMatrix = Matrix()
-            transformMatrix.postTranslate(dx, dy)
-
-            val newStrokes = mutableListOf<DrawingAction>()
-            for (action in sketchStrokes) {
-                val newPath = Path()
-                action.path.transform(transformMatrix, newPath)
-                newStrokes.add(action.copy(path = newPath))
-            }
-            sketchStrokes.clear()
-            sketchStrokes.addAll(newStrokes)
-
-            // Redo stack for strokes becomes invalid after this transformation
-            undoneSketchStrokes.clear()
-        }
-
         // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
@@ -545,36 +524,31 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     fun getTransparentDrawing(): Bitmap? {
         if (isSketchMode) {
-            // For sketch mode, create bitmap with the dimensions of the current baseBitmap,
-            // which reflects any crops that have been applied.
-            val bitmapWidth = baseBitmap?.width ?: width.coerceAtLeast(1)
-            val bitmapHeight = baseBitmap?.height ?: height.coerceAtLeast(1)
-            
-            val transparentBitmap = Bitmap.createBitmap(
-                bitmapWidth,
-                bitmapHeight,
-                Bitmap.Config.ARGB_8888
-            )
-            val canvas = Canvas(transparentBitmap)
-            val paint = Paint()
-            
-            // The strokes are now relative to the top-left of the cropped bitmap.
-            canvas.setMatrix(Matrix())
-            
-            // Render all sketch strokes at their new, transformed coordinates
-            for (stroke in sketchStrokes) {
-                paint.color = stroke.paint.color
-                paint.strokeWidth = stroke.paint.strokeWidth
-                paint.alpha = stroke.paint.alpha
-                paint.style = stroke.paint.style
-                paint.strokeJoin = stroke.paint.strokeJoin
-                paint.strokeCap = stroke.paint.strokeCap
-                paint.isAntiAlias = stroke.paint.isAntiAlias
+            // Create transparent bitmap and render only strokes
+            baseBitmap?.let { originalBitmap ->
+                val transparentBitmap = Bitmap.createBitmap(
+                    originalBitmap.width,
+                    originalBitmap.height,
+                    Bitmap.Config.ARGB_8888
+                )
+                val canvas = Canvas(transparentBitmap)
+                val paint = Paint()
                 
-                canvas.drawPath(stroke.path, paint)
+                // Render all sketch strokes
+                for (stroke in sketchStrokes) {
+                    paint.color = stroke.paint.color
+                    paint.strokeWidth = stroke.paint.strokeWidth
+                    paint.alpha = stroke.paint.alpha
+                    paint.style = stroke.paint.style
+                    paint.strokeJoin = stroke.paint.strokeJoin
+                    paint.strokeCap = stroke.paint.strokeCap
+                    paint.isAntiAlias = stroke.paint.isAntiAlias
+                    
+                    canvas.drawPath(stroke.path, paint)
+                }
+                
+                return transparentBitmap
             }
-            
-            return transparentBitmap
         }
         // Non-sketch mode: use original method
         return getDrawingOnTransparent()
@@ -582,39 +556,34 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     fun getSketchDrawingOnWhite(): Bitmap? {
         if (isSketchMode) {
-            // For sketch mode, create bitmap with the dimensions of the current baseBitmap,
-            // which reflects any crops that have been applied.
-            val bitmapWidth = baseBitmap?.width ?: width.coerceAtLeast(1)
-            val bitmapHeight = baseBitmap?.height ?: height.coerceAtLeast(1)
-            
-            val whiteBitmap = Bitmap.createBitmap(
-                bitmapWidth,
-                bitmapHeight,
-                Bitmap.Config.ARGB_8888
-            )
-            val canvas = Canvas(whiteBitmap)
-            val paint = Paint()
-            
-            // Fill with white background
-            canvas.drawColor(Color.WHITE)
-            
-            // The strokes are now relative to the top-left of the cropped bitmap.
-            canvas.setMatrix(Matrix())
-            
-            // Render all sketch strokes at their new, transformed coordinates
-            for (stroke in sketchStrokes) {
-                paint.color = stroke.paint.color
-                paint.strokeWidth = stroke.paint.strokeWidth
-                paint.alpha = stroke.paint.alpha
-                paint.style = stroke.paint.style
-                paint.strokeJoin = stroke.paint.strokeJoin
-                paint.strokeCap = stroke.paint.strokeCap
-                paint.isAntiAlias = stroke.paint.isAntiAlias
+            // Create white bitmap and render strokes on top
+            baseBitmap?.let { originalBitmap ->
+                val whiteBitmap = Bitmap.createBitmap(
+                    originalBitmap.width,
+                    originalBitmap.height,
+                    Bitmap.Config.ARGB_8888
+                )
+                val canvas = Canvas(whiteBitmap)
+                val paint = Paint()
                 
-                canvas.drawPath(stroke.path, paint)
+                // Fill with white background
+                canvas.drawColor(Color.WHITE)
+                
+                // Render all sketch strokes
+                for (stroke in sketchStrokes) {
+                    paint.color = stroke.paint.color
+                    paint.strokeWidth = stroke.paint.strokeWidth
+                    paint.alpha = stroke.paint.alpha
+                    paint.style = stroke.paint.style
+                    paint.strokeJoin = stroke.paint.strokeJoin
+                    paint.strokeCap = stroke.paint.strokeCap
+                    paint.isAntiAlias = stroke.paint.isAntiAlias
+                    
+                    canvas.drawPath(stroke.path, paint)
+                }
+                
+                return whiteBitmap
             }
-            
-            return whiteBitmap
         }
         // Non-sketch mode: use original method
         return getDrawing()
@@ -652,6 +621,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         imageMatrix.invert(inverseMatrix)
         canvas.concat(inverseMatrix)
         canvas.drawPath(action.path, action.paint)
+        
+        // Paths are cleared immediately after merging into bitmap (no need to track separately)
         
         invalidate()
     }
@@ -808,54 +779,27 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         if (currentTool == ToolType.DRAW) {
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    isDrawing = true
-                    // Ensure matrix is up-to-date before collecting stroke in sketch mode
-                    if (isSketchMode) {
-                        updateImageMatrix()
-                    }
-                }
+                MotionEvent.ACTION_DOWN -> isDrawing = true
                 MotionEvent.ACTION_UP -> isDrawing = false
                 MotionEvent.ACTION_CANCEL -> isDrawing = false
             }
             
-            val originalAction = currentDrawingTool.onTouchEvent(event, paint)
-            originalAction?.let {
+            val action = currentDrawingTool.onTouchEvent(event, paint)
+            action?.let {
                 val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                
                 if (isSketchMode) {
-                    // The new path is in screen coordinates. It needs to be transformed
-                    // to the bitmap's coordinate space before being stored.
-                    val transformedPath = Path()
-                    val inverseMatrix = Matrix()
-                    imageMatrix.invert(inverseMatrix)
-                    originalAction.path.transform(inverseMatrix, transformedPath)
-                    
-                    val transformedAction = originalAction.copy(path = transformedPath)
-                    sketchStrokes.add(transformedAction)
+                    sketchStrokes.add(action)
                     undoneSketchStrokes.clear() // Clear redo stack on new action
-
-                    // For undo, we need to associate it with the action that was actually added
-                    // to sketchStrokes, so it can be found and removed.
-                    if (bitmapBeforeDrawing != null) {
-                        onBitmapChanged?.invoke(EditAction.BitmapChange(
-                            previousBitmap = bitmapBeforeDrawing,
-                            newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true),
-                            associatedStroke = transformedAction
-                        ))
-                    }
-                } else {
-                     if (bitmapBeforeDrawing != null) {
-                        onBitmapChanged?.invoke(EditAction.BitmapChange(
-                            previousBitmap = bitmapBeforeDrawing,
-                            newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true),
-                            associatedStroke = null
-                        ))
-                    }
                 }
+                mergeDrawingStrokeIntoBitmap(action)
 
-                // This merge uses the original, untransformed path and applies the matrix internally
-                mergeDrawingStrokeIntoBitmap(originalAction)
+                if (bitmapBeforeDrawing != null) {
+                    onBitmapChanged?.invoke(EditAction.BitmapChange(
+                        previousBitmap = bitmapBeforeDrawing,
+                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true),
+                        associatedStroke = if (isSketchMode) action else null
+                    ))
+                }
             }
             invalidate()
             return true
