@@ -925,18 +925,27 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
         if (targetAspectRatio <= 0f) return
 
+        val visibleBounds = getVisibleImageBounds()
+        val isInsideBounds = visibleBounds.contains(cropRect)
+
         // Check if the current aspect ratio is already correct (within a small tolerance)
         val currentWidth = cropRect.width()
         val currentHeight = cropRect.height()
+        var isAspectRatioCorrect = false
         if (currentWidth > 0 && currentHeight > 0) {
             val currentRatio = currentWidth / currentHeight
             if (Math.abs(currentRatio - targetAspectRatio) < 0.01f) {
-                return // Aspect ratio is already correct, do nothing.
+                isAspectRatioCorrect = true
             }
         }
 
-        // If we are here, the aspect ratio is broken. Fix it by resizing to max possible.
-        val visibleBounds = getVisibleImageBounds()
+        // If the aspect ratio is correct AND the rect is fully inside the visible bounds, do nothing.
+        if (isAspectRatioCorrect && isInsideBounds) {
+            return
+        }
+
+        // If we are here, the rect is either out of bounds or has the wrong aspect ratio.
+        // Fix it by resizing to max possible while respecting the center.
         if (visibleBounds.width() <= 0 || visibleBounds.height() <= 0) return
 
         // Coerce center to be within the visible bounds, so we don't try to fix a rect that's completely off-screen
