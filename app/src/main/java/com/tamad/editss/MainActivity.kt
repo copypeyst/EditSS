@@ -335,7 +335,15 @@ class MainActivity : AppCompatActivity() {
             
             // Initialize crop mode if not already active - this ensures marquee refreshes on new image
             if (!drawingView.isCropModeActive()) {
-                drawingView.setCropMode(currentCropMode ?: CropMode.FREEFORM)
+                // Determine crop mode from UI selection
+                val selectedCropMode = when (currentCropMode?.id) {
+                    R.id.crop_mode_freeform -> CropMode.FREEFORM
+                    R.id.crop_mode_square -> CropMode.SQUARE
+                    R.id.crop_mode_portrait -> CropMode.PORTRAIT
+                    R.id.crop_mode_landscape -> CropMode.LANDSCAPE
+                    else -> CropMode.FREEFORM // Default to freeform
+                }
+                drawingView.setCropMode(selectedCropMode)
             }
             
             currentActiveTool?.isSelected = false
