@@ -332,23 +332,14 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Keep drawing view visible for cropping
             drawingView.setToolType(CanvasView.ToolType.CROP) // Set crop mode
-            
-            // Initialize crop mode if not already active - this ensures marquee refreshes on new image
-            if (!drawingView.isCropModeActive()) {
-                // Determine crop mode from UI selection
-                val selectedCropMode = when (currentCropMode?.id) {
-                    R.id.crop_mode_freeform -> CropMode.FREEFORM
-                    R.id.crop_mode_square -> CropMode.SQUARE
-                    R.id.crop_mode_portrait -> CropMode.PORTRAIT
-                    R.id.crop_mode_landscape -> CropMode.LANDSCAPE
-                    else -> CropMode.FREEFORM // Default to freeform
-                }
-                drawingView.setCropMode(selectedCropMode)
-            }
-            
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
+            
+            // CRITICAL: If we have a stored crop mode, reapply it to show the marquee
+            if (currentCropMode != null) {
+                drawingView.setCropMode(currentCropMode!!)
+            }
         }
 
         toolAdjust.setOnClickListener {
@@ -497,9 +488,8 @@ class MainActivity : AppCompatActivity() {
         buttonCropApply.setOnClickListener {
             val croppedBitmap = drawingView.applyCrop()
             if (croppedBitmap != null) {
-                // Image was cropped successfully - clear crop mode selection
+                // Image was cropped successfully - keep crop mode selection for future use
                 currentCropMode?.isSelected = false
-                currentCropMode = null
                 drawingView.setCropModeInactive()
                 // Toast removed: "Image cropped successfully" - UX improvement
             } else {
@@ -510,19 +500,16 @@ class MainActivity : AppCompatActivity() {
         buttonCropCancel.setOnClickListener {
             drawingView.cancelCrop()
             currentCropMode?.isSelected = false
-            currentCropMode = null
             drawingView.setCropModeInactive()
         }
 
         // Set callbacks for crop operations to update UI
         drawingView.onCropApplied = { _ ->
             currentCropMode?.isSelected = false
-            currentCropMode = null
         }
 
         drawingView.onCropCanceled = {
             currentCropMode?.isSelected = false
-            currentCropMode = null
         }
 
         // Initialize Adjust Options

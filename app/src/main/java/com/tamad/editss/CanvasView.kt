@@ -285,10 +285,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun setToolType(toolType: ToolType) {
         this.currentTool = toolType
         if (toolType == ToolType.CROP) {
-            // Only initialize crop rect if a crop mode is already active
-            if (isCropModeActive) {
-                initializeDefaultCropRect()
-            }
+            // Don't auto-initialize here - let the MainActivity handler decide
+            // based on whether there's a stored crop mode to reapply
         } else {
             // When leaving crop mode, reset crop mode active state
             isCropModeActive = false
@@ -312,10 +310,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             cropRect.setEmpty()
         }
         invalidate()
-    }
-
-    fun isCropModeActive(): Boolean {
-        return this.isCropModeActive
     }
 
     private fun resetCropRect() {
