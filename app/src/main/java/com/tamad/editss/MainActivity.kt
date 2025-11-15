@@ -453,10 +453,8 @@ class MainActivity : AppCompatActivity() {
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
             drawingView.setCropMode(CropMode.FREEFORM)
-            post {
-                if (drawingView.currentTool == CanvasView.ToolType.CROP && drawingView.isCropModeActive) {
-                    drawingView.setCropMode(CropMode.FREEFORM)
-                }
+            drawingView.post {
+                drawingView.setCropMode(CropMode.FREEFORM)
             }
         }
         cropModeSquare.setOnClickListener {
@@ -464,10 +462,8 @@ class MainActivity : AppCompatActivity() {
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
             drawingView.setCropMode(CropMode.SQUARE)
-            post {
-                if (drawingView.currentTool == CanvasView.ToolType.CROP && drawingView.isCropModeActive) {
-                    drawingView.setCropMode(CropMode.SQUARE)
-                }
+            drawingView.post {
+                drawingView.setCropMode(CropMode.SQUARE)
             }
         }
         cropModePortrait.setOnClickListener {
@@ -475,10 +471,8 @@ class MainActivity : AppCompatActivity() {
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
             drawingView.setCropMode(CropMode.PORTRAIT)
-            post {
-                if (drawingView.currentTool == CanvasView.ToolType.CROP && drawingView.isCropModeActive) {
-                    drawingView.setCropMode(CropMode.PORTRAIT)
-                }
+            drawingView.post {
+                drawingView.setCropMode(CropMode.PORTRAIT)
             }
         }
         cropModeLandscape.setOnClickListener {
@@ -486,10 +480,8 @@ class MainActivity : AppCompatActivity() {
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
             drawingView.setCropMode(CropMode.LANDSCAPE)
-            post {
-                if (drawingView.currentTool == CanvasView.ToolType.CROP && drawingView.isCropModeActive) {
-                    drawingView.setCropMode(CropMode.LANDSCAPE)
-                }
+            drawingView.post {
+                drawingView.setCropMode(CropMode.LANDSCAPE)
             }
         }
 
