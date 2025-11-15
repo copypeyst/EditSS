@@ -369,13 +369,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    private fun clampCropRectToImage() {
+    private fun getVisibleImageBounds(): RectF {
+        // Calculate the actual visible bounds of the image in screen coordinates
+        val visibleLeft = Math.max(imageBounds.left, 0f)
+        val visibleTop = Math.max(imageBounds.top, 0f)
+        val visibleRight = Math.min(imageBounds.right, width.toFloat())
+        val visibleBottom = Math.min(imageBounds.bottom, height.toFloat())
+        
+        return RectF(visibleLeft, visibleTop, visibleRight, visibleBottom)
+    }
+
+    private fun clampCropRectToVisibleImage() {
         if (imageBounds.width() <= 0) return
 
-        cropRect.left = cropRect.left.coerceIn(imageBounds.left, imageBounds.right)
-        cropRect.top = cropRect.top.coerceIn(imageBounds.top, imageBounds.bottom)
-        cropRect.right = cropRect.right.coerceIn(imageBounds.left, imageBounds.right)
-        cropRect.bottom = cropRect.bottom.coerceIn(imageBounds.top, imageBounds.bottom)
+        val visibleBounds = getVisibleImageBounds()
+        
+        cropRect.left = cropRect.left.coerceIn(visibleBounds.left, visibleBounds.right)
+        cropRect.top = cropRect.top.coerceIn(visibleBounds.top, visibleBounds.bottom)
+        cropRect.right = cropRect.right.coerceIn(visibleBounds.left, visibleBounds.right)
+        cropRect.bottom = cropRect.bottom.coerceIn(visibleBounds.top, visibleBounds.bottom)
     }
 
     private fun clampCropRectToScreen() {
@@ -387,9 +399,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun clampCropRectToBounds() {
-        // Apply both image boundary and screen boundary constraints
-        clampCropRectToImage()
-        clampCropRectToScreen()
+        // Use the more sophisticated visible bounds constraint
+        clampCropRectToVisibleImage()
     }
 
     fun applyCrop(): Bitmap? {
@@ -815,32 +826,21 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                         val newRight = cropStartRight + dx
                         val newBottom = cropStartBottom + dy
     
-                        // Adjust dx and dy to prevent moving outside imageBounds
-                        if (newLeft < imageBounds.left) {
-                            dx = imageBounds.left - cropStartLeft
-                        }
-                        if (newTop < imageBounds.top) {
-                            dy = imageBounds.top - cropStartTop
-                        }
-                        if (newRight > imageBounds.right) {
-                            dx = imageBounds.right - cropStartRight
-                        }
-                        if (newBottom > imageBounds.bottom) {
-                            dy = imageBounds.bottom - cropStartBottom
-                        }
+                        // Get current visible bounds (intersection of image and screen)
+                        val visibleBounds = getVisibleImageBounds()
     
-                        // Also clamp to screen boundaries
-                        if (newLeft < 0f) {
-                            dx = -cropStartLeft
+                        // Adjust dx and dy to prevent moving outside visible image area
+                        if (newLeft < visibleBounds.left) {
+                            dx = visibleBounds.left - cropStartLeft
                         }
-                        if (newTop < 0f) {
-                            dy = -cropStartTop
+                        if (newTop < visibleBounds.top) {
+                            dy = visibleBounds.top - cropStartTop
                         }
-                        if (newRight > width.toFloat()) {
-                            dx = width.toFloat() - cropStartRight
+                        if (newRight > visibleBounds.right) {
+                            dx = visibleBounds.right - cropStartRight
                         }
-                        if (newBottom > height.toFloat()) {
-                            dy = height.toFloat() - cropStartBottom
+                        if (newBottom > visibleBounds.bottom) {
+                            dy = visibleBounds.bottom - cropStartBottom
                         }
     
                         // Apply the adjusted dx and dy
