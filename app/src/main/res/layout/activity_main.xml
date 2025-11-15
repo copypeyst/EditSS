@@ -519,7 +519,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:gravity="center_vertical"
             android:visibility="gone">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/brightness" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="10sp" android:layout_marginTop="-4dp"/>
             <SeekBar android:id="@+id/adjust_brightness_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="-4dp" android:layout_marginBottom="-4dp"/>
