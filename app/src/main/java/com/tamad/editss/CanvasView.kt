@@ -673,6 +673,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return true
         }
 
+        // Handle multi-touch: cancel crop rectangle manipulation if second touch is detected
+        if (event.pointerCount > 1 && currentTool == ToolType.CROP && (isMovingCropRect || isResizingCropRect)) {
+            // Cancel the current crop rectangle manipulation
+            isMovingCropRect = false
+            isResizingCropRect = false
+            resizeHandle = 0
+            invalidate()
+            return true
+        }
+
         if (isZooming || event.pointerCount > 1) {
             // Only allow panning when zoomed in (scaleFactor > 1.0f)
             if (scaleFactor > 1.0f) {
