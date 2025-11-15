@@ -364,8 +364,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             cropRect.right = centerX + width / 2
             cropRect.bottom = centerY + height / 2
 
-            // Ensure it's within image bounds
-            clampCropRectToImage()
+            // Ensure it's within both image and screen bounds
+            clampCropRectToBounds()
         }
     }
 
@@ -376,6 +376,20 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropRect.top = cropRect.top.coerceIn(imageBounds.top, imageBounds.bottom)
         cropRect.right = cropRect.right.coerceIn(imageBounds.left, imageBounds.right)
         cropRect.bottom = cropRect.bottom.coerceIn(imageBounds.top, imageBounds.bottom)
+    }
+
+    private fun clampCropRectToScreen() {
+        // Clamp to screen boundaries (0, 0, width, height)
+        cropRect.left = cropRect.left.coerceIn(0f, width.toFloat())
+        cropRect.top = cropRect.top.coerceIn(0f, height.toFloat())
+        cropRect.right = cropRect.right.coerceIn(0f, width.toFloat())
+        cropRect.bottom = cropRect.bottom.coerceIn(0f, height.toFloat())
+    }
+
+    private fun clampCropRectToBounds() {
+        // Apply both image boundary and screen boundary constraints
+        clampCropRectToImage()
+        clampCropRectToScreen()
     }
 
     fun applyCrop(): Bitmap? {
@@ -789,18 +803,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 if (currentTool == ToolType.CROP) {
                     if (isResizingCropRect) {
                         resizeCropRect(x, y)
-                        clampCropRectToImage()
+                        clampCropRectToBounds()
                         invalidate()
                     } else if (isMovingCropRect) {
                         var dx = x - cropStartX
                         var dy = y - cropStartY
-
+    
                         // Calculate potential new cropRect position
                         val newLeft = cropStartLeft + dx
                         val newTop = cropStartTop + dy
                         val newRight = cropStartRight + dx
                         val newBottom = cropStartBottom + dy
-
+    
                         // Adjust dx and dy to prevent moving outside imageBounds
                         if (newLeft < imageBounds.left) {
                             dx = imageBounds.left - cropStartLeft
@@ -814,18 +828,33 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                         if (newBottom > imageBounds.bottom) {
                             dy = imageBounds.bottom - cropStartBottom
                         }
-
+    
+                        // Also clamp to screen boundaries
+                        if (newLeft < 0f) {
+                            dx = -cropStartLeft
+                        }
+                        if (newTop < 0f) {
+                            dy = -cropStartTop
+                        }
+                        if (newRight > width.toFloat()) {
+                            dx = width.toFloat() - cropStartRight
+                        }
+                        if (newBottom > height.toFloat()) {
+                            dy = height.toFloat() - cropStartBottom
+                        }
+    
                         // Apply the adjusted dx and dy
                         cropRect.left = cropStartLeft + dx
                         cropRect.top = cropStartTop + dy
                         cropRect.right = cropStartRight + dx
                         cropRect.bottom = cropStartBottom + dy
-
-                        // No need to call clampCropRectToImage() here as we've already handled clamping during movement
+    
+                        // Final safety clamp to both image and screen boundaries
+                        clampCropRectToBounds()
                         invalidate()
                     } else if (isCropping) {
                         updateCropRect(x, y)
-                        clampCropRectToImage() // Add this line
+                        clampCropRectToBounds()
                         invalidate()
                     }
                 }
@@ -1001,13 +1030,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
 
-        // Final clamp to ensure it's within image bounds (should be mostly handled above, but as a safeguard)
-        newLeft = newLeft.coerceIn(imageBounds.left, imageBounds.right)
-        newTop = newTop.coerceIn(imageBounds.top, imageBounds.bottom)
-        newRight = newRight.coerceIn(imageBounds.left, imageBounds.right)
-        newBottom = newBottom.coerceIn(imageBounds.top, imageBounds.bottom)
-
+        // Set the new values first
         cropRect.set(newLeft, newTop, newRight, newBottom)
+        
+        // Final clamp to ensure it's within both image bounds and screen bounds
+        clampCropRectToBounds()
     }
 
     private fun updateCropRect(x: Float, y: Float) {
