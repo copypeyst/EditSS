@@ -444,49 +444,51 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
-        // Since drawings are immediately merged into bitmap, we can use baseBitmap directly
         val bitmapWithDrawings = baseBitmap ?: return null
-
-        // Store the state before the crop for the undo action.
         val previousBaseBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
 
-        // Map crop rectangle from screen coordinates to image coordinates.
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        
-        // Create crop rect in image space
-        val imageCropRect = RectF(cropRect)
-        inverseMatrix.mapRect(imageCropRect)
+        val left: Int
+        val top: Int
+        val right: Int
+        val bottom: Int
 
-        // Clamp to the bounds of the bitmap with drawings.
-        // Ensure coordinates are within valid bitmap dimensions
-        val left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat())
-        val top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat())
-        val right = imageCropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat())
-        val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat())
+        if (isSketchMode) {
+            // In sketch mode, crop rectangle is already in bitmap coordinates
+            left = cropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
+            top = cropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
+            right = cropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
+            bottom = cropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
+        } else {
+            // For imported images, map crop rectangle from screen to bitmap coordinates
+            val inverseMatrix = Matrix()
+            imageMatrix.invert(inverseMatrix)
+            val imageCropRect = RectF(cropRect)
+            inverseMatrix.mapRect(imageCropRect)
+
+            left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
+            top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
+            right = imageCropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
+            bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
+        }
 
         if (right <= left || bottom <= top) return null
 
-        // Perform the crop on the bitmap that includes the drawings.
         val croppedBitmap = Bitmap.createBitmap(
             bitmapWithDrawings,
-            left.toInt(),
-            top.toInt(),
-            (right - left).toInt(),
-            (bottom - top).toInt()
+            left,
+            top,
+            (right - left),
+            (bottom - top)
         )
 
-        // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
-        // Create ONLY a BitmapChange action for clean undo/redo - no separate CropAction
         val bitmapChangeAction = EditAction.BitmapChange(
             previousBitmap = previousBaseBitmap,
             newBitmap = baseBitmap!!
         )
-        onBitmapChanged?.invoke(bitmapChangeAction) // Push the BitmapChange to the ViewModel
+        onBitmapChanged?.invoke(bitmapChangeAction)
 
-        // Clear the crop rectangle and reset zoom to default view (recenter)
         cropRect.setEmpty()
         scaleFactor = 1.0f
         translationX = 0f
