@@ -441,48 +441,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         clampCropRectToVisibleImage()
     }
 
-    private fun clampCropRectToBoundsPreservingAspect() {
-        // Special clamping for moving operations that preserves aspect ratio
-        if (imageBounds.width() <= 0) return
-
-        val visibleBounds = getVisibleImageBounds()
-        val currentWidth = cropRect.width()
-        val currentHeight = cropRect.height()
-        
-        // Calculate the maximum allowed dimensions that preserve aspect ratio
-        var maxWidth = visibleBounds.width()
-        var maxHeight = visibleBounds.height()
-        
-        // Determine aspect ratio
-        val aspectRatio = if (currentHeight > 0) currentWidth / currentHeight else 1f
-        
-        // Adjust max dimensions to maintain aspect ratio
-        if (maxWidth / maxHeight > aspectRatio) {
-            // Width is the constraining factor
-            maxWidth = maxHeight * aspectRatio
-        } else {
-            // Height is the constraining factor
-            maxHeight = maxWidth / aspectRatio
-        }
-        
-        // Center the rectangle in the visible bounds and clamp
-        val centerX = (visibleBounds.left + visibleBounds.right) / 2
-        val centerY = (visibleBounds.top + visibleBounds.bottom) / 2
-        
-        var left = centerX - maxWidth / 2
-        var top = centerY - maxHeight / 2
-        var right = centerX + maxWidth / 2
-        var bottom = centerY + maxHeight / 2
-        
-        // Clamp to visible bounds
-        left = left.coerceIn(visibleBounds.left, visibleBounds.right - maxWidth)
-        top = top.coerceIn(visibleBounds.top, visibleBounds.bottom - maxHeight)
-        right = left + maxWidth
-        bottom = top + maxHeight
-        
-        cropRect.set(left, top, right, bottom)
-    }
-
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
@@ -900,52 +858,75 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                         var dx = x - cropStartX
                         var dy = y - cropStartY
     
-                        // Calculate potential new cropRect position
-                        val newLeft = cropStartLeft + dx
-                        val newTop = cropStartTop + dy
-                        val newRight = cropStartRight + dx
-                        val newBottom = cropStartBottom + dy
-    
                         // Get current visible bounds (intersection of image and screen)
                         val visibleBounds = getVisibleImageBounds()
     
-                        // Adjust dx and dy to prevent moving outside visible image area
-                        if (newLeft < visibleBounds.left) {
-                            dx = visibleBounds.left - cropStartLeft
-                        }
-                        if (newTop < visibleBounds.top) {
-                            dy = visibleBounds.top - cropStartTop
-                        }
-                        if (newRight > visibleBounds.right) {
-                            dx = visibleBounds.right - cropStartRight
-                        }
-                        if (newBottom > visibleBounds.bottom) {
-                            dy = visibleBounds.bottom - cropStartBottom
+                        // For non-freeform modes, we need to constrain movement to maintain aspect ratio
+                        if (currentCropMode != CropMode.FREEFORM) {
+                            val aspectRatio = when (currentCropMode) {
+                                CropMode.SQUARE -> 1f
+                                CropMode.PORTRAIT -> 9f / 16f
+                                CropMode.LANDSCAPE -> 16f / 9f
+                                else -> 0f
+                            }
+                            
+                            if (aspectRatio > 0) {
+                                val currentWidth = cropStartRight - cropStartLeft
+                                val currentHeight = cropStartBottom - cropStartTop
+                                val halfWidth = currentWidth / 2
+                                val halfHeight = currentHeight / 2
+                                val centerX = (cropStartLeft + cropStartRight) / 2
+                                val centerY = (cropStartTop + cropStartBottom) / 2
+                                
+                                // Calculate potential new center
+                                var newCenterX = centerX + dx
+                                var newCenterY = centerY + dy
+                                
+                                // Constrain the center to keep the rectangle within visible bounds
+                                // while maintaining the aspect ratio
+                                val maxX = visibleBounds.right - halfWidth
+                                val minX = visibleBounds.left + halfWidth
+                                val maxY = visibleBounds.bottom - halfHeight
+                                val minY = visibleBounds.top + halfHeight
+                                
+                                newCenterX = newCenterX.coerceIn(minX, maxX)
+                                newCenterY = newCenterY.coerceIn(minY, maxY)
+                                
+                                // Apply the constrained movement
+                                dx = newCenterX - centerX
+                                dy = newCenterY - centerY
+                            }
+                        } else {
+                            // For freeform mode, use the original bounds checking logic
+                            // Calculate potential new cropRect position
+                            val newLeft = cropStartLeft + dx
+                            val newTop = cropStartTop + dy
+                            val newRight = cropStartRight + dx
+                            val newBottom = cropStartBottom + dy
+    
+                            // Adjust dx and dy to prevent moving outside visible image area
+                            if (newLeft < visibleBounds.left) {
+                                dx = visibleBounds.left - cropStartLeft
+                            }
+                            if (newTop < visibleBounds.top) {
+                                dy = visibleBounds.top - cropStartTop
+                            }
+                            if (newRight > visibleBounds.right) {
+                                dx = visibleBounds.right - cropStartRight
+                            }
+                            if (newBottom > visibleBounds.bottom) {
+                                dy = visibleBounds.bottom - cropStartBottom
+                            }
                         }
     
-                        // Apply the adjusted dx and dy
+                        // Apply the movement
                         cropRect.left = cropStartLeft + dx
                         cropRect.top = cropStartTop + dy
                         cropRect.right = cropStartRight + dx
                         cropRect.bottom = cropStartBottom + dy
     
-                        // Apply aspect-ratio-preserving clamping for crop modes with fixed ratios
-                        var aspectRatio = 0f
-                        when (currentCropMode) {
-                            CropMode.SQUARE -> aspectRatio = 1f
-                            CropMode.PORTRAIT -> aspectRatio = 9f / 16f
-                            CropMode.LANDSCAPE -> aspectRatio = 16f / 9f
-                            CropMode.FREEFORM -> { /* No aspect ratio constraint */ }
-                        }
-                        
-                        if (aspectRatio > 0) {
-                            // Use aspect-ratio-preserving clamping
-                            clampCropRectToBoundsPreservingAspect()
-                        } else {
-                            // Use standard clamping for freeform mode
-                            clampCropRectToBounds()
-                        }
-
+                        // Final safety clamp to both image and screen boundaries
+                        clampCropRectToBounds()
                         invalidate()
                     } else if (isCropping) {
                         updateCropRect(x, y)
