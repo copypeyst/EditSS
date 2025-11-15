@@ -299,6 +299,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun setCropMode(cropMode: CropMode) {
         this.currentCropMode = cropMode
         this.isCropModeActive = true // Mark that a crop mode is now active
+        
+        // Clear existing crop rectangle to ensure proper recalculation
+        cropRect.setEmpty()
+        
         if (currentTool == ToolType.CROP) {
             initializeDefaultCropRect()
         }
@@ -319,53 +323,87 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun initializeDefaultCropRect() {
-        // Set default crop rectangle to fill 100% of the available image space
+        // Initialize crop rectangle to fit the current visible area with the correct aspect ratio
         if (imageBounds.width() > 0 && imageBounds.height() > 0) {
-            // No padding - fill 100% of available image space
-            val availableWidth = imageBounds.width()
-            val availableHeight = imageBounds.height()
+            // Use visible bounds for proper initialization (accounts for zoom)
+            val visibleBounds = getVisibleImageBounds()
+            
+            if (visibleBounds.width() > 0 && visibleBounds.height() > 0) {
+                var width: Float
+                var height: Float
 
-            // Calculate dimensions based on aspect ratio
-            var width = 0f
-            var height = 0f
+                when (currentCropMode) {
+                    CropMode.FREEFORM -> {
+                        // Fill the visible area completely
+                        width = visibleBounds.width()
+                        height = visibleBounds.height()
+                    }
+                    CropMode.SQUARE -> {
+                        // 1:1 ratio - fit the smaller dimension of visible area
+                        val size = Math.min(visibleBounds.width(), visibleBounds.height())
+                        width = size
+                        height = size
+                    }
+                    CropMode.PORTRAIT -> {
+                        // 9:16 ratio (width:height) - taller rectangle
+                        // Always calculate based on height to maintain proper aspect ratio
+                        height = visibleBounds.height()
+                        width = height * 9 / 16f
+                        
+                        // Ensure width doesn't exceed visible width
+                        if (width > visibleBounds.width()) {
+                            width = visibleBounds.width()
+                            height = width * 16 / 9f
+                        }
+                        
+                        // Ensure minimum reasonable size
+                        val minSize = 50f
+                        if (width < minSize) {
+                            width = minSize
+                            height = width * 16 / 9f
+                        }
+                        if (height < minSize) {
+                            height = minSize
+                            width = height * 9 / 16f
+                        }
+                    }
+                    CropMode.LANDSCAPE -> {
+                        // 16:9 ratio (width:height) - wider rectangle
+                        // Always calculate based on width to maintain proper aspect ratio
+                        width = visibleBounds.width()
+                        height = width * 9 / 16f
+                        
+                        // Ensure height doesn't exceed visible height
+                        if (height > visibleBounds.height()) {
+                            height = visibleBounds.height()
+                            width = height * 16 / 9f
+                        }
+                        
+                        // Ensure minimum reasonable size
+                        val minSize = 50f
+                        if (width < minSize) {
+                            width = minSize
+                            height = width * 9 / 16f
+                        }
+                        if (height < minSize) {
+                            height = minSize
+                            width = height * 16 / 9f
+                        }
+                    }
+                }
 
-            when (currentCropMode) {
-                CropMode.FREEFORM -> {
-                    // Fill 100% of available space
-                    width = availableWidth
-                    height = availableHeight
-                }
-                CropMode.SQUARE -> {
-                    // 1:1 ratio - use the smaller dimension
-                    val size = Math.min(availableWidth, availableHeight)
-                    width = size
-                    height = size
-                }
-                CropMode.PORTRAIT -> {
-                    // 9:16 ratio (width:height) - taller image
-                    val maxWidthByHeight = availableHeight * 9 / 16f
-                    width = Math.min(availableWidth, maxWidthByHeight)
-                    height = width * 16 / 9f
-                }
-                CropMode.LANDSCAPE -> {
-                    // 16:9 ratio (width:height) - wider image
-                    val maxHeightByWidth = availableWidth * 9 / 16f
-                    height = Math.min(availableHeight, maxHeightByWidth)
-                    width = height * 16 / 9f
-                }
+                // Center the rectangle in the visible area
+                val centerX = (visibleBounds.left + visibleBounds.right) / 2
+                val centerY = (visibleBounds.top + visibleBounds.bottom) / 2
+
+                cropRect.left = centerX - width / 2
+                cropRect.top = centerY - height / 2
+                cropRect.right = centerX + width / 2
+                cropRect.bottom = centerY + height / 2
+
+                // Ensure it's within bounds (should already be, but safety check)
+                clampCropRectToBounds()
             }
-
-            // Center the rectangle
-            val centerX = (imageBounds.left + imageBounds.right) / 2
-            val centerY = (imageBounds.top + imageBounds.bottom) / 2
-
-            cropRect.left = centerX - width / 2
-            cropRect.top = centerY - height / 2
-            cropRect.right = centerX + width / 2
-            cropRect.bottom = centerY + height / 2
-
-            // Ensure it's within both image and screen bounds
-            clampCropRectToBounds()
         }
     }
 
@@ -954,52 +992,52 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 else -> { fixedX = currentLeft; fixedY = currentTop } // Should not happen
             }
 
-            // Get current visible bounds
-            val visibleBounds = getVisibleImageBounds()
+            // Calculate the desired width and height based on the current touch point relative to the fixed point
+            var desiredWidth = Math.abs(x - fixedX)
+            var desiredHeight = Math.abs(y - fixedY)
 
-            // Calculate the desired size based on touch position, maintaining aspect ratio
-            val touchDistanceX = Math.abs(x - fixedX)
-            val touchDistanceY = Math.abs(y - fixedY)
-            
-            // Determine maximum possible size based on visible bounds
-            val maxPossibleWidth: Float
-            val maxPossibleHeight: Float
+            // Determine the maximum allowed width and height based on both image bounds and screen bounds
+            val maxAllowedWidth: Float
+            val maxAllowedHeight: Float
 
             when (resizeHandle) {
                 1 -> { // top-left
-                    maxPossibleWidth = fixedX - visibleBounds.left
-                    maxPossibleHeight = fixedY - visibleBounds.top
+                    maxAllowedWidth = Math.min(fixedX - imageBounds.left, fixedX - 0f)
+                    maxAllowedHeight = Math.min(fixedY - imageBounds.top, fixedY - 0f)
                 }
                 2 -> { // top-right
-                    maxPossibleWidth = visibleBounds.right - fixedX
-                    maxPossibleHeight = fixedY - visibleBounds.top
+                    maxAllowedWidth = Math.min(imageBounds.right - fixedX, width.toFloat() - fixedX)
+                    maxAllowedHeight = Math.min(fixedY - imageBounds.top, fixedY - 0f)
                 }
                 3 -> { // bottom-left
-                    maxPossibleWidth = fixedX - visibleBounds.left
-                    maxPossibleHeight = visibleBounds.bottom - fixedY
+                    maxAllowedWidth = Math.min(fixedX - imageBounds.left, fixedX - 0f)
+                    maxAllowedHeight = Math.min(imageBounds.bottom - fixedY, height.toFloat() - fixedY)
                 }
                 4 -> { // bottom-right
-                    maxPossibleWidth = visibleBounds.right - fixedX
-                    maxPossibleHeight = visibleBounds.bottom - fixedY
+                    maxAllowedWidth = Math.min(imageBounds.right - fixedX, width.toFloat() - fixedX)
+                    maxAllowedHeight = Math.min(imageBounds.bottom - fixedY, height.toFloat() - fixedY)
                 }
                 else -> {
-                    maxPossibleWidth = visibleBounds.width()
-                    maxPossibleHeight = visibleBounds.height()
+                    maxAllowedWidth = Math.min(imageBounds.width(), width.toFloat())
+                    maxAllowedHeight = Math.min(imageBounds.height(), height.toFloat())
                 }
             }
 
-            // Calculate constrained size maintaining aspect ratio
-            var desiredWidth: Float
-            var desiredHeight: Float
-            
-            if (touchDistanceX / touchDistanceY > aspectRatio) {
-                // Width is the constraining factor
-                desiredWidth = Math.min(touchDistanceX, maxPossibleWidth)
+            // Adjust desiredWidth/desiredHeight to maintain aspect ratio and fit within bounds
+            if (desiredWidth / desiredHeight > aspectRatio) { // Too wide
+                desiredWidth = Math.min(desiredWidth, maxAllowedWidth)
                 desiredHeight = desiredWidth / aspectRatio
-            } else {
-                // Height is the constraining factor
-                desiredHeight = Math.min(touchDistanceY, maxPossibleHeight)
+                if (desiredHeight > maxAllowedHeight) { // If height now exceeds, re-adjust
+                    desiredHeight = maxAllowedHeight
+                    desiredWidth = desiredHeight * aspectRatio
+                }
+            } else { // Too tall
+                desiredHeight = Math.min(desiredHeight, maxAllowedHeight)
                 desiredWidth = desiredHeight * aspectRatio
+                if (desiredWidth > maxAllowedWidth) { // If width now exceeds, re-adjust
+                    desiredWidth = maxAllowedWidth
+                    desiredHeight = desiredWidth / aspectRatio
+                }
             }
 
             // Ensure minimum size
