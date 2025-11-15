@@ -822,6 +822,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     // Check if touch is inside the crop rectangle (for moving)
                     if (cropRect.contains(x, y)) {
                         isMovingCropRect = true
+                        enforceAspectRatio()
                         cropStartX = x
                         cropStartY = y
                         cropStartLeft = cropRect.left
@@ -858,68 +859,30 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                         var dx = x - cropStartX
                         var dy = y - cropStartY
     
+                        // Calculate potential new cropRect position
+                        val newLeft = cropStartLeft + dx
+                        val newTop = cropStartTop + dy
+                        val newRight = cropStartRight + dx
+                        val newBottom = cropStartBottom + dy
+    
                         // Get current visible bounds (intersection of image and screen)
                         val visibleBounds = getVisibleImageBounds()
     
-                        // For non-freeform modes, we need to constrain movement to maintain aspect ratio
-                        if (currentCropMode != CropMode.FREEFORM) {
-                            val aspectRatio = when (currentCropMode) {
-                                CropMode.SQUARE -> 1f
-                                CropMode.PORTRAIT -> 9f / 16f
-                                CropMode.LANDSCAPE -> 16f / 9f
-                                else -> 0f
-                            }
-                            
-                            if (aspectRatio > 0) {
-                                val currentWidth = cropStartRight - cropStartLeft
-                                val currentHeight = cropStartBottom - cropStartTop
-                                val halfWidth = currentWidth / 2
-                                val halfHeight = currentHeight / 2
-                                val centerX = (cropStartLeft + cropStartRight) / 2
-                                val centerY = (cropStartTop + cropStartBottom) / 2
-                                
-                                // Calculate potential new center
-                                var newCenterX = centerX + dx
-                                var newCenterY = centerY + dy
-                                
-                                // Constrain the center to keep the rectangle within visible bounds
-                                // while maintaining the aspect ratio
-                                val maxX = visibleBounds.right - halfWidth
-                                val minX = visibleBounds.left + halfWidth
-                                val maxY = visibleBounds.bottom - halfHeight
-                                val minY = visibleBounds.top + halfHeight
-                                
-                                newCenterX = newCenterX.coerceIn(minX, maxX)
-                                newCenterY = newCenterY.coerceIn(minY, maxY)
-                                
-                                // Apply the constrained movement
-                                dx = newCenterX - centerX
-                                dy = newCenterY - centerY
-                            }
-                        } else {
-                            // For freeform mode, use the original bounds checking logic
-                            // Calculate potential new cropRect position
-                            val newLeft = cropStartLeft + dx
-                            val newTop = cropStartTop + dy
-                            val newRight = cropStartRight + dx
-                            val newBottom = cropStartBottom + dy
-    
-                            // Adjust dx and dy to prevent moving outside visible image area
-                            if (newLeft < visibleBounds.left) {
-                                dx = visibleBounds.left - cropStartLeft
-                            }
-                            if (newTop < visibleBounds.top) {
-                                dy = visibleBounds.top - cropStartTop
-                            }
-                            if (newRight > visibleBounds.right) {
-                                dx = visibleBounds.right - cropStartRight
-                            }
-                            if (newBottom > visibleBounds.bottom) {
-                                dy = visibleBounds.bottom - cropStartBottom
-                            }
+                        // Adjust dx and dy to prevent moving outside visible image area
+                        if (newLeft < visibleBounds.left) {
+                            dx = visibleBounds.left - cropStartLeft
+                        }
+                        if (newTop < visibleBounds.top) {
+                            dy = visibleBounds.top - cropStartTop
+                        }
+                        if (newRight > visibleBounds.right) {
+                            dx = visibleBounds.right - cropStartRight
+                        }
+                        if (newBottom > visibleBounds.bottom) {
+                            dy = visibleBounds.bottom - cropStartBottom
                         }
     
-                        // Apply the movement
+                        // Apply the adjusted dx and dy
                         cropRect.left = cropStartLeft + dx
                         cropRect.top = cropStartTop + dy
                         cropRect.right = cropStartRight + dx
@@ -948,6 +911,41 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             else -> return false
         }
         return true
+    }
+
+    private fun enforceAspectRatio() {
+        if (currentCropMode == CropMode.FREEFORM) return // No-op for freeform
+
+        val aspectRatio = when (currentCropMode) {
+            CropMode.SQUARE -> 1f
+            CropMode.PORTRAIT -> 9f / 16f
+            CropMode.LANDSCAPE -> 16f / 9f
+            else -> 0f
+        }
+
+        if (aspectRatio <= 0f) return
+
+        val centerX = cropRect.centerX()
+        val centerY = cropRect.centerY()
+        var width = cropRect.width()
+        var height = cropRect.height()
+
+        // If current aspect ratio is wider than target, adjust width based on height
+        if (width / height > aspectRatio) {
+            width = height * aspectRatio
+        } else { // If current aspect ratio is taller than or equal to target, adjust height based on width
+            height = width / aspectRatio
+        }
+
+        cropRect.set(
+            centerX - width / 2,
+            centerY - height / 2,
+            centerX + width / 2,
+            centerY + height / 2
+        )
+        
+        // After enforcing, we might be out of bounds, so clamp it.
+        clampCropRectToBounds()
     }
 
     private fun getResizeHandle(x: Float, y: Float): Int {
