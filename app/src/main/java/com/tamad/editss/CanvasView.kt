@@ -823,6 +823,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     if (cropRect.contains(x, y)) {
                         isMovingCropRect = true
                         enforceAspectRatio()
+                        invalidate()
                         cropStartX = x
                         cropStartY = y
                         cropStartLeft = cropRect.left
