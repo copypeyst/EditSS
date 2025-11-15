@@ -917,14 +917,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun enforceAspectRatio() {
         if (currentCropMode == CropMode.FREEFORM) return
 
-        val aspectRatio = when (currentCropMode) {
+        val targetAspectRatio = when (currentCropMode) {
             CropMode.SQUARE -> 1f
             CropMode.PORTRAIT -> 9f / 16f
             CropMode.LANDSCAPE -> 16f / 9f
             else -> 0f
         }
-        if (aspectRatio <= 0f) return
+        if (targetAspectRatio <= 0f) return
 
+        // Check if the current aspect ratio is already correct (within a small tolerance)
+        val currentWidth = cropRect.width()
+        val currentHeight = cropRect.height()
+        if (currentWidth > 0 && currentHeight > 0) {
+            val currentRatio = currentWidth / currentHeight
+            if (Math.abs(currentRatio - targetAspectRatio) < 0.01f) {
+                return // Aspect ratio is already correct, do nothing.
+            }
+        }
+
+        // If we are here, the aspect ratio is broken. Fix it by resizing to max possible.
         val visibleBounds = getVisibleImageBounds()
         if (visibleBounds.width() <= 0 || visibleBounds.height() <= 0) return
 
@@ -939,12 +950,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         var newHeight = maxHalfHeight * 2
 
         // Now, fit the aspect ratio within this max bounding box
-        if (newWidth / newHeight > aspectRatio) {
+        if (newWidth / newHeight > targetAspectRatio) {
             // The available box is wider than the target aspect ratio, so height is the limiting dimension
-            newWidth = newHeight * aspectRatio
+            newWidth = newHeight * targetAspectRatio
         } else {
             // The available box is taller than or equal to the target aspect ratio, so width is the limiting dimension
-            newHeight = newWidth / aspectRatio
+            newHeight = newWidth / targetAspectRatio
         }
 
         cropRect.set(
