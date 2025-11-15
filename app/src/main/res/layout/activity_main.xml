@@ -161,7 +161,6 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="4dp"
-        android:clipToPadding="false"
         android:background="@color/tool_options_background"
         android:visibility="visible"
         app:layout_constraintBottom_toTopOf="@id/tools"

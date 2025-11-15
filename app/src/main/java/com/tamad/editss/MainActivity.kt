@@ -332,6 +332,12 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Keep drawing view visible for cropping
             drawingView.setToolType(CanvasView.ToolType.CROP) // Set crop mode
+            
+            // Initialize crop mode if not already active - this ensures marquee refreshes on new image
+            if (!drawingView.isCropModeActive()) {
+                drawingView.setCropMode(currentCropMode ?: CropMode.FREEFORM)
+            }
+            
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop

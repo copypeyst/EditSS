@@ -314,6 +314,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
 
+    fun isCropModeActive(): Boolean {
+        return this.isCropModeActive
+    }
+
     private fun resetCropRect() {
         cropRect.setEmpty()
     }
