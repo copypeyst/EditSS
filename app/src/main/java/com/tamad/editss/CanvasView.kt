@@ -196,6 +196,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (!isSketch) {
             // Clear sketch strokes when leaving sketch mode
             sketchStrokes.clear()
+            undoneSketchStrokes.clear()
         }
         invalidate()
     }
@@ -524,31 +525,35 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     fun getTransparentDrawing(): Bitmap? {
         if (isSketchMode) {
-            // Create transparent bitmap and render only strokes
-            baseBitmap?.let { originalBitmap ->
-                val transparentBitmap = Bitmap.createBitmap(
-                    originalBitmap.width,
-                    originalBitmap.height,
-                    Bitmap.Config.ARGB_8888
-                )
-                val canvas = Canvas(transparentBitmap)
-                val paint = Paint()
+            // For sketch mode, create bitmap with exact canvas dimensions
+            val bitmapWidth = width.coerceAtLeast(1)
+            val bitmapHeight = height.coerceAtLeast(1)
+            
+            val transparentBitmap = Bitmap.createBitmap(
+                bitmapWidth,
+                bitmapHeight,
+                Bitmap.Config.ARGB_8888
+            )
+            val canvas = Canvas(transparentBitmap)
+            val paint = Paint()
+            
+            // Reset canvas matrix to identity for sketch mode (strokes are in screen coordinates)
+            canvas.setMatrix(Matrix())
+            
+            // Render all sketch strokes at their screen coordinates
+            for (stroke in sketchStrokes) {
+                paint.color = stroke.paint.color
+                paint.strokeWidth = stroke.paint.strokeWidth
+                paint.alpha = stroke.paint.alpha
+                paint.style = stroke.paint.style
+                paint.strokeJoin = stroke.paint.strokeJoin
+                paint.strokeCap = stroke.paint.strokeCap
+                paint.isAntiAlias = stroke.paint.isAntiAlias
                 
-                // Render all sketch strokes
-                for (stroke in sketchStrokes) {
-                    paint.color = stroke.paint.color
-                    paint.strokeWidth = stroke.paint.strokeWidth
-                    paint.alpha = stroke.paint.alpha
-                    paint.style = stroke.paint.style
-                    paint.strokeJoin = stroke.paint.strokeJoin
-                    paint.strokeCap = stroke.paint.strokeCap
-                    paint.isAntiAlias = stroke.paint.isAntiAlias
-                    
-                    canvas.drawPath(stroke.path, paint)
-                }
-                
-                return transparentBitmap
+                canvas.drawPath(stroke.path, paint)
             }
+            
+            return transparentBitmap
         }
         // Non-sketch mode: use original method
         return getDrawingOnTransparent()
@@ -556,34 +561,38 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     fun getSketchDrawingOnWhite(): Bitmap? {
         if (isSketchMode) {
-            // Create white bitmap and render strokes on top
-            baseBitmap?.let { originalBitmap ->
-                val whiteBitmap = Bitmap.createBitmap(
-                    originalBitmap.width,
-                    originalBitmap.height,
-                    Bitmap.Config.ARGB_8888
-                )
-                val canvas = Canvas(whiteBitmap)
-                val paint = Paint()
+            // For sketch mode, create bitmap with exact canvas dimensions
+            val bitmapWidth = width.coerceAtLeast(1)
+            val bitmapHeight = height.coerceAtLeast(1)
+            
+            val whiteBitmap = Bitmap.createBitmap(
+                bitmapWidth,
+                bitmapHeight,
+                Bitmap.Config.ARGB_8888
+            )
+            val canvas = Canvas(whiteBitmap)
+            val paint = Paint()
+            
+            // Fill with white background
+            canvas.drawColor(Color.WHITE)
+            
+            // Reset canvas matrix to identity for sketch mode (strokes are in screen coordinates)
+            canvas.setMatrix(Matrix())
+            
+            // Render all sketch strokes at their screen coordinates
+            for (stroke in sketchStrokes) {
+                paint.color = stroke.paint.color
+                paint.strokeWidth = stroke.paint.strokeWidth
+                paint.alpha = stroke.paint.alpha
+                paint.style = stroke.paint.style
+                paint.strokeJoin = stroke.paint.strokeJoin
+                paint.strokeCap = stroke.paint.strokeCap
+                paint.isAntiAlias = stroke.paint.isAntiAlias
                 
-                // Fill with white background
-                canvas.drawColor(Color.WHITE)
-                
-                // Render all sketch strokes
-                for (stroke in sketchStrokes) {
-                    paint.color = stroke.paint.color
-                    paint.strokeWidth = stroke.paint.strokeWidth
-                    paint.alpha = stroke.paint.alpha
-                    paint.style = stroke.paint.style
-                    paint.strokeJoin = stroke.paint.strokeJoin
-                    paint.strokeCap = stroke.paint.strokeCap
-                    paint.isAntiAlias = stroke.paint.isAntiAlias
-                    
-                    canvas.drawPath(stroke.path, paint)
-                }
-                
-                return whiteBitmap
+                canvas.drawPath(stroke.path, paint)
             }
+            
+            return whiteBitmap
         }
         // Non-sketch mode: use original method
         return getDrawing()
@@ -621,8 +630,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         imageMatrix.invert(inverseMatrix)
         canvas.concat(inverseMatrix)
         canvas.drawPath(action.path, action.paint)
-        
-        // Paths are cleared immediately after merging into bitmap (no need to track separately)
         
         invalidate()
     }
@@ -779,7 +786,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         if (currentTool == ToolType.DRAW) {
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> isDrawing = true
+                MotionEvent.ACTION_DOWN -> {
+                    isDrawing = true
+                    // Ensure matrix is up-to-date before collecting stroke in sketch mode
+                    if (isSketchMode) {
+                        updateImageMatrix()
+                    }
+                }
                 MotionEvent.ACTION_UP -> isDrawing = false
                 MotionEvent.ACTION_CANCEL -> isDrawing = false
             }
