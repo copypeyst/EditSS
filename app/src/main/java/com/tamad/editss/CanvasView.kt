@@ -819,22 +819,43 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 MotionEvent.ACTION_CANCEL -> isDrawing = false
             }
             
-            val action = currentDrawingTool.onTouchEvent(event, paint)
-            action?.let {
+            val originalAction = currentDrawingTool.onTouchEvent(event, paint)
+            originalAction?.let {
                 val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+                
                 if (isSketchMode) {
-                    sketchStrokes.add(action)
+                    // The new path is in screen coordinates. It needs to be transformed
+                    // to the bitmap's coordinate space before being stored.
+                    val transformedPath = Path()
+                    val inverseMatrix = Matrix()
+                    imageMatrix.invert(inverseMatrix)
+                    originalAction.path.transform(inverseMatrix, transformedPath)
+                    
+                    val transformedAction = originalAction.copy(path = transformedPath)
+                    sketchStrokes.add(transformedAction)
                     undoneSketchStrokes.clear() // Clear redo stack on new action
-                }
-                mergeDrawingStrokeIntoBitmap(action)
 
-                if (bitmapBeforeDrawing != null) {
-                    onBitmapChanged?.invoke(EditAction.BitmapChange(
-                        previousBitmap = bitmapBeforeDrawing,
-                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true),
-                        associatedStroke = if (isSketchMode) action else null
-                    ))
+                    // For undo, we need to associate it with the action that was actually added
+                    // to sketchStrokes, so it can be found and removed.
+                    if (bitmapBeforeDrawing != null) {
+                        onBitmapChanged?.invoke(EditAction.BitmapChange(
+                            previousBitmap = bitmapBeforeDrawing,
+                            newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true),
+                            associatedStroke = transformedAction
+                        ))
+                    }
+                } else {
+                     if (bitmapBeforeDrawing != null) {
+                        onBitmapChanged?.invoke(EditAction.BitmapChange(
+                            previousBitmap = bitmapBeforeDrawing,
+                            newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true),
+                            associatedStroke = null
+                        ))
+                    }
                 }
+
+                // This merge uses the original, untransformed path and applies the matrix internally
+                mergeDrawingStrokeIntoBitmap(originalAction)
             }
             invalidate()
             return true
