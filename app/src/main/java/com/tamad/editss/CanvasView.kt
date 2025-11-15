@@ -447,29 +447,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val bitmapWithDrawings = baseBitmap ?: return null
         val previousBaseBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
 
-        val left: Int
-        val top: Int
-        val right: Int
-        val bottom: Int
+        // Always map crop rectangle from screen coordinates to bitmap coordinates using inverse matrix
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        val imageCropRect = RectF(cropRect)
+        inverseMatrix.mapRect(imageCropRect)
 
-        if (isSketchMode) {
-            // In sketch mode, crop rectangle is already in bitmap coordinates
-            left = cropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
-            top = cropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
-            right = cropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
-            bottom = cropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
-        } else {
-            // For imported images, map crop rectangle from screen to bitmap coordinates
-            val inverseMatrix = Matrix()
-            imageMatrix.invert(inverseMatrix)
-            val imageCropRect = RectF(cropRect)
-            inverseMatrix.mapRect(imageCropRect)
-
-            left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
-            top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
-            right = imageCropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
-            bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
-        }
+        val left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
+        val top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
+        val right = imageCropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
+        val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
 
         if (right <= left || bottom <= top) return null
 
