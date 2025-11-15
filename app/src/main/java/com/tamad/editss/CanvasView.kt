@@ -464,17 +464,49 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         if (right <= left || bottom <= top) return null
 
-        // Perform the crop on the bitmap that includes the drawings.
-        val croppedBitmap = Bitmap.createBitmap(
-            bitmapWithDrawings,
-            left.toInt(),
-            top.toInt(),
-            (right - left).toInt(),
-            (bottom - top).toInt()
-        )
+        val croppedBitmap: Bitmap
+        if (isSketchMode) {
+            // For sketch mode, we need to redraw the strokes on a new, cropped, white canvas
+            val croppedWidth = (right - left).toInt()
+            val croppedHeight = (bottom - top).toInt()
+            
+            croppedBitmap = Bitmap.createBitmap(croppedWidth, croppedHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(croppedBitmap)
+            canvas.drawColor(Color.WHITE) // Start with a white background
+            
+            // Create a matrix to transform screen-space paths to the cropped bitmap's space
+            val transformationMatrix = Matrix()
+            // First, apply the inverse of the image matrix to go from screen space to image space
+            transformationMatrix.postConcat(inverseMatrix)
+            // Then, translate so the top-left of the crop area becomes the origin (0,0)
+            transformationMatrix.postTranslate(-left, -top)
+
+            val paint = Paint()
+            for (stroke in sketchStrokes) {
+                paint.set(stroke.paint) // Copy paint properties
+                
+                val translatedPath = Path()
+                stroke.path.transform(transformationMatrix, translatedPath) // Apply the full transformation
+                
+                canvas.drawPath(translatedPath, paint)
+            }
+        } else {
+            // For regular images, perform the crop on the bitmap that includes the drawings.
+            croppedBitmap = Bitmap.createBitmap(
+                bitmapWithDrawings,
+                left.toInt(),
+                top.toInt(),
+                (right - left).toInt(),
+                (bottom - top).toInt()
+            )
+        }
 
         // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+        if (isSketchMode) {
+            sketchStrokes.clear()
+        }
         
         // Create ONLY a BitmapChange action for clean undo/redo - no separate CropAction
         val bitmapChangeAction = EditAction.BitmapChange(
@@ -615,7 +647,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
-        if (baseBitmap == null) return
+        if (baseBitmap == null || isSketchMode) return
         val canvas = Canvas(baseBitmap!!)
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
@@ -650,6 +682,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 checker.draw(canvas)
             }
             canvas.drawBitmap(it, imageMatrix, imagePaint)
+        }
+
+        if (isSketchMode) {
+            for (stroke in sketchStrokes) {
+                canvas.drawPath(stroke.path, stroke.paint)
+            }
         }
 
         currentDrawingTool.onDraw(canvas, paint)
