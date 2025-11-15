@@ -444,38 +444,46 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
+        // Since drawings are immediately merged into bitmap, we can use baseBitmap directly
         val bitmapWithDrawings = baseBitmap ?: return null
+
+        // Store the state before the crop for the undo action.
         val previousBaseBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
 
-        // Always map crop rectangle from screen coordinates to bitmap coordinates using inverse matrix
+        // Map crop rectangle from screen coordinates to image coordinates.
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
-        val imageCropRect = RectF(cropRect)
-        inverseMatrix.mapRect(imageCropRect)
+        val imageCropRect = RectF()
+        inverseMatrix.mapRect(imageCropRect, cropRect)
 
-        val left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
-        val top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
-        val right = imageCropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat()).toInt()
-        val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat()).toInt()
+        // Clamp to the bounds of the bitmap with drawings.
+        val left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat())
+        val top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat())
+        val right = imageCropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat())
+        val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat())
 
         if (right <= left || bottom <= top) return null
 
+        // Perform the crop on the bitmap that includes the drawings.
         val croppedBitmap = Bitmap.createBitmap(
             bitmapWithDrawings,
-            left,
-            top,
-            (right - left),
-            (bottom - top)
+            left.toInt(),
+            top.toInt(),
+            (right - left).toInt(),
+            (bottom - top).toInt()
         )
 
+        // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
+        // Create ONLY a BitmapChange action for clean undo/redo - no separate CropAction
         val bitmapChangeAction = EditAction.BitmapChange(
             previousBitmap = previousBaseBitmap,
             newBitmap = baseBitmap!!
         )
-        onBitmapChanged?.invoke(bitmapChangeAction)
+        onBitmapChanged?.invoke(bitmapChangeAction) // Push the BitmapChange to the ViewModel
 
+        // Clear the crop rectangle and reset zoom to default view (recenter)
         cropRect.setEmpty()
         scaleFactor = 1.0f
         translationX = 0f
@@ -609,17 +617,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
         if (baseBitmap == null) return
         val canvas = Canvas(baseBitmap!!)
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        canvas.concat(inverseMatrix)
+        canvas.drawPath(action.path, action.paint)
         
-        // In sketch mode, draw directly without matrix transformation
-        if (isSketchMode) {
-            canvas.drawPath(action.path, action.paint)
-        } else {
-            // For imported images, apply inverse matrix to convert from screen to bitmap coordinates
-            val inverseMatrix = Matrix()
-            imageMatrix.invert(inverseMatrix)
-            canvas.concat(inverseMatrix)
-            canvas.drawPath(action.path, action.paint)
-        }
+        // Paths are cleared immediately after merging into bitmap (no need to track separately)
         
         invalidate()
     }
