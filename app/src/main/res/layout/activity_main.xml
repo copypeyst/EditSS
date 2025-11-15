@@ -532,7 +532,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center"
-                android:paddingTop="4dp">
+                android:paddingTop="1dp">
                 <Button
                     android:id="@+id/button_adjust_cancel"
                     android:layout_width="0dp"
