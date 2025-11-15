@@ -335,6 +335,27 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
+            
+            // Re-initialize crop rectangle when crop mode is activated
+            // This ensures the marquee appears and adjusts to fit the current image
+            // Similar to the post block in your snippet - happens whenever crop mode button is pressed
+            drawingView.post {
+                // Always re-apply the current crop mode to adjust the marquee to fit the current image
+                if (currentCropMode != null) {
+                    // If a crop mode option is already selected, re-apply it
+                    when (currentCropMode?.id) {
+                        R.id.crop_mode_freeform -> drawingView.setCropMode(CropMode.FREEFORM)
+                        R.id.crop_mode_square -> drawingView.setCropMode(CropMode.SQUARE)
+                        R.id.crop_mode_portrait -> drawingView.setCropMode(CropMode.PORTRAIT)
+                        R.id.crop_mode_landscape -> drawingView.setCropMode(CropMode.LANDSCAPE)
+                    }
+                } else {
+                    // If no crop mode option is selected, default to freeform and select it
+                    drawingView.setCropMode(CropMode.FREEFORM)
+                    cropModeFreeform.isSelected = true
+                    currentCropMode = cropModeFreeform
+                }
+            }
         }
 
         toolAdjust.setOnClickListener {
@@ -453,36 +474,24 @@ class MainActivity : AppCompatActivity() {
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
             drawingView.setCropMode(CropMode.FREEFORM)
-            drawingView.post {
-                drawingView.setCropMode(CropMode.FREEFORM)
-            }
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
             drawingView.setCropMode(CropMode.SQUARE)
-            drawingView.post {
-                drawingView.setCropMode(CropMode.SQUARE)
-            }
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
             drawingView.setCropMode(CropMode.PORTRAIT)
-            drawingView.post {
-                drawingView.setCropMode(CropMode.PORTRAIT)
-            }
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
             drawingView.setCropMode(CropMode.LANDSCAPE)
-            drawingView.post {
-                drawingView.setCropMode(CropMode.LANDSCAPE)
-            }
         }
 
         // Set default crop mode
