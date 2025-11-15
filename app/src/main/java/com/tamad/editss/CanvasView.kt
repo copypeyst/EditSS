@@ -474,6 +474,26 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             (bottom - top).toInt()
         )
 
+        // If in sketch mode, we need to transform the strokes to match the new cropped canvas
+        if (isSketchMode) {
+            val dx = -left
+            val dy = -top
+            val transformMatrix = Matrix()
+            transformMatrix.postTranslate(dx, dy)
+
+            val newStrokes = mutableListOf<DrawingAction>()
+            for (action in sketchStrokes) {
+                val newPath = Path()
+                action.path.transform(transformMatrix, newPath)
+                newStrokes.add(action.copy(path = newPath))
+            }
+            sketchStrokes.clear()
+            sketchStrokes.addAll(newStrokes)
+
+            // Redo stack for strokes becomes invalid after this transformation
+            undoneSketchStrokes.clear()
+        }
+
         // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
@@ -525,9 +545,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     fun getTransparentDrawing(): Bitmap? {
         if (isSketchMode) {
-            // For sketch mode, create bitmap with exact canvas dimensions
-            val bitmapWidth = width.coerceAtLeast(1)
-            val bitmapHeight = height.coerceAtLeast(1)
+            // For sketch mode, create bitmap with the dimensions of the current baseBitmap,
+            // which reflects any crops that have been applied.
+            val bitmapWidth = baseBitmap?.width ?: width.coerceAtLeast(1)
+            val bitmapHeight = baseBitmap?.height ?: height.coerceAtLeast(1)
             
             val transparentBitmap = Bitmap.createBitmap(
                 bitmapWidth,
@@ -537,10 +558,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val canvas = Canvas(transparentBitmap)
             val paint = Paint()
             
-            // Reset canvas matrix to identity for sketch mode (strokes are in screen coordinates)
+            // The strokes are now relative to the top-left of the cropped bitmap.
             canvas.setMatrix(Matrix())
             
-            // Render all sketch strokes at their screen coordinates
+            // Render all sketch strokes at their new, transformed coordinates
             for (stroke in sketchStrokes) {
                 paint.color = stroke.paint.color
                 paint.strokeWidth = stroke.paint.strokeWidth
@@ -561,9 +582,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     fun getSketchDrawingOnWhite(): Bitmap? {
         if (isSketchMode) {
-            // For sketch mode, create bitmap with exact canvas dimensions
-            val bitmapWidth = width.coerceAtLeast(1)
-            val bitmapHeight = height.coerceAtLeast(1)
+            // For sketch mode, create bitmap with the dimensions of the current baseBitmap,
+            // which reflects any crops that have been applied.
+            val bitmapWidth = baseBitmap?.width ?: width.coerceAtLeast(1)
+            val bitmapHeight = baseBitmap?.height ?: height.coerceAtLeast(1)
             
             val whiteBitmap = Bitmap.createBitmap(
                 bitmapWidth,
@@ -576,10 +598,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             // Fill with white background
             canvas.drawColor(Color.WHITE)
             
-            // Reset canvas matrix to identity for sketch mode (strokes are in screen coordinates)
+            // The strokes are now relative to the top-left of the cropped bitmap.
             canvas.setMatrix(Matrix())
             
-            // Render all sketch strokes at their screen coordinates
+            // Render all sketch strokes at their new, transformed coordinates
             for (stroke in sketchStrokes) {
                 paint.color = stroke.paint.color
                 paint.strokeWidth = stroke.paint.strokeWidth
