@@ -364,7 +364,7 @@
     <LinearLayout
         android:id="@+id/crop_options"
         android:layout_width="match_parent"
-        android:layout_height="100dp"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
         android:visibility="gone">
         <LinearLayout
