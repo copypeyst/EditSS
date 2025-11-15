@@ -160,7 +160,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="3dp"/>
+        android:padding="3dp">
         android:background="@color/tool_options_background"
         android:visibility="visible"
         app:layout_constraintBottom_toTopOf="@id/tools"
