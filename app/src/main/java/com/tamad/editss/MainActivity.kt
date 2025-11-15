@@ -335,11 +335,6 @@ class MainActivity : AppCompatActivity() {
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
-            
-            // CRITICAL: If we have a stored crop mode, reapply it to show the marquee
-            if (currentCropMode != null) {
-                drawingView.setCropMode(currentCropMode!!)
-            }
         }
 
         toolAdjust.setOnClickListener {
@@ -458,24 +453,44 @@ class MainActivity : AppCompatActivity() {
             cropModeFreeform.isSelected = true
             currentCropMode = cropModeFreeform
             drawingView.setCropMode(CropMode.FREEFORM)
+            post {
+                if (drawingView.currentTool == CanvasView.ToolType.CROP && drawingView.isCropModeActive) {
+                    drawingView.setCropMode(CropMode.FREEFORM)
+                }
+            }
         }
         cropModeSquare.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeSquare.isSelected = true
             currentCropMode = cropModeSquare
             drawingView.setCropMode(CropMode.SQUARE)
+            post {
+                if (drawingView.currentTool == CanvasView.ToolType.CROP && drawingView.isCropModeActive) {
+                    drawingView.setCropMode(CropMode.SQUARE)
+                }
+            }
         }
         cropModePortrait.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModePortrait.isSelected = true
             currentCropMode = cropModePortrait
             drawingView.setCropMode(CropMode.PORTRAIT)
+            post {
+                if (drawingView.currentTool == CanvasView.ToolType.CROP && drawingView.isCropModeActive) {
+                    drawingView.setCropMode(CropMode.PORTRAIT)
+                }
+            }
         }
         cropModeLandscape.setOnClickListener {
             currentCropMode?.isSelected = false
             cropModeLandscape.isSelected = true
             currentCropMode = cropModeLandscape
             drawingView.setCropMode(CropMode.LANDSCAPE)
+            post {
+                if (drawingView.currentTool == CanvasView.ToolType.CROP && drawingView.isCropModeActive) {
+                    drawingView.setCropMode(CropMode.LANDSCAPE)
+                }
+            }
         }
 
         // Set default crop mode
@@ -488,8 +503,9 @@ class MainActivity : AppCompatActivity() {
         buttonCropApply.setOnClickListener {
             val croppedBitmap = drawingView.applyCrop()
             if (croppedBitmap != null) {
-                // Image was cropped successfully - keep crop mode selection for future use
+                // Image was cropped successfully - clear crop mode selection
                 currentCropMode?.isSelected = false
+                currentCropMode = null
                 drawingView.setCropModeInactive()
                 // Toast removed: "Image cropped successfully" - UX improvement
             } else {
@@ -500,16 +516,19 @@ class MainActivity : AppCompatActivity() {
         buttonCropCancel.setOnClickListener {
             drawingView.cancelCrop()
             currentCropMode?.isSelected = false
+            currentCropMode = null
             drawingView.setCropModeInactive()
         }
 
         // Set callbacks for crop operations to update UI
         drawingView.onCropApplied = { _ ->
             currentCropMode?.isSelected = false
+            currentCropMode = null
         }
 
         drawingView.onCropCanceled = {
             currentCropMode?.isSelected = false
+            currentCropMode = null
         }
 
         // Initialize Adjust Options
