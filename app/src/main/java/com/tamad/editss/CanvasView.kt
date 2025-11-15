@@ -665,20 +665,24 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun drawCropOverlay(canvas: Canvas) {
-        // Create a semi-transparent dark overlay paint
-        val overlayPaint = Paint()
-        overlayPaint.color = Color.BLACK
-        overlayPaint.alpha = 128 // 50% opacity for dark overlay
+        // Create a semi-transparent dark overlay paint with anti-aliasing disabled for cleaner edges
+        val overlayPaint = Paint().apply {
+            color = Color.BLACK
+            alpha = 128 // 50% opacity for dark overlay
+            isAntiAlias = false // Disable anti-aliasing to prevent thin line artifacts
+        }
 
-        // Draw dark overlay outside the crop rectangle
-        // Top area
-        canvas.drawRect(0f, 0f, width.toFloat(), cropRect.top, overlayPaint)
-        // Left area
-        canvas.drawRect(0f, cropRect.top, cropRect.left, cropRect.bottom, overlayPaint)
-        // Right area
-        canvas.drawRect(cropRect.right, cropRect.top, width.toFloat(), cropRect.bottom, overlayPaint)
-        // Bottom area
-        canvas.drawRect(0f, cropRect.bottom, width.toFloat(), height.toFloat(), overlayPaint)
+        // Create a path for the overlay to avoid gaps between rectangles
+        val overlayPath = Path()
+        
+        // Draw the entire screen area
+        overlayPath.addRect(0f, 0f, width.toFloat(), height.toFloat(), Path.Direction.CW)
+        
+        // Subtract the crop rectangle from the overlay
+        overlayPath.addRect(cropRect, Path.Direction.CCW)
+        
+        // Fill the overlay path (this creates a hole where the crop rectangle is)
+        canvas.drawPath(overlayPath, overlayPaint)
 
         // Draw the crop rectangle border on top
         canvas.drawRect(cropRect, cropPaint)
