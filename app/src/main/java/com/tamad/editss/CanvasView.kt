@@ -915,7 +915,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun enforceAspectRatio() {
-        if (currentCropMode == CropMode.FREEFORM) return // No-op for freeform
+        if (currentCropMode == CropMode.FREEFORM) return
 
         val aspectRatio = when (currentCropMode) {
             CropMode.SQUARE -> 1f
@@ -923,30 +923,36 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             CropMode.LANDSCAPE -> 16f / 9f
             else -> 0f
         }
-
         if (aspectRatio <= 0f) return
 
-        val centerX = cropRect.centerX()
-        val centerY = cropRect.centerY()
-        var width = cropRect.width()
-        var height = cropRect.height()
+        val visibleBounds = getVisibleImageBounds()
+        if (visibleBounds.width() <= 0 || visibleBounds.height() <= 0) return
 
-        // If current aspect ratio is wider than target, adjust width based on height
-        if (width / height > aspectRatio) {
-            width = height * aspectRatio
-        } else { // If current aspect ratio is taller than or equal to target, adjust height based on width
-            height = width / aspectRatio
+        // Coerce center to be within the visible bounds, so we don't try to fix a rect that's completely off-screen
+        val centerX = cropRect.centerX().coerceIn(visibleBounds.left, visibleBounds.right)
+        val centerY = cropRect.centerY().coerceIn(visibleBounds.top, visibleBounds.bottom)
+
+        // Determine max possible width and height from the (potentially coerced) center to the edges of visibleBounds
+        val maxHalfWidth = Math.min(centerX - visibleBounds.left, visibleBounds.right - centerX)
+        val maxHalfHeight = Math.min(centerY - visibleBounds.top, visibleBounds.bottom - centerY)
+        var newWidth = maxHalfWidth * 2
+        var newHeight = maxHalfHeight * 2
+
+        // Now, fit the aspect ratio within this max bounding box
+        if (newWidth / newHeight > aspectRatio) {
+            // The available box is wider than the target aspect ratio, so height is the limiting dimension
+            newWidth = newHeight * aspectRatio
+        } else {
+            // The available box is taller than or equal to the target aspect ratio, so width is the limiting dimension
+            newHeight = newWidth / aspectRatio
         }
 
         cropRect.set(
-            centerX - width / 2,
-            centerY - height / 2,
-            centerX + width / 2,
-            centerY + height / 2
+            centerX - newWidth / 2,
+            centerY - newHeight / 2,
+            centerX + newWidth / 2,
+            centerY + newHeight / 2
         )
-        
-        // After enforcing, we might be out of bounds, so clamp it.
-        clampCropRectToBounds()
     }
 
     private fun getResizeHandle(x: Float, y: Float): Int {
