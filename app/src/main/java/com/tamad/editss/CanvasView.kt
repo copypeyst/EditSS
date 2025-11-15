@@ -620,12 +620,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
         if (baseBitmap == null) return
         val canvas = Canvas(baseBitmap!!)
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        canvas.concat(inverseMatrix)
-        canvas.drawPath(action.path, action.paint)
         
-        // Paths are cleared immediately after merging into bitmap (no need to track separately)
+        // In sketch mode, draw directly without matrix transformation
+        if (isSketchMode) {
+            canvas.drawPath(action.path, action.paint)
+        } else {
+            // For imported images, apply inverse matrix to convert from screen to bitmap coordinates
+            val inverseMatrix = Matrix()
+            imageMatrix.invert(inverseMatrix)
+            canvas.concat(inverseMatrix)
+            canvas.drawPath(action.path, action.paint)
+        }
         
         invalidate()
     }
