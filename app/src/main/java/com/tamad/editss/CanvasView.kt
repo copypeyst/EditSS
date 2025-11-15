@@ -958,28 +958,31 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             var desiredWidth = Math.abs(x - fixedX)
             var desiredHeight = Math.abs(y - fixedY)
 
-            // Determine the maximum allowed width and height based on image bounds
+            // Determine the maximum allowed width and height based on both image bounds and screen bounds
             val maxAllowedWidth: Float
             val maxAllowedHeight: Float
 
             when (resizeHandle) {
                 1 -> { // top-left
-                    maxAllowedWidth = fixedX - imageBounds.left
-                    maxAllowedHeight = fixedY - imageBounds.top
+                    maxAllowedWidth = Math.min(fixedX - imageBounds.left, fixedX - 0f)
+                    maxAllowedHeight = Math.min(fixedY - imageBounds.top, fixedY - 0f)
                 }
                 2 -> { // top-right
-                    maxAllowedWidth = imageBounds.right - fixedX
-                    maxAllowedHeight = fixedY - imageBounds.top
+                    maxAllowedWidth = Math.min(imageBounds.right - fixedX, width.toFloat() - fixedX)
+                    maxAllowedHeight = Math.min(fixedY - imageBounds.top, fixedY - 0f)
                 }
                 3 -> { // bottom-left
-                    maxAllowedWidth = fixedX - imageBounds.left
-                    maxAllowedHeight = imageBounds.bottom - fixedY
+                    maxAllowedWidth = Math.min(fixedX - imageBounds.left, fixedX - 0f)
+                    maxAllowedHeight = Math.min(imageBounds.bottom - fixedY, height.toFloat() - fixedY)
                 }
                 4 -> { // bottom-right
-                    maxAllowedWidth = imageBounds.right - fixedX
-                    maxAllowedHeight = imageBounds.bottom - fixedY
+                    maxAllowedWidth = Math.min(imageBounds.right - fixedX, width.toFloat() - fixedX)
+                    maxAllowedHeight = Math.min(imageBounds.bottom - fixedY, height.toFloat() - fixedY)
                 }
-                else -> { maxAllowedWidth = imageBounds.width(); maxAllowedHeight = imageBounds.height() }
+                else -> {
+                    maxAllowedWidth = Math.min(imageBounds.width(), width.toFloat())
+                    maxAllowedHeight = Math.min(imageBounds.height(), height.toFloat())
+                }
             }
 
             // Adjust desiredWidth/desiredHeight to maintain aspect ratio and fit within bounds
@@ -1030,11 +1033,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
 
-        // Set the new values first
+        // Set the new values (aspect ratio and boundary constraints already applied above)
         cropRect.set(newLeft, newTop, newRight, newBottom)
-        
-        // Final clamp to ensure it's within both image bounds and screen bounds
-        clampCropRectToBounds()
     }
 
     private fun updateCropRect(x: Float, y: Float) {
