@@ -954,52 +954,52 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 else -> { fixedX = currentLeft; fixedY = currentTop } // Should not happen
             }
 
-            // Calculate the desired width and height based on the current touch point relative to the fixed point
-            var desiredWidth = Math.abs(x - fixedX)
-            var desiredHeight = Math.abs(y - fixedY)
+            // Get current visible bounds
+            val visibleBounds = getVisibleImageBounds()
 
-            // Determine the maximum allowed width and height based on both image bounds and screen bounds
-            val maxAllowedWidth: Float
-            val maxAllowedHeight: Float
+            // Calculate the desired size based on touch position, maintaining aspect ratio
+            val touchDistanceX = Math.abs(x - fixedX)
+            val touchDistanceY = Math.abs(y - fixedY)
+            
+            // Determine maximum possible size based on visible bounds
+            val maxPossibleWidth: Float
+            val maxPossibleHeight: Float
 
             when (resizeHandle) {
                 1 -> { // top-left
-                    maxAllowedWidth = Math.min(fixedX - imageBounds.left, fixedX - 0f)
-                    maxAllowedHeight = Math.min(fixedY - imageBounds.top, fixedY - 0f)
+                    maxPossibleWidth = fixedX - visibleBounds.left
+                    maxPossibleHeight = fixedY - visibleBounds.top
                 }
                 2 -> { // top-right
-                    maxAllowedWidth = Math.min(imageBounds.right - fixedX, width.toFloat() - fixedX)
-                    maxAllowedHeight = Math.min(fixedY - imageBounds.top, fixedY - 0f)
+                    maxPossibleWidth = visibleBounds.right - fixedX
+                    maxPossibleHeight = fixedY - visibleBounds.top
                 }
                 3 -> { // bottom-left
-                    maxAllowedWidth = Math.min(fixedX - imageBounds.left, fixedX - 0f)
-                    maxAllowedHeight = Math.min(imageBounds.bottom - fixedY, height.toFloat() - fixedY)
+                    maxPossibleWidth = fixedX - visibleBounds.left
+                    maxPossibleHeight = visibleBounds.bottom - fixedY
                 }
                 4 -> { // bottom-right
-                    maxAllowedWidth = Math.min(imageBounds.right - fixedX, width.toFloat() - fixedX)
-                    maxAllowedHeight = Math.min(imageBounds.bottom - fixedY, height.toFloat() - fixedY)
+                    maxPossibleWidth = visibleBounds.right - fixedX
+                    maxPossibleHeight = visibleBounds.bottom - fixedY
                 }
                 else -> {
-                    maxAllowedWidth = Math.min(imageBounds.width(), width.toFloat())
-                    maxAllowedHeight = Math.min(imageBounds.height(), height.toFloat())
+                    maxPossibleWidth = visibleBounds.width()
+                    maxPossibleHeight = visibleBounds.height()
                 }
             }
 
-            // Adjust desiredWidth/desiredHeight to maintain aspect ratio and fit within bounds
-            if (desiredWidth / desiredHeight > aspectRatio) { // Too wide
-                desiredWidth = Math.min(desiredWidth, maxAllowedWidth)
+            // Calculate constrained size maintaining aspect ratio
+            var desiredWidth: Float
+            var desiredHeight: Float
+            
+            if (touchDistanceX / touchDistanceY > aspectRatio) {
+                // Width is the constraining factor
+                desiredWidth = Math.min(touchDistanceX, maxPossibleWidth)
                 desiredHeight = desiredWidth / aspectRatio
-                if (desiredHeight > maxAllowedHeight) { // If height now exceeds, re-adjust
-                    desiredHeight = maxAllowedHeight
-                    desiredWidth = desiredHeight * aspectRatio
-                }
-            } else { // Too tall
-                desiredHeight = Math.min(desiredHeight, maxAllowedHeight)
+            } else {
+                // Height is the constraining factor
+                desiredHeight = Math.min(touchDistanceY, maxPossibleHeight)
                 desiredWidth = desiredHeight * aspectRatio
-                if (desiredWidth > maxAllowedWidth) { // If width now exceeds, re-adjust
-                    desiredWidth = maxAllowedWidth
-                    desiredHeight = desiredWidth / aspectRatio
-                }
             }
 
             // Ensure minimum size
