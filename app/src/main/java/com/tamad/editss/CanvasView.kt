@@ -695,27 +695,41 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         canvas.drawRect(cropRect.right - cornerSize, cropRect.bottom - cornerSize, cropRect.right, cropRect.bottom, cropCornerPaint)
     }
 
-    private fun updateImageMatrix() {
+        private fun updateImageMatrix() {
         baseBitmap?.let {
             val viewWidth = width.toFloat()
             val viewHeight = height.toFloat()
             val bitmapWidth = it.width.toFloat()
             val bitmapHeight = it.height.toFloat()
 
-            val baseScale: Float
-            var baseDx = 0f
-            var baseDy = 0f
+            // === START OF SUGGESTED CHANGE ===
 
-            if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
-                baseScale = viewWidth / bitmapWidth
-                baseDy = (viewHeight - bitmapHeight * baseScale) * 0.5f
+            if (isSketchMode) {
+                // In sketch mode, the canvas is the world. We don't "fit" it like a photo.
+                // The matrix should only reflect the user's zoom and pan. The canvas's
+                // top-left (0,0) is the origin.
+                imageMatrix.setScale(scaleFactor, scaleFactor)
+                imageMatrix.postTranslate(translationX, translationY)
+
             } else {
-                baseScale = viewHeight / bitmapHeight
-                baseDx = (viewWidth - bitmapWidth * baseScale) * 0.5f
-            }
+                // This is the original logic for fitting a loaded photo. Keep it as is.
+                val baseScale: Float
+                var baseDx = 0f
+                var baseDy = 0f
 
-            imageMatrix.setScale(baseScale * scaleFactor, baseScale * scaleFactor)
-            imageMatrix.postTranslate(baseDx + translationX, baseDy + translationY)
+                if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
+                    baseScale = viewWidth / bitmapWidth
+                    baseDy = (viewHeight - bitmapHeight * baseScale) * 0.5f
+                } else {
+                    baseScale = viewHeight / bitmapHeight
+                    baseDx = (viewWidth - bitmapWidth * baseScale) * 0.5f
+                }
+
+                imageMatrix.setScale(baseScale * scaleFactor, baseScale * scaleFactor)
+                imageMatrix.postTranslate(baseDx + translationX, baseDy + translationY)
+            }
+            
+            // === END OF SUGGESTED CHANGE ===
 
             imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
             imageMatrix.mapRect(imageBounds)
