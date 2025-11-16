@@ -414,7 +414,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun getFinalBitmap(): Bitmap? {
-        return baseBitmap
+        if (baseBitmap == null) {
+            return null
+        }
+
+        // Create a new bitmap with the adjustments applied.
+        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(adjustedBitmap)
+        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
+
+        return adjustedBitmap
     }
     
     fun convertTransparentToWhite(bitmap: Bitmap): Bitmap {
