@@ -803,8 +803,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (baseBitmap == null) return null
         val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(adjustedBitmap)
-        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
-        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, imagePaint)
         return adjustedBitmap
     }
 
