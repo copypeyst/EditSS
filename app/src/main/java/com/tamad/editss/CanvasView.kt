@@ -232,7 +232,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
 
-    // Handle crop redo - reapply the crop
+    // Handle crop redo
 
 
     fun handleCropRedo(cropAction: CropAction) {
@@ -440,26 +440,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Use the more sophisticated visible bounds constraint
         clampCropRectToVisibleImage()
     }
-
-    // =================================================================================
-    // START OF CHANGES
-    // =================================================================================
-
-    /**
-     * This is the missing function that your MainActivity needs for the "Cancel Crop" button.
-     * It clears the crop selection rectangle and redraws the canvas.
-     */
+    
     fun cancelCrop() {
         cropRect.setEmpty()
         invalidate()
         onCropCanceled?.invoke() // Invoke callback
     }
-
-    /**
-     * This is the corrected version of your applyCrop function.
-     * It now includes the critical fix for sketch mode to ensure the saved/exported
-     * image matches what you see on the screen.
-     */
+    
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
@@ -480,37 +467,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         if (right <= left || bottom <= top) return null
 
-        // --- START OF THE CRITICAL FIX ---
-        // If in sketch mode, we must transform the coordinates of every stored path
-        // to match the new, smaller canvas. This keeps the "recipe" of strokes in sync.
-        if (isSketchMode) {
-            val translationMatrix = Matrix()
-            // Create a matrix that will shift every path up and to the left by the crop amount.
-            translationMatrix.postTranslate(-left, -top)
-
-            val updatedStrokes = mutableListOf<DrawingAction>()
-            for (stroke in sketchStrokes) {
-                val newPath = Path()
-                // Apply the transformation to the path
-                stroke.path.transform(translationMatrix, newPath)
-                // Create a new DrawingAction with the updated path and original paint
-                updatedStrokes.add(DrawingAction(newPath, stroke.paint))
-            }
-            // Replace the old, incorrect strokes with the new, corrected ones.
-            sketchStrokes.clear()
-            sketchStrokes.addAll(updatedStrokes)
-            
-            // Do the same for the undone strokes stack to prevent bugs with undo/redo
-            val updatedUndoneStrokes = mutableListOf<DrawingAction>()
-            for (stroke in undoneSketchStrokes) {
-                 val newPath = Path()
-                 stroke.path.transform(translationMatrix, newPath)
-                 updatedUndoneStrokes.add(DrawingAction(newPath, stroke.paint))
-            }
-            undoneSketchStrokes.clear()
-            undoneSketchStrokes.addAll(updatedUndoneStrokes)
-        }
-        // --- END OF THE CRITICAL FIX ---
+        // --- BUG FIX: THE PROBLEMATIC BLOCK HAS BEEN REMOVED ---
+        // The sketchStrokes list is NOT modified. It will remain in screen coordinates,
+        // which is correct. The export functions will handle the transformation.
 
         // Perform the crop on the bitmap that includes the drawings.
         val croppedBitmap = Bitmap.createBitmap(
@@ -541,10 +500,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return baseBitmap
     }
 
-    // =================================================================================
-    // END OF CHANGES
-    // =================================================================================
-
     fun getDrawing(): Bitmap? {
         // Since drawings are immediately merged into bitmap, just return baseBitmap
         return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
@@ -555,72 +510,48 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
     }
     
+    // --- START: CORRECTED EXPORT FUNCTIONS ---
     fun getTransparentDrawing(): Bitmap? {
         if (isSketchMode) {
-            // Create transparent bitmap and render only strokes
-            baseBitmap?.let { originalBitmap ->
+            // This function is used when saving to formats like PNG that support transparency.
+            baseBitmap?.let { currentBitmap ->
                 val transparentBitmap = Bitmap.createBitmap(
-                    originalBitmap.width,
-                    originalBitmap.height,
+                    currentBitmap.width,
+                    currentBitmap.height,
                     Bitmap.Config.ARGB_8888
                 )
                 val canvas = Canvas(transparentBitmap)
-                val paint = Paint()
                 
-                // Render all sketch strokes
+                // Create a matrix that transforms screen coordinates to the current bitmap's coordinates.
+                // This correctly handles any cropping, zooming, or panning.
+                val transformMatrix = Matrix()
+                imageMatrix.invert(transformMatrix)
+                canvas.concat(transformMatrix)
+                
+                // Redraw all strokes from the list onto the new transparent bitmap.
+                val tempPaint = Paint()
                 for (stroke in sketchStrokes) {
-                    paint.color = stroke.paint.color
-                    paint.strokeWidth = stroke.paint.strokeWidth
-                    paint.alpha = stroke.paint.alpha
-                    paint.style = stroke.paint.style
-                    paint.strokeJoin = stroke.paint.strokeJoin
-                    paint.strokeCap = stroke.paint.strokeCap
-                    paint.isAntiAlias = stroke.paint.isAntiAlias
-                    
-                    canvas.drawPath(stroke.path, paint)
+                    tempPaint.set(stroke.paint) // Copy properties from the original stroke's paint
+                    canvas.drawPath(stroke.path, tempPaint)
                 }
                 
                 return transparentBitmap
             }
         }
-        // Non-sketch mode: use original method
+        // For non-sketch mode, the original behavior is fine.
         return getDrawingOnTransparent()
     }
     
     fun getSketchDrawingOnWhite(): Bitmap? {
         if (isSketchMode) {
-            // Create white bitmap and render strokes on top
-            baseBitmap?.let { originalBitmap ->
-                val whiteBitmap = Bitmap.createBitmap(
-                    originalBitmap.width,
-                    originalBitmap.height,
-                    Bitmap.Config.ARGB_8888
-                )
-                val canvas = Canvas(whiteBitmap)
-                val paint = Paint()
-                
-                // Fill with white background
-                canvas.drawColor(Color.WHITE)
-                
-                // Render all sketch strokes
-                for (stroke in sketchStrokes) {
-                    paint.color = stroke.paint.color
-                    paint.strokeWidth = stroke.paint.strokeWidth
-                    paint.alpha = stroke.paint.alpha
-                    paint.style = stroke.paint.style
-                    paint.strokeJoin = stroke.paint.strokeJoin
-                    paint.strokeCap = stroke.paint.strokeCap
-                    paint.isAntiAlias = stroke.paint.isAntiAlias
-                    
-                    canvas.drawPath(stroke.path, paint)
-                }
-                
-                return whiteBitmap
-            }
+            // In sketch mode, the baseBitmap is already the complete drawing on a white
+            // background. There's no need to re-render it. This is more efficient and reliable.
+            return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
         }
-        // Non-sketch mode: use original method
+        // For non-sketch mode, the original behavior is fine.
         return getDrawing()
     }
+    // --- END: CORRECTED EXPORT FUNCTIONS ---
 
     fun getFinalBitmap(): Bitmap? {
         // Since drawings are immediately merged into bitmap, just return baseBitmap
