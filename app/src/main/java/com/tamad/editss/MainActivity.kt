@@ -326,6 +326,12 @@ class MainActivity : AppCompatActivity() {
             drawingView.visibility = View.VISIBLE // Show drawing view
             drawingView.setToolType(CanvasView.ToolType.DRAW) // Set draw mode
             drawingView.setCropModeInactive() // Clear crop mode active state
+            
+            // Clear adjustments when switching away from Adjust mode
+            if (currentActiveTool == toolAdjust) {
+                drawingView.clearAdjustments()
+            }
+            
             currentActiveTool?.isSelected = false
             toolDraw.isSelected = true
             currentActiveTool = toolDraw
@@ -338,6 +344,12 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE // Hide save panel
             drawingView.visibility = View.VISIBLE // Keep drawing view visible for cropping
             drawingView.setToolType(CanvasView.ToolType.CROP) // Set crop mode
+            
+            // Clear adjustments when switching away from Adjust mode
+            if (currentActiveTool == toolAdjust) {
+                drawingView.clearAdjustments()
+            }
+            
             currentActiveTool?.isSelected = false
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
@@ -369,12 +381,16 @@ class MainActivity : AppCompatActivity() {
             drawOptionsLayout.visibility = View.GONE
             cropOptionsLayout.visibility = View.GONE
             savePanel.visibility = View.GONE // Hide save panel
-            drawingView.visibility = View.VISIBLE // Hide drawing view
+            drawingView.visibility = View.VISIBLE // Show drawing view
             drawingView.setToolType(CanvasView.ToolType.ADJUST) // Set tool type
             drawingView.setCropModeInactive() // Clear crop mode active state
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
+            
+            // Re-apply adjustments when switching back to Adjust mode
+            val currentAdjustState = editViewModel.adjustState.value
+            drawingView.setAdjustments(currentAdjustState.brightness, currentAdjustState.contrast, currentAdjustState.saturation)
         }
 
         // Initialize Save Panel buttons

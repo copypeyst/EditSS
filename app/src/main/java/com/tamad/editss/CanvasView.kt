@@ -769,6 +769,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         updateColorFilter()
         invalidate()
     }
+    
+    fun clearAdjustments() {
+        this.brightness = 0f
+        this.contrast = 1f
+        this.saturation = 1f
+        imagePaint.colorFilter = null
+        invalidate()
+    }
 
     private fun updateColorFilter() {
         val colorMatrix = ColorMatrix()
