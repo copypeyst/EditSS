@@ -818,7 +818,8 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 // Get bitmap from Coil
-                val bitmapToShare = drawingView.getDrawing()
+                val originalBitmap = drawingView.getDrawing()
+                val bitmapToShare = getCurrentAdjustedBitmap(originalBitmap!!)
 
                 if (bitmapToShare != null) {
                     var shareUri: Uri? = null
@@ -1361,24 +1362,29 @@ class MainActivity : AppCompatActivity() {
                         when (selectedSaveFormat) {
                             "image/png", "image/webp" -> {
                                 // For transparent formats, use transparent version
-                                bitmapToSave = drawingView.getTransparentDrawing()
+                                val originalTransparent = drawingView.getTransparentDrawing()
+                                bitmapToSave = getCurrentAdjustedBitmap(originalTransparent!!)
                             }
                             "image/jpeg" -> {
                                 // For JPEG, render strokes on white background
-                                bitmapToSave = drawingView.getSketchDrawingOnWhite()
+                                val originalWhite = drawingView.getSketchDrawingOnWhite()
+                                bitmapToSave = getCurrentAdjustedBitmap(originalWhite!!)
                             }
                             else -> {
-                                bitmapToSave = drawingView.getDrawing()
+                                val originalDrawing = drawingView.getDrawing()
+                                bitmapToSave = getCurrentAdjustedBitmap(originalDrawing!!)
                             }
                         }
                     } else {
                         bitmapToSave = drawingView.getDrawing()?.let { bitmap ->
+                            // Check if we need to apply current adjustments before saving
+                            val adjustedBitmap = getCurrentAdjustedBitmap(bitmap)
                             // For imported/captured images: if saving as JPEG and image has transparency,
                             // convert transparent areas to white instead of letting them turn black
                             if (selectedSaveFormat == "image/jpeg" && currentImageHasTransparency) {
-                                drawingView.convertTransparentToWhite(bitmap)
+                                drawingView.convertTransparentToWhite(adjustedBitmap)
                             } else {
-                                bitmap
+                                adjustedBitmap
                             }
                         }
                     }
@@ -1488,8 +1494,9 @@ class MainActivity : AppCompatActivity() {
                         showLoadingSpinner()
                         
                         withContext(Dispatchers.IO) {
-                            val bitmapToSave = drawingView.getDrawing()
+                            val originalBitmap = drawingView.getDrawing()
                                 ?: throw Exception("Could not get image to overwrite")
+                            val bitmapToSave = getCurrentAdjustedBitmap(originalBitmap)
                             
                             // Since format is the same, simple overwrite is fine. "w" for write, "t" for truncate.
                             contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
@@ -1759,4 +1766,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --- END: ADDED FOR OVERWRITE FIX ---
+    
+    // Helper function to apply current preview adjustments before saving
+    private fun getCurrentAdjustedBitmap(originalBitmap: Bitmap): Bitmap {
+        val currentAdjustState = editViewModel.adjustState.value
+        
+        // Only apply adjustments if they differ from defaults (0, 1, 1)
+        val hasAdjustments = currentAdjustState.brightness != 0f ||
+                           currentAdjustState.contrast != 1f ||
+                           currentAdjustState.saturation != 1f
+        
+        return if (hasAdjustments) {
+            // Temporarily apply the current adjustments to CanvasView
+            drawingView.setAdjustments(
+                currentAdjustState.brightness,
+                currentAdjustState.contrast,
+                currentAdjustState.saturation
+            )
+            
+            // Apply the adjustments to the bitmap
+            val adjustedBitmap = drawingView.applyAdjustmentsToBitmap()
+            
+            // Reset the CanvasView adjustments back to default
+            drawingView.resetAdjustments()
+            
+            adjustedBitmap ?: originalBitmap // Fallback to original if adjustment fails
+        } else {
+            originalBitmap // No adjustments, return original
+        }
+    }
 }

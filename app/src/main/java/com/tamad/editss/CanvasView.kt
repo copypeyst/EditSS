@@ -767,28 +767,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (baseBitmap == null) return null
         val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(adjustedBitmap)
-        
-        // Create the color matrix using the current adjustment values directly
-        val colorMatrix = ColorMatrix()
-        val translation = brightness + (1f - contrast) * 128f
-        
-        colorMatrix.set(floatArrayOf(
-            contrast, 0f, 0f, 0f, translation,
-            0f, contrast, 0f, 0f, translation,
-            0f, 0f, contrast, 0f, translation,
-            0f, 0f, 0f, 1f, 0f
-        ))
-
-        val saturationMatrix = ColorMatrix().apply { setSaturation(saturation) }
-        colorMatrix.postConcat(saturationMatrix)
-        
-        val paint = Paint().apply {
-            colorFilter = ColorMatrixColorFilter(colorMatrix)
-            isAntiAlias = true
-            isFilterBitmap = true
-            isDither = true
-        }
-        
+        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
         return adjustedBitmap
     }
