@@ -444,18 +444,41 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
-        // Since drawings are immediately merged into bitmap, we can use baseBitmap directly
         val bitmapWithDrawings = baseBitmap ?: return null
-
-        // Store the state before the crop for the undo action.
         val previousBaseBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
-
-        // Map crop rectangle from screen coordinates to image coordinates.
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
         val imageCropRect = RectF()
-        inverseMatrix.mapRect(imageCropRect, cropRect)
 
+        // === START OF THE FIX ===
+
+        if (isSketchMode) {
+            // In sketch mode, we perform a simpler, more direct calculation.
+            // We find the crop rectangle's position relative to the VISIBLE canvas on the screen,
+            // then scale it to the bitmap's actual size. This avoids matrix transform errors.
+
+            if (imageBounds.width() <= 0 || imageBounds.height() <= 0) return null
+
+            // 1. Calculate the effective scale of the displayed canvas.
+            val currentScale = imageBounds.width() / bitmapWithDrawings.width.toFloat()
+
+            // 2. Calculate the crop coordinates relative to the top-left of the displayed image.
+            val leftInBitmap = (cropRect.left - imageBounds.left) / currentScale
+            val topInBitmap = (cropRect.top - imageBounds.top) / currentScale
+            val rightInBitmap = (cropRect.right - imageBounds.left) / currentScale
+            val bottomInBitmap = (cropRect.bottom - imageBounds.top) / currentScale
+            
+            imageCropRect.set(leftInBitmap, topInBitmap, rightInBitmap, bottomInBitmap)
+
+        } else {
+            // This is the original logic for photos, which works correctly.
+            // Map crop rectangle from screen coordinates to image coordinates.
+            val inverseMatrix = Matrix()
+            imageMatrix.invert(inverseMatrix)
+            inverseMatrix.mapRect(imageCropRect, cropRect)
+        }
+
+        // === END OF THE FIX ===
+
+        // The rest of the function remains the same.
         // Clamp to the bounds of the bitmap with drawings.
         val left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat())
         val top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat())
@@ -476,14 +499,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // The new base bitmap is the result of the crop.
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
-        // Create ONLY a BitmapChange action for clean undo/redo - no separate CropAction
         val bitmapChangeAction = EditAction.BitmapChange(
             previousBitmap = previousBaseBitmap,
             newBitmap = baseBitmap!!
         )
-        onBitmapChanged?.invoke(bitmapChangeAction) // Push the BitmapChange to the ViewModel
+        onBitmapChanged?.invoke(bitmapChangeAction)
 
-        // Clear the crop rectangle and reset zoom to default view (recenter)
         cropRect.setEmpty()
         scaleFactor = 1.0f
         translationX = 0f
@@ -695,41 +716,27 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         canvas.drawRect(cropRect.right - cornerSize, cropRect.bottom - cornerSize, cropRect.right, cropRect.bottom, cropCornerPaint)
     }
 
-        private fun updateImageMatrix() {
+    private fun updateImageMatrix() {
         baseBitmap?.let {
             val viewWidth = width.toFloat()
             val viewHeight = height.toFloat()
             val bitmapWidth = it.width.toFloat()
             val bitmapHeight = it.height.toFloat()
 
-            // === START OF SUGGESTED CHANGE ===
+            val baseScale: Float
+            var baseDx = 0f
+            var baseDy = 0f
 
-            if (isSketchMode) {
-                // In sketch mode, the canvas is the world. We don't "fit" it like a photo.
-                // The matrix should only reflect the user's zoom and pan. The canvas's
-                // top-left (0,0) is the origin.
-                imageMatrix.setScale(scaleFactor, scaleFactor)
-                imageMatrix.postTranslate(translationX, translationY)
-
+            if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
+                baseScale = viewWidth / bitmapWidth
+                baseDy = (viewHeight - bitmapHeight * baseScale) * 0.5f
             } else {
-                // This is the original logic for fitting a loaded photo. Keep it as is.
-                val baseScale: Float
-                var baseDx = 0f
-                var baseDy = 0f
-
-                if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
-                    baseScale = viewWidth / bitmapWidth
-                    baseDy = (viewHeight - bitmapHeight * baseScale) * 0.5f
-                } else {
-                    baseScale = viewHeight / bitmapHeight
-                    baseDx = (viewWidth - bitmapWidth * baseScale) * 0.5f
-                }
-
-                imageMatrix.setScale(baseScale * scaleFactor, baseScale * scaleFactor)
-                imageMatrix.postTranslate(baseDx + translationX, baseDy + translationY)
+                baseScale = viewHeight / bitmapHeight
+                baseDx = (viewWidth - bitmapWidth * baseScale) * 0.5f
             }
-            
-            // === END OF SUGGESTED CHANGE ===
+
+            imageMatrix.setScale(baseScale * scaleFactor, baseScale * scaleFactor)
+            imageMatrix.postTranslate(baseDx + translationX, baseDy + translationY)
 
             imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
             imageMatrix.mapRect(imageBounds)
