@@ -11,7 +11,6 @@ import com.tamad.editss.DrawMode
 import com.tamad.editss.DrawingState
 import com.tamad.editss.CropMode
 import com.tamad.editss.CropAction
-import com.tamad.editss.AdjustAction
 import com.tamad.editss.EditAction
 import com.tamad.editss.DrawingAction
 
@@ -750,15 +749,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun updateColorFilter() {
         val colorMatrix = ColorMatrix()
-        
-        // Correct brightness and contrast calculation
-        val brightnessOffset = brightness * 255f / 100f  // Convert from -100 to 100 range
-        val contrastScale = contrast
+        val translation = brightness + (1f - contrast) * 128f
         
         colorMatrix.set(floatArrayOf(
-            contrastScale, 0f, 0f, 0f, brightnessOffset,
-            0f, contrastScale, 0f, 0f, brightnessOffset,
-            0f, 0f, contrastScale, 0f, brightnessOffset,
+            contrast, 0f, 0f, 0f, translation,
+            0f, contrast, 0f, 0f, translation,
+            0f, 0f, contrast, 0f, translation,
             0f, 0f, 0f, 1f, 0f
         ))
 
@@ -771,7 +767,28 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (baseBitmap == null) return null
         val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(adjustedBitmap)
-        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
+        
+        // Create the color matrix using the current adjustment values directly
+        val colorMatrix = ColorMatrix()
+        val translation = brightness + (1f - contrast) * 128f
+        
+        colorMatrix.set(floatArrayOf(
+            contrast, 0f, 0f, 0f, translation,
+            0f, contrast, 0f, 0f, translation,
+            0f, 0f, contrast, 0f, translation,
+            0f, 0f, 0f, 1f, 0f
+        ))
+
+        val saturationMatrix = ColorMatrix().apply { setSaturation(saturation) }
+        colorMatrix.postConcat(saturationMatrix)
+        
+        val paint = Paint().apply {
+            colorFilter = ColorMatrixColorFilter(colorMatrix)
+            isAntiAlias = true
+            isFilterBitmap = true
+            isDither = true
+        }
+        
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
         return adjustedBitmap
     }
