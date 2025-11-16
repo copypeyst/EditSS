@@ -254,8 +254,34 @@ class MainActivity : AppCompatActivity() {
                 savePanel.visibility = View.GONE
                 scrim.visibility = View.GONE
             } else {
-                savePanel.visibility = View.VISIBLE
-                scrim.visibility = View.VISIBLE
+                // Check if there are unapplied adjustments
+                val currentAdjustState = editViewModel.adjustState.value
+                val hasUnappliedAdjustments = currentAdjustState.brightness != 0f ||
+                                               currentAdjustState.contrast != 1f ||
+                                               currentAdjustState.saturation != 1f
+                
+                if (hasUnappliedAdjustments) {
+                    // Show dialog asking to apply adjustments
+                    AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
+                        .setTitle(getString(R.string.apply_adjustments_title))
+                        .setMessage(getString(R.string.apply_adjustments_message))
+                        .setPositiveButton(getString(R.string.apply)) { dialog, _ ->
+                            // Apply adjustments first
+                            applyAdjustmentsAndShowSavePanel()
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton(getString(R.string.ignore)) { dialog, _ ->
+                            // Just show the save panel
+                            savePanel.visibility = View.VISIBLE
+                            scrim.visibility = View.VISIBLE
+                            dialog.dismiss()
+                        }
+                        .show()
+                } else {
+                    // No unapplied adjustments, show save panel directly
+                    savePanel.visibility = View.VISIBLE
+                    scrim.visibility = View.VISIBLE
+                }
             }
         }
 
@@ -1772,6 +1798,32 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             null
         }
+    }
+
+    // Helper function to apply adjustments and show save panel (used from save button dialog)
+    private fun applyAdjustmentsAndShowSavePanel() {
+        val brightnessSlider: SeekBar = findViewById(R.id.adjust_brightness_slider)
+        val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
+        val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
+        
+        val previousBitmap = drawingView.getBaseBitmap()
+        val newBitmap = drawingView.applyAdjustmentsToBitmap()
+
+        if (previousBitmap != null && newBitmap != null) {
+            val action = AdjustAction(previousBitmap, newBitmap)
+            editViewModel.pushAdjustAction(action)
+            drawingView.setBitmap(newBitmap)
+            showCustomToast(getString(R.string.adjustment_applied))
+        }
+
+        editViewModel.resetAdjustments()
+        brightnessSlider.progress = 50
+        contrastSlider.progress = 50
+        saturationSlider.progress = 50
+        
+        // Now show the save panel
+        savePanel.visibility = View.VISIBLE
+        scrim.visibility = View.VISIBLE
     }
 
     // --- END: ADDED FOR OVERWRITE FIX ---
