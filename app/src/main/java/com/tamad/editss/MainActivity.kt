@@ -265,7 +265,7 @@ class MainActivity : AppCompatActivity() {
                     AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
                         .setTitle(getString(R.string.apply_adjustments_title))
                         .setMessage(getString(R.string.apply_adjustments_message))
-                        .setPositiveButton(getString(R.string.apply)) { dialog, _ ->
+                        .setPositiveButton(getString(R.string.apply_adjustments)) { dialog, _ ->
                             // Apply adjustments first
                             applyAdjustmentsAndShowSavePanel()
                             dialog.dismiss()

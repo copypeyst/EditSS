@@ -81,6 +81,6 @@
     <string name="apply_adjustments_title">Apply Color Adjustments?</string>
     <string name="apply_adjustments_message">You have unapplied color adjustments. Apply them before saving?</string>
     <string name="ignore">Ignore</string>
-    <string name="apply">Apply</string>
+    <string name="apply_adjustments">Apply</string>
 
 </resources>
