@@ -441,6 +441,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         clampCropRectToVisibleImage()
     }
 
+    // =================================================================================
+    // START OF CHANGES
+    // =================================================================================
+
+    /**
+     * This is the missing function that your MainActivity needs for the "Cancel Crop" button.
+     * It clears the crop selection rectangle and redraws the canvas.
+     */
+    fun cancelCrop() {
+        cropRect.setEmpty()
+        invalidate()
+        onCropCanceled?.invoke() // Invoke callback
+    }
+
+    /**
+     * This is the corrected version of your applyCrop function.
+     * It now includes the critical fix for sketch mode to ensure the saved/exported
+     * image matches what you see on the screen.
+     */
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
@@ -461,7 +480,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         if (right <= left || bottom <= top) return null
 
-        // --- START OF THE FIX ---
+        // --- START OF THE CRITICAL FIX ---
         // If in sketch mode, we must transform the coordinates of every stored path
         // to match the new, smaller canvas. This keeps the "recipe" of strokes in sync.
         if (isSketchMode) {
@@ -491,7 +510,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             undoneSketchStrokes.clear()
             undoneSketchStrokes.addAll(updatedUndoneStrokes)
         }
-        // --- END OF THE FIX ---
+        // --- END OF THE CRITICAL FIX ---
 
         // Perform the crop on the bitmap that includes the drawings.
         val croppedBitmap = Bitmap.createBitmap(
@@ -522,7 +541,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return baseBitmap
     }
 
-
+    // =================================================================================
+    // END OF CHANGES
+    // =================================================================================
 
     fun getDrawing(): Bitmap? {
         // Since drawings are immediately merged into bitmap, just return baseBitmap
