@@ -418,12 +418,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return null
         }
 
-        // Create a new bitmap with the adjustments applied.
+        // Only apply adjustments if they're not default values
+        val hasAdjustments = brightness != 0f || contrast != 1f || saturation != 1f
+        if (!hasAdjustments) {
+            return baseBitmap
+        }
+
+        // Create a new bitmap with the adjustments baked in
         val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(adjustedBitmap)
-        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
+        
+        // Apply the same color filter used for display
+        val paint = Paint().apply {
+            colorFilter = imagePaint.colorFilter
+            isAntiAlias = true
+            isFilterBitmap = true
+            isDither = true
+        }
+        
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
-
         return adjustedBitmap
     }
     
@@ -761,16 +774,21 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val colorMatrix = ColorMatrix()
         val translation = brightness + (1f - contrast) * 128f
         
+        // Apply brightness/contrast while preserving alpha
         colorMatrix.set(floatArrayOf(
             contrast, 0f, 0f, 0f, translation,
             0f, contrast, 0f, 0f, translation,
             0f, 0f, contrast, 0f, translation,
-            0f, 0f, 0f, 1f, 0f
+            0f, 0f, 0f, 1f, 0f  // Preserve alpha channel completely
         ))
 
+        // Apply saturation while preserving alpha
         val saturationMatrix = ColorMatrix().apply { setSaturation(saturation) }
         colorMatrix.postConcat(saturationMatrix)
         imagePaint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+        
+        // Ensure proper PorterDuff mode for transparent images
+        imagePaint.xfermode = null
     }
 
     fun applyAdjustmentsToBitmap(): Bitmap? {
