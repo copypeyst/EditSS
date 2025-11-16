@@ -801,9 +801,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun applyAdjustmentsToBitmap(): Bitmap? {
         if (baseBitmap == null) return null
+        
+        // Only apply adjustments if they're not default values
+        val hasAdjustments = brightness != 0f || contrast != 1f || saturation != 1f
+        if (!hasAdjustments) {
+            return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        }
+        
         val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(adjustedBitmap)
-        canvas.drawBitmap(baseBitmap!!, 0f, 0f, imagePaint)
+        
+        // Apply the same color filter configuration used for display
+        val paint = Paint().apply {
+            colorFilter = imagePaint.colorFilter
+            isAntiAlias = imagePaint.isAntiAlias
+            isFilterBitmap = imagePaint.isFilterBitmap
+            isDither = imagePaint.isDither
+        }
+        
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
         return adjustedBitmap
     }
 
