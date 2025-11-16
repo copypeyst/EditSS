@@ -76,5 +76,7 @@
     <string name="confirm">Confirm</string>
     <string name="overwrite_changes_title">Overwrite Changes?</string>
     <string name="overwrite_changes_message">The original image will be replaced.</string>
+    <string name="crop_applied">Crop applied</string>
+    <string name="adjustment_applied">Adjustment applied</string>
 
 </resources>

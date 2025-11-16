@@ -421,16 +421,23 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Only apply adjustments if they're not default values
         val hasAdjustments = brightness != 0f || contrast != 1f || saturation != 1f
         if (!hasAdjustments) {
-            return if (isSketchMode) {
-                // For sketch mode, create a bitmap from strokes even without adjustments
-                applyAdjustmentsToSketch()
-            } else {
-                baseBitmap
-            }
+            return baseBitmap
         }
 
-        // Apply adjustments based on mode
-        return applyAdjustmentsToBitmap()
+        // Create a new bitmap with the adjustments baked in
+        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(adjustedBitmap)
+        
+        // Apply the same color filter used for display
+        val paint = Paint().apply {
+            colorFilter = imagePaint.colorFilter
+            isAntiAlias = true
+            isFilterBitmap = true
+            isDither = true
+        }
+        
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
+        return adjustedBitmap
     }
     
     fun convertTransparentToWhite(bitmap: Bitmap): Bitmap {
@@ -443,30 +450,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
         if (baseBitmap == null) return
-        
-        if (isSketchMode) {
-            // In sketch mode, don't merge into baseBitmap, just add to sketchStrokes
-            // The stroke will be drawn with adjustments in onDraw
-            val inverseMatrix = Matrix()
-            imageMatrix.invert(inverseMatrix)
-            
-            val bitmapSpacePaint = Paint(action.paint)
-            val bitmapStrokeWidth = inverseMatrix.mapRadius(action.paint.strokeWidth)
-            bitmapSpacePaint.strokeWidth = bitmapStrokeWidth
-            
-            val bitmapPath = Path()
-            action.path.transform(inverseMatrix, bitmapPath)
-            
-            val bitmapSpaceAction = DrawingAction(bitmapPath, bitmapSpacePaint)
-            sketchStrokes.add(bitmapSpaceAction)
-        } else {
-            // Regular mode - merge into baseBitmap
-            val canvas = Canvas(baseBitmap!!)
-            val inverseMatrix = Matrix()
-            imageMatrix.invert(inverseMatrix)
-            canvas.concat(inverseMatrix)
-            canvas.drawPath(action.path, action.paint)
-        }
+        val canvas = Canvas(baseBitmap!!)
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        canvas.concat(inverseMatrix)
+        canvas.drawPath(action.path, action.paint)
         invalidate()
     }
 
@@ -475,7 +463,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         updateImageMatrix()
     }
     
-    override fun onDraw(canvas: Canvas) {
+     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         baseBitmap?.let {
             canvas.save()
@@ -485,29 +473,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 imageBounds.roundOut(checker.bounds)
                 checker.draw(canvas)
             }
-            
-            if (isSketchMode) {
-                // In sketch mode, draw strokes with adjustments applied
-                val adjustedPaint = Paint().apply {
-                    colorFilter = imagePaint.colorFilter
-                    isAntiAlias = true
-                    isFilterBitmap = true
-                    isDither = true
-                    style = Paint.Style.STROKE
-                    strokeJoin = Paint.Join.ROUND
-                    strokeCap = Paint.Cap.ROUND
-                }
-                
-                for (stroke in sketchStrokes) {
-                    adjustedPaint.color = stroke.paint.color
-                    adjustedPaint.strokeWidth = stroke.paint.strokeWidth
-                    adjustedPaint.alpha = stroke.paint.alpha
-                    canvas.drawPath(stroke.path, adjustedPaint)
-                }
-            } else {
-                // Regular image mode - draw bitmap with adjustments
-                canvas.drawBitmap(it, imageMatrix, imagePaint)
-            }
+            canvas.drawBitmap(it, imageMatrix, imagePaint)
             canvas.restore()
         }
 
@@ -826,59 +792,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun applyAdjustmentsToBitmap(): Bitmap? {
-        // Handle both regular image mode and sketch mode
-        if (isSketchMode) {
-            return applyAdjustmentsToSketch()
-        } else {
-            return applyAdjustmentsToRegularBitmap()
-        }
-    }
-    
-    private fun applyAdjustmentsToRegularBitmap(): Bitmap? {
         if (baseBitmap == null) return null
         val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(adjustedBitmap)
-        val paint = Paint().apply {
-            colorFilter = imagePaint.colorFilter
-            isAntiAlias = true
-            isFilterBitmap = true
-            isDither = true
-        }
+        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
         return adjustedBitmap
-    }
-    
-    private fun applyAdjustmentsToSketch(): Bitmap? {
-        baseBitmap?.let { currentBitmap ->
-            val adjustedBitmap = Bitmap.createBitmap(
-                currentBitmap.width,
-                currentBitmap.height,
-                Bitmap.Config.ARGB_8888
-            )
-            val canvas = Canvas(adjustedBitmap)
-            
-            // Create a paint with the color filter for strokes
-            val adjustedPaint = Paint().apply {
-                colorFilter = imagePaint.colorFilter
-                isAntiAlias = true
-                isFilterBitmap = true
-                isDither = true
-                style = Paint.Style.STROKE
-                strokeJoin = Paint.Join.ROUND
-                strokeCap = Paint.Cap.ROUND
-            }
-            
-            // Draw each stroke with adjustments applied
-            for (stroke in sketchStrokes) {
-                adjustedPaint.color = stroke.paint.color
-                adjustedPaint.strokeWidth = stroke.paint.strokeWidth
-                adjustedPaint.alpha = stroke.paint.alpha
-                canvas.drawPath(stroke.path, adjustedPaint)
-            }
-            
-            return adjustedBitmap
-        }
-        return null
     }
 
     fun resetAdjustments() {

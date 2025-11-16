@@ -514,7 +514,7 @@ class MainActivity : AppCompatActivity() {
                 currentCropMode?.isSelected = false
                 currentCropMode = null
                 drawingView.setCropModeInactive()
-                // Toast removed: "Image cropped successfully" - UX improvement
+                showCustomToast(getString(R.string.crop_applied))
             } else {
                 // Toast removed: "No crop area selected" - UX improvement
             }
@@ -594,7 +594,7 @@ class MainActivity : AppCompatActivity() {
                 val action = AdjustAction(previousBitmap, newBitmap)
                 editViewModel.pushAdjustAction(action)
                 drawingView.setBitmap(newBitmap)
-                // Toast removed: "Adjustments applied" - UX improvement
+                showCustomToast(getString(R.string.adjustment_applied))
             }
 
             editViewModel.resetAdjustments()
