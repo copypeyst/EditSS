@@ -390,40 +390,23 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
     
     fun getTransparentDrawing(): Bitmap? {
-        val source = baseBitmap ?: return null
-        val transparentBitmap = Bitmap.createBitmap(
-            source.width,
-            source.height,
-            Bitmap.Config.ARGB_8888
-        )
-        val canvas = Canvas(transparentBitmap)
-        val finalPaint = Paint().apply {
-            isAntiAlias = true
-            isFilterBitmap = true
-            isDither = true
-            colorFilter = imagePaint.colorFilter
-        }
-
         if (isSketchMode) {
-            // For sketch mode, we need to redraw the strokes on a transparent background
-            // but also apply the adjustments. The easiest way is to create a bitmap
-            // with the strokes, then draw that bitmap with the color filter.
-            val sketchWithStrokes = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
-            val sketchCanvas = Canvas(sketchWithStrokes)
-            val tempPaint = Paint()
-            for (stroke in sketchStrokes) {
-                tempPaint.set(stroke.paint)
-                sketchCanvas.drawPath(stroke.path, tempPaint)
+            baseBitmap?.let { currentBitmap ->
+                val transparentBitmap = Bitmap.createBitmap(
+                    currentBitmap.width,
+                    currentBitmap.height,
+                    Bitmap.Config.ARGB_8888
+                )
+                val canvas = Canvas(transparentBitmap)
+                val tempPaint = Paint()
+                for (stroke in sketchStrokes) {
+                    tempPaint.set(stroke.paint)
+                    canvas.drawPath(stroke.path, tempPaint)
+                }
+                return transparentBitmap
             }
-            canvas.drawBitmap(sketchWithStrokes, 0f, 0f, finalPaint)
-            sketchWithStrokes.recycle()
-
-        } else {
-            // For images with drawings, just draw the baseBitmap with the filter
-            canvas.drawBitmap(source, 0f, 0f, finalPaint)
         }
-
-        return transparentBitmap
+        return getDrawingOnTransparent()
     }
     
     fun getSketchDrawingOnWhite(): Bitmap? {
