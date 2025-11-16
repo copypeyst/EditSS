@@ -446,39 +446,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         val bitmapWithDrawings = baseBitmap ?: return null
         val previousBaseBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+
+        // Map crop rectangle from screen coordinates to image coordinates.
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
         val imageCropRect = RectF()
+        inverseMatrix.mapRect(imageCropRect, cropRect)
 
-        // === START OF THE FIX ===
-
-        if (isSketchMode) {
-            // In sketch mode, we perform a simpler, more direct calculation.
-            // We find the crop rectangle's position relative to the VISIBLE canvas on the screen,
-            // then scale it to the bitmap's actual size. This avoids matrix transform errors.
-
-            if (imageBounds.width() <= 0 || imageBounds.height() <= 0) return null
-
-            // 1. Calculate the effective scale of the displayed canvas.
-            val currentScale = imageBounds.width() / bitmapWithDrawings.width.toFloat()
-
-            // 2. Calculate the crop coordinates relative to the top-left of the displayed image.
-            val leftInBitmap = (cropRect.left - imageBounds.left) / currentScale
-            val topInBitmap = (cropRect.top - imageBounds.top) / currentScale
-            val rightInBitmap = (cropRect.right - imageBounds.left) / currentScale
-            val bottomInBitmap = (cropRect.bottom - imageBounds.top) / currentScale
-            
-            imageCropRect.set(leftInBitmap, topInBitmap, rightInBitmap, bottomInBitmap)
-
-        } else {
-            // This is the original logic for photos, which works correctly.
-            // Map crop rectangle from screen coordinates to image coordinates.
-            val inverseMatrix = Matrix()
-            imageMatrix.invert(inverseMatrix)
-            inverseMatrix.mapRect(imageCropRect, cropRect)
-        }
-
-        // === END OF THE FIX ===
-
-        // The rest of the function remains the same.
         // Clamp to the bounds of the bitmap with drawings.
         val left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat())
         val top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat())
@@ -486,6 +460,38 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat())
 
         if (right <= left || bottom <= top) return null
+
+        // --- START OF THE FIX ---
+        // If in sketch mode, we must transform the coordinates of every stored path
+        // to match the new, smaller canvas. This keeps the "recipe" of strokes in sync.
+        if (isSketchMode) {
+            val translationMatrix = Matrix()
+            // Create a matrix that will shift every path up and to the left by the crop amount.
+            translationMatrix.postTranslate(-left, -top)
+
+            val updatedStrokes = mutableListOf<DrawingAction>()
+            for (stroke in sketchStrokes) {
+                val newPath = Path()
+                // Apply the transformation to the path
+                stroke.path.transform(translationMatrix, newPath)
+                // Create a new DrawingAction with the updated path and original paint
+                updatedStrokes.add(DrawingAction(newPath, stroke.paint))
+            }
+            // Replace the old, incorrect strokes with the new, corrected ones.
+            sketchStrokes.clear()
+            sketchStrokes.addAll(updatedStrokes)
+            
+            // Do the same for the undone strokes stack to prevent bugs with undo/redo
+            val updatedUndoneStrokes = mutableListOf<DrawingAction>()
+            for (stroke in undoneSketchStrokes) {
+                 val newPath = Path()
+                 stroke.path.transform(translationMatrix, newPath)
+                 updatedUndoneStrokes.add(DrawingAction(newPath, stroke.paint))
+            }
+            undoneSketchStrokes.clear()
+            undoneSketchStrokes.addAll(updatedUndoneStrokes)
+        }
+        // --- END OF THE FIX ---
 
         // Perform the crop on the bitmap that includes the drawings.
         val croppedBitmap = Bitmap.createBitmap(
@@ -514,21 +520,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         onCropApplied?.invoke(baseBitmap!!)
 
         return baseBitmap
-    }
-
-    fun cancelCrop() {
-        cropRect.setEmpty()
-        invalidate()
-        onCropCanceled?.invoke() // Invoke callback
-    }
-
-    private fun updateImageBounds() {
-        baseBitmap?.let {
-            val bitmapWidth = it.width.toFloat()
-            val bitmapHeight = it.height.toFloat()
-            imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
-            imageMatrix.mapRect(imageBounds)
-        }
     }
 
 
