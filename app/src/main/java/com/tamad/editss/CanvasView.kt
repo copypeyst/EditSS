@@ -621,6 +621,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                         }
                     }
                     if (cropRect.contains(x, y)) {
+                        validateAndCorrectCropRect() // Correct the rect before moving
                         isMovingCropRect = true
                         cropStartX = x; cropStartY = y
                         cropStartLeft = cropRect.left; cropStartTop = cropRect.top
@@ -663,6 +664,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             MotionEvent.ACTION_UP -> {
                 if (currentTool == ToolType.CROP) {
                     if(isCropping) enforceAspectRatio()
+                    if(isCropping) updateCropRect(x, y) // Final update to enforce aspect ratio
                     isCropping = false
                     isMovingCropRect = false
                     isResizingCropRect = false
@@ -697,6 +699,56 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
         
         cropRect.bottom = cropRect.top + height
+        invalidate()
+    }
+
+    /**
+     * Validates the crop rectangle on touch, ensuring it respects aspect ratio and bounds.
+     * This prevents issues where zooming/panning can leave the marquee out of bounds.
+     */
+    private fun validateAndCorrectCropRect() {
+        if (cropRect.isEmpty) return
+
+        val targetAspectRatio: Float? = when (currentCropMode) {
+            CropMode.SQUARE -> 1f
+            CropMode.PORTRAIT -> 9f / 16f
+            CropMode.LANDSCAPE -> 16f / 9f
+            else -> null
+        }
+
+        val visibleBounds = getVisibleImageBounds()
+        if (visibleBounds.width() <= 0 || visibleBounds.height() <= 0) return
+
+        // 1. Clamp the center of the crop rectangle to be within the visible bounds.
+        val centerX = cropRect.centerX().coerceIn(visibleBounds.left, visibleBounds.right)
+        val centerY = cropRect.centerY().coerceIn(visibleBounds.top, visibleBounds.bottom)
+
+        var width = cropRect.width()
+        var height = cropRect.height()
+
+        // 2. If an aspect ratio is set, enforce it.
+        targetAspectRatio?.let { ratio ->
+            if (width / height > ratio) {
+                width = height * ratio
+            } else {
+                height = width / ratio
+            }
+        }
+
+        // 3. Scale down the size if it exceeds the maximum possible size from the clamped center.
+        val maxAllowedWidth = 2 * kotlin.math.min(centerX - visibleBounds.left, visibleBounds.right - centerX)
+        val maxAllowedHeight = 2 * kotlin.math.min(centerY - visibleBounds.top, visibleBounds.bottom - centerY)
+
+        if (width > maxAllowedWidth || height > maxAllowedHeight) {
+            val widthScale = maxAllowedWidth / width
+            val heightScale = maxAllowedHeight / height
+            val scale = kotlin.math.min(widthScale, heightScale)
+            width *= scale
+            height *= scale
+        }
+
+        // 4. Set the final, corrected rectangle and invalidate the view.
+        cropRect.set(centerX - width / 2, centerY - height / 2, centerX + width / 2, centerY + height / 2)
         invalidate()
     }
 
@@ -791,6 +843,31 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun updateCropRect(x: Float, y: Float) {
         cropRect.right = Math.max(x, cropRect.left)
         cropRect.bottom = Math.max(y, cropRect.top)
+        val startX = cropRect.left
+        val startY = cropRect.top
+
+        val targetAspectRatio: Float? = when (currentCropMode) {
+            CropMode.SQUARE -> 1f
+            CropMode.PORTRAIT -> 9f / 16f
+            CropMode.LANDSCAPE -> 16f / 9f
+            else -> null
+        }
+
+        if (targetAspectRatio != null) {
+            var newWidth = x - startX
+            var newHeight = y - startY
+
+            if (newWidth / newHeight > targetAspectRatio) {
+                newHeight = newWidth / targetAspectRatio
+            } else {
+                newWidth = newHeight * targetAspectRatio
+            }
+            cropRect.right = startX + newWidth
+            cropRect.bottom = startY + newHeight
+        } else { // Freeform
+            cropRect.right = x
+            cropRect.bottom = y
+        }
     }
 
     fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
