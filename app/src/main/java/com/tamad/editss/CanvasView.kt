@@ -710,50 +710,82 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun resizeCropRect(x: Float, y: Float) {
-        val minSize = 50f
-        var newLeft = cropRect.left; var newTop = cropRect.top
-        var newRight = cropRect.right; var newBottom = cropRect.bottom
+        val minCropSize = 50f
 
-        when (resizeHandle) {
-            1 -> { newLeft = x.coerceAtMost(newRight - minSize); newTop = y.coerceAtMost(newBottom - minSize) }
-            2 -> { newRight = x.coerceAtLeast(newLeft + minSize); newTop = y.coerceAtMost(newBottom - minSize) }
-            3 -> { newLeft = x.coerceAtMost(newRight - minSize); newBottom = y.coerceAtLeast(newTop + minSize) }
-            4 -> { newRight = x.coerceAtLeast(newLeft + minSize); newBottom = y.coerceAtLeast(newTop + minSize) }
-        }
-
-        val aspectRatio = when (currentCropMode) {
+        // Determine the aspect ratio, or null for freeform
+        val aspectRatio: Float? = when (currentCropMode) {
             CropMode.SQUARE -> 1f
             CropMode.PORTRAIT -> 9f / 16f
             CropMode.LANDSCAPE -> 16f / 9f
-            else -> 0f
+            else -> null
         }
 
-        if (aspectRatio > 0) {
+        if (aspectRatio != null) {
+            // --- ASPECT RATIO LOGIC ---
+            // Determine the fixed corner based on the active handle
             val (fixedX, fixedY) = when (resizeHandle) {
                 1 -> Pair(cropRect.right, cropRect.bottom)
                 2 -> Pair(cropRect.left, cropRect.bottom)
                 3 -> Pair(cropRect.right, cropRect.top)
                 4 -> Pair(cropRect.left, cropRect.top)
-                else -> return
+                else -> return // Should not happen
             }
 
-            var newWidth = Math.abs(x - fixedX)
-            var newHeight = Math.abs(y - fixedY)
+            // Calculate potential new width and height based on drag
+            var newWidth = kotlin.math.abs(x - fixedX)
+            var newHeight = kotlin.math.abs(y - fixedY)
 
-            if (newWidth / newHeight > aspectRatio) {
+            // Adjust dimensions to fit aspect ratio based on the dominant drag direction
+            if (newWidth / newHeight > aspectRatio) { // Dragged wider than ratio allows
                 newWidth = newHeight * aspectRatio
-            } else {
+            } else { // Dragged taller than ratio allows
                 newHeight = newWidth / aspectRatio
             }
-            
+
+            // --- BOUNDARY AND MINIMUM SIZE CHECKS ---
+            // 1. Check against minimum size
+            if (newWidth < minCropSize || newHeight < minCropSize) {
+                newWidth = kotlin.math.max(newWidth, minCropSize)
+                newHeight = kotlin.math.max(newHeight, minCropSize)
+                if (newWidth / newHeight > aspectRatio) newWidth = newHeight * aspectRatio else newHeight = newWidth / aspectRatio
+            }
+
+            // 2. Check against visible image bounds
+            val visibleBounds = getVisibleImageBounds()
+            val maxAllowedWidth = when (resizeHandle) {
+                1, 3 -> fixedX - visibleBounds.left // Dragging left
+                else -> visibleBounds.right - fixedX // Dragging right
+            }
+            val maxAllowedHeight = when (resizeHandle) {
+                1, 2 -> fixedY - visibleBounds.top // Dragging up
+                else -> visibleBounds.bottom - fixedY // Dragging down
+            }
+
+            if (newWidth > maxAllowedWidth || newHeight > maxAllowedHeight) {
+                // If the new size exceeds bounds, scale it down using the smaller scaling factor
+                val widthScale = maxAllowedWidth / newWidth
+                val heightScale = maxAllowedHeight / newHeight
+                val scale = kotlin.math.min(widthScale, heightScale)
+                newWidth *= scale
+                newHeight *= scale
+            }
+
+            // --- APPLY THE FINAL, CONSTRAINED SIZE ---
             when (resizeHandle) {
-                1 -> { newLeft = fixedX - newWidth; newTop = fixedY - newHeight }
-                2 -> { newRight = fixedX + newWidth; newTop = fixedY - newHeight }
-                3 -> { newLeft = fixedX - newWidth; newBottom = fixedY + newHeight }
-                4 -> { newRight = fixedX + newWidth; newBottom = fixedY + newHeight }
+                1 -> cropRect.set(fixedX - newWidth, fixedY - newHeight, fixedX, fixedY)
+                2 -> cropRect.set(fixedX, fixedY - newHeight, fixedX + newWidth, fixedY)
+                3 -> cropRect.set(fixedX - newWidth, fixedY, fixedX, fixedY + newHeight)
+                4 -> cropRect.set(fixedX, fixedY, fixedX + newWidth, fixedY + newHeight)
+            }
+        } else {
+            // --- FREEFORM LOGIC (existing logic with min size) ---
+            when (resizeHandle) {
+                1 -> { cropRect.left = x.coerceAtMost(cropRect.right - minCropSize); cropRect.top = y.coerceAtMost(cropRect.bottom - minCropSize) }
+                2 -> { cropRect.right = x.coerceAtLeast(cropRect.left + minCropSize); cropRect.top = y.coerceAtMost(cropRect.bottom - minCropSize) }
+                3 -> { cropRect.left = x.coerceAtMost(cropRect.right - minCropSize); cropRect.bottom = y.coerceAtLeast(cropRect.top + minCropSize) }
+                4 -> { cropRect.right = x.coerceAtLeast(cropRect.left + minCropSize); cropRect.bottom = y.coerceAtLeast(cropRect.top + minCropSize) }
             }
         }
-        cropRect.set(newLeft, newTop, newRight, newBottom)
     }
 
     private fun updateCropRect(x: Float, y: Float) {
