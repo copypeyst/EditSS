@@ -8,7 +8,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import android.widget.SeekBar
-import kotlin.math.abs
+import androidx.core.content.ContextCompat
 
 /**
  * A floating overlay that displays slider values as the user moves the slider thumb.
@@ -25,6 +25,7 @@ class SliderValueOverlay @JvmOverloads constructor(
     private var thumbY: Float = 0f
     private var isVisible: Boolean = false
     private var hideRunnable: Runnable? = null
+    private var isBeingDragged: Boolean = false
 
     // Paint for the background bubble
     private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -39,9 +40,9 @@ class SliderValueOverlay @JvmOverloads constructor(
         textAlign = Paint.Align.CENTER
     }
 
-    // Paint for the border/stroke
+    // Paint for the border/stroke - uses teal accent color
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF66BB6A.toInt() // Green accent
+        color = 0xFF03DAC5.toInt() // Teal accent (teal_200)
         strokeWidth = 2f
         style = Paint.Style.STROKE
     }
@@ -54,6 +55,7 @@ class SliderValueOverlay @JvmOverloads constructor(
 
         if (isVisible && currentValue.isNotEmpty()) {
             // Draw background bubble with rounded corners
+            // Center the bubble horizontally on the thumb (fixed alignment)
             val bubbleLeft = thumbX - bubbleRadius - padding
             val bubbleTop = thumbY - bubbleRadius * 2.2f
             val bubbleRight = thumbX + bubbleRadius + padding
@@ -65,15 +67,26 @@ class SliderValueOverlay @JvmOverloads constructor(
             // Draw border
             canvas.drawRoundRect(bubbleRect, 16f, 16f, strokePaint)
 
-            // Draw value text
+            // Draw value text - center it properly
             val textYOffset = (bubbleTop + bubbleBottom) / 2 + 12f
             canvas.drawText(currentValue, thumbX, textYOffset, textPaint)
         }
     }
 
     /**
+     * Call this when the user touches/starts dragging the slider
+     * Prepares the overlay for display
+     */
+    fun onSliderTouched() {
+        isBeingDragged = true
+        // Cancel any pending hide
+        removeCallbacks(hideRunnable)
+    }
+
+    /**
      * Update the overlay position and value based on the slider.
      * This is called during slider movement.
+     * Stays visible while dragging, fades out 2 seconds after release.
      */
     fun updateFromSlider(seekBar: SeekBar, value: Int, displayValue: String) {
         currentValue = displayValue
@@ -91,6 +104,7 @@ class SliderValueOverlay @JvmOverloads constructor(
             this.getLocationOnScreen(overlayLocation)
             
             // Calculate thumb center X in overlay coordinates
+            // Use thumbBounds.right to get the actual center of the circular thumb
             thumbX = (sliderLocation[0] + thumbBounds.centerX() - overlayLocation[0]).toFloat()
             
             // Position Y above the slider
@@ -98,18 +112,30 @@ class SliderValueOverlay @JvmOverloads constructor(
         }
         
         isVisible = true
+        isBeingDragged = true
         invalidate()
         
-        // Hide after 1 second of no movement
+        // Cancel any pending hide
         removeCallbacks(hideRunnable)
-        hideRunnable = Runnable { hideOverlay() }
-        postDelayed(hideRunnable!!, 1000)
     }
 
     /**
-     * Hide the overlay with a fade-out animation
+     * Call this when the user releases the slider
+     * Overlay will fade out after 2 seconds
      */
-    fun hideOverlay() {
+    fun onSliderReleased() {
+        isBeingDragged = false
+        
+        // Hide after 2 seconds of release
+        removeCallbacks(hideRunnable)
+        hideRunnable = Runnable { hideOverlay() }
+        postDelayed(hideRunnable!!, 2000)
+    }
+
+    /**
+     * Hide the overlay
+     */
+    private fun hideOverlay() {
         isVisible = false
         invalidate()
     }
@@ -119,6 +145,7 @@ class SliderValueOverlay @JvmOverloads constructor(
      */
     fun hide() {
         isVisible = false
+        isBeingDragged = false
         removeCallbacks(hideRunnable)
         invalidate()
     }

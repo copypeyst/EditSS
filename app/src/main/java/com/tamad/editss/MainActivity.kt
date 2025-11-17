@@ -513,9 +513,11 @@ class MainActivity : AppCompatActivity() {
                     drawSizeOverlay.updateFromSlider(seekBar!!, progress, "${progress + 1}")
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                drawSizeOverlay.onSliderTouched()
+            }
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                drawSizeOverlay.hideOverlay()
+                drawSizeOverlay.onSliderReleased()
             }
         })
 
@@ -530,9 +532,11 @@ class MainActivity : AppCompatActivity() {
                     drawOpacityOverlay.updateFromSlider(seekBar!!, progress, "${opacity}%")
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                drawOpacityOverlay.onSliderTouched()
+            }
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                drawOpacityOverlay.hideOverlay()
+                drawOpacityOverlay.onSliderReleased()
             }
         })
 
@@ -617,10 +621,10 @@ class MainActivity : AppCompatActivity() {
         contrastOverlay = findViewById(R.id.contrast_overlay)
         saturationOverlay = findViewById(R.id.saturation_overlay)
 
-        // Set slider max to 199 for 200 steps (0-199) and default to middle (100)
-        brightnessSlider.max = 199
-        contrastSlider.max = 199
-        saturationSlider.max = 199
+        // Set slider max to 200 for 201 steps (0-200) to allow -100 to +100
+        brightnessSlider.max = 200
+        contrastSlider.max = 200
+        saturationSlider.max = 200
         
         // Set sliders to the middle (100) by default
         brightnessSlider.progress = 100
@@ -630,7 +634,7 @@ class MainActivity : AppCompatActivity() {
         brightnessSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-199) to brightness value (-100 to 100) for 200 steps
+                    // Map progress (0-200) to brightness value (-100 to 100)
                     val value = progress - 100
                     editViewModel.updateBrightness(value.toFloat())
                     
@@ -639,45 +643,53 @@ class MainActivity : AppCompatActivity() {
                     brightnessOverlay.updateFromSlider(seekBar!!, progress, displayValue)
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                brightnessOverlay.onSliderTouched()
+            }
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                brightnessOverlay.hideOverlay()
+                brightnessOverlay.onSliderReleased()
             }
         })
 
         contrastSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-199) to contrast value (0.0 to 2.0) for 200 steps
-                    val value = progress / 100f
-                    editViewModel.updateContrast(value)
+                    // Map progress (0-200) to contrast value (-100 to 100), then convert to 0.0-2.0
+                    val rawValue = progress - 100  // -100 to +100
+                    val normalizedValue = (rawValue + 100) / 100f  // 0.0 to 2.0
+                    editViewModel.updateContrast(normalizedValue)
                     
-                    // Show overlay with value
-                    val displayValue = String.format("%.1f", value)
+                    // Show overlay with value (-100 to +100)
+                    val displayValue = if (rawValue > 0) "+$rawValue" else "$rawValue"
                     contrastOverlay.updateFromSlider(seekBar!!, progress, displayValue)
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                contrastOverlay.onSliderTouched()
+            }
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                contrastOverlay.hideOverlay()
+                contrastOverlay.onSliderReleased()
             }
         })
 
         saturationSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-199) to saturation value (0.0 to 2.0) for 200 steps
-                    val value = progress / 100f
-                    editViewModel.updateSaturation(value)
+                    // Map progress (0-200) to saturation value (-100 to 100), then convert to 0.0-2.0
+                    val rawValue = progress - 100  // -100 to +100
+                    val normalizedValue = (rawValue + 100) / 100f  // 0.0 to 2.0
+                    editViewModel.updateSaturation(normalizedValue)
                     
-                    // Show overlay with value
-                    val displayValue = String.format("%.1f", value)
+                    // Show overlay with value (-100 to +100)
+                    val displayValue = if (rawValue > 0) "+$rawValue" else "$rawValue"
                     saturationOverlay.updateFromSlider(seekBar!!, progress, displayValue)
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                saturationOverlay.onSliderTouched()
+            }
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                saturationOverlay.hideOverlay()
+                saturationOverlay.onSliderReleased()
             }
         })
 
