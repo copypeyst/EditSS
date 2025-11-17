@@ -1882,12 +1882,17 @@ class MainActivity : AppCompatActivity() {
         // Set initial value
         valueText.text = value.toString()
 
+        // Measure the popup view to get its dimensions before showing it
+        popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val popupWidth = popupView.measuredWidth
+        val popupHeight = popupView.measuredHeight
+
         // Calculate position and show the popup
         val thumbRect = seekBar.thumb.bounds
-        val x = seekBar.left + thumbRect.centerX() - popupView.width / 2
-        val y = seekBar.top - seekBar.height - 10 // Position above the slider
+        val x = seekBar.left + thumbRect.centerX() - popupWidth / 2
+        val y = seekBar.top - popupHeight - seekBar.paddingTop // Position above the slider's thumb
 
-        sliderValuePopup?.showAsDropDown(seekBar, x, y)
+        sliderValuePopup?.showAsDropDown(seekBar, 0, 0) // Show at a dummy location first
         updateSliderValuePopup(seekBar, value) // Call update to position it correctly
     }
 
@@ -1897,12 +1902,15 @@ class MainActivity : AppCompatActivity() {
             val valueText = popupView.findViewById<TextView>(R.id.slider_value_text)
             valueText.text = value.toString()
 
+            val popupWidth = popupView.measuredWidth
+            val popupHeight = popupView.measuredHeight
+
             // Recalculate position based on thumb's current location
             val thumbRect = seekBar.thumb.bounds
-            val x = seekBar.left + thumbRect.centerX() - popupView.width / 2
-            val y = seekBar.top - seekBar.height - 10
+            val x = seekBar.left + thumbRect.centerX() - popupWidth / 2
+            val y = seekBar.top - popupHeight - seekBar.paddingTop
 
-            popup.update(seekBar, x, y, -1, -1)
+            popup.update(seekBar, x, y, popupWidth, popupHeight)
         }
     }
 
