@@ -813,4 +813,39 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun resetAdjustments() {
         setAdjustments(0f, 1f, 1f)
     }
+
+    fun getTransparentDrawingWithAdjustments(): Bitmap? {
+        // For sketch mode with applied adjustments:
+        // Takes baseBitmap (which has white bg + strokes + adjustments)
+        // and converts white background to transparent
+        baseBitmap?.let { currentBitmap ->
+            val transparentBitmap = Bitmap.createBitmap(
+                currentBitmap.width,
+                currentBitmap.height,
+                Bitmap.Config.ARGB_8888
+            )
+            
+            val pixels = IntArray(currentBitmap.width * currentBitmap.height)
+            currentBitmap.getPixels(pixels, 0, currentBitmap.width, 0, 0, currentBitmap.width, currentBitmap.height)
+            
+            // Convert near-white pixels to transparent
+            // Using a threshold to catch slightly-adjusted white (from brightness/contrast/saturation changes)
+            for (i in pixels.indices) {
+                val pixel = pixels[i]
+                val alpha = (pixel shr 24) and 0xFF
+                val red = (pixel shr 16) and 0xFF
+                val green = (pixel shr 8) and 0xFF
+                val blue = pixel and 0xFF
+                
+                // If pixel is close to white (all RGB channels > 240), make it transparent
+                if (red > 240 && green > 240 && blue > 240) {
+                    pixels[i] = 0x00000000 // Transparent
+                }
+            }
+            
+            transparentBitmap.setPixels(pixels, 0, currentBitmap.width, 0, 0, currentBitmap.width, currentBitmap.height)
+            return transparentBitmap
+        }
+        return null
+    }
 }
