@@ -340,6 +340,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
+        val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
         val bitmapWithDrawings = baseBitmap ?: return null
 
         val inverseMatrix = Matrix()
@@ -366,6 +367,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         
         // Save state for simple undo/redo
         saveCurrentState()
+        
+        // Notify ViewModel about the crop operation
+        val cropAction = CropAction(previousBitmap, cropRect.copy(), currentCropMode)
+        baseBitmap?.let { newBitmap ->
+            val editAction = EditAction.BitmapChange(previousBitmap, newBitmap.copy(Bitmap.Config.ARGB_8888, true), cropAction = cropAction)
+            onBitmapChanged?.invoke(editAction)
+        }
         
         cropRect.setEmpty()
         scaleFactor = 1.0f
@@ -443,6 +451,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
         if (baseBitmap == null) return
+        
+        // Keep reference to previous bitmap state before drawing
+        val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+        
         val canvas = Canvas(baseBitmap!!)
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
@@ -451,6 +463,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         
         // Save state after each drawing stroke
         saveCurrentState()
+        
+        // Notify ViewModel about the bitmap change
+        baseBitmap?.let { newBitmap ->
+            val editAction = EditAction.BitmapChange(previousBitmap, newBitmap.copy(Bitmap.Config.ARGB_8888, true), associatedStroke = action)
+            onBitmapChanged?.invoke(editAction)
+        }
+        
         invalidate()
     }
 

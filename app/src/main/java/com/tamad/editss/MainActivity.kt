@@ -796,6 +796,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Connect bitmap changes (drawing and crop operations) to ViewModel
+        drawingView.onBitmapChanged = { editAction ->
+            editViewModel.pushBitmapChangeAction(editAction)
+        }
+
         lifecycleScope.launch {
             editViewModel.drawingState.collect {
                 drawingView.setDrawingState(it)
