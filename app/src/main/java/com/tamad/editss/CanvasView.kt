@@ -580,22 +580,21 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
                 var finalAssociatedStroke: DrawingAction? = null
 
-                if (isSketchMode) {
-                    val inverseMatrix = Matrix()
-                    imageMatrix.invert(inverseMatrix)
-                    
-                    val bitmapSpacePaint = Paint(paint)
-                    val bitmapStrokeWidth = inverseMatrix.mapRadius(paint.strokeWidth)
-                    bitmapSpacePaint.strokeWidth = bitmapStrokeWidth
-                    
-                    val bitmapPath = Path()
-                    action.path.transform(inverseMatrix, bitmapPath)
-                    
-                    val bitmapSpaceAction = DrawingAction(bitmapPath, bitmapSpacePaint)
-                    sketchStrokes.add(bitmapSpaceAction)
-                    undoneSketchStrokes.clear()
-                    finalAssociatedStroke = bitmapSpaceAction
-                }
+                // For BOTH sketch mode AND imported images: merge strokes into baseBitmap
+                val inverseMatrix = Matrix()
+                imageMatrix.invert(inverseMatrix)
+                
+                val bitmapSpacePaint = Paint(paint)
+                val bitmapStrokeWidth = inverseMatrix.mapRadius(paint.strokeWidth)
+                bitmapSpacePaint.strokeWidth = bitmapStrokeWidth
+                
+                val bitmapPath = Path()
+                action.path.transform(inverseMatrix, bitmapPath)
+                
+                val bitmapSpaceAction = DrawingAction(bitmapPath, bitmapSpacePaint)
+                sketchStrokes.add(bitmapSpaceAction)
+                undoneSketchStrokes.clear()
+                finalAssociatedStroke = bitmapSpaceAction
 
                 if (bitmapBeforeDrawing != null) {
                     onBitmapChanged?.invoke(EditAction.BitmapChange(
@@ -829,7 +828,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             currentBitmap.getPixels(pixels, 0, currentBitmap.width, 0, 0, currentBitmap.width, currentBitmap.height)
             
             // Convert near-white pixels to transparent
-            // Using a threshold to catch slightly-adjusted white (from brightness/contrast/saturation changes)
+            // Only remove pixels that are VERY white (all RGB > 250) to preserve anti-aliased edges
             for (i in pixels.indices) {
                 val pixel = pixels[i]
                 val alpha = (pixel shr 24) and 0xFF
@@ -837,8 +836,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 val green = (pixel shr 8) and 0xFF
                 val blue = pixel and 0xFF
                 
-                // If pixel is close to white (all RGB channels > 240), make it transparent
-                if (red > 240 && green > 240 && blue > 240) {
+                // Only if pixel is nearly pure white AND has full opacity, make it transparent
+                // This preserves the anti-aliased stroke edges (which are gray/semi-transparent)
+                if (red > 250 && green > 250 && blue > 250 && alpha == 255) {
                     pixels[i] = 0x00000000 // Transparent
                 }
             }
