@@ -100,9 +100,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isResizingCropRect = false
     private var resizeHandle: Int = 0 // 0=none, 1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right
     
-    private val sketchStrokes = mutableListOf<DrawingAction>()
-    private val undoneSketchStrokes = mutableListOf<DrawingAction>()
-    private var isSketchMode = false // Track if we're in sketch mode (no imported/captured image)
+    // REMOVE these lines:
+    // private val sketchStrokes = mutableListOf<DrawingAction>()
+    // private val undoneSketchStrokes = mutableListOf<DrawingAction>()
 
     private var lastTouchX = 0f
     private var lastTouchY = 0f
@@ -171,9 +171,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun setSketchMode(isSketch: Boolean) {
         this.isSketchMode = isSketch
-        if (!isSketch) {
-            sketchStrokes.clear()
-        }
+        // REMOVE: if (!isSketch) { sketchStrokes.clear() }
         invalidate()
     }
 
@@ -204,22 +202,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun handleBitmapChangeUndo(action: EditAction.BitmapChange) {
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        // Remove ONLY the associated stroke from the list
-        if (action.associatedStroke != null) {
-            undoneSketchStrokes.add(action.associatedStroke)
-            sketchStrokes.remove(action.associatedStroke)
-        }
         updateImageMatrix()
         invalidate()
     }
 
     fun handleBitmapChangeRedo(action: EditAction.BitmapChange) {
         baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        // Re-add ONLY the associated stroke to the list
-        if (action.associatedStroke != null) {
-            sketchStrokes.add(action.associatedStroke)
-            undoneSketchStrokes.remove(action.associatedStroke)
-        }
         updateImageMatrix()
         invalidate()
     }
@@ -336,27 +324,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         if (right <= left || bottom <= top) return null
 
-        if (isSketchMode) {
-            val translationMatrix = Matrix()
-            translationMatrix.postTranslate(-left, -top)
-
-            val updatedStrokes = sketchStrokes.map { stroke ->
-                val newPath = Path()
-                stroke.path.transform(translationMatrix, newPath)
-                DrawingAction(newPath, stroke.paint)
-            }
-            sketchStrokes.clear()
-            sketchStrokes.addAll(updatedStrokes)
-            
-            val updatedUndoneStrokes = undoneSketchStrokes.map { stroke ->
-                 val newPath = Path()
-                 stroke.path.transform(translationMatrix, newPath)
-                 DrawingAction(newPath, stroke.paint)
-            }
-            undoneSketchStrokes.clear()
-            undoneSketchStrokes.addAll(updatedUndoneStrokes)
-        }
-
         val croppedBitmap = Bitmap.createBitmap(
             bitmapWithDrawings,
             left.toInt(),
@@ -392,24 +359,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
     
     fun getTransparentDrawing(): Bitmap? {
-        if (isSketchMode) {
-            baseBitmap?.let { currentBitmap ->
-                val transparentBitmap = Bitmap.createBitmap(
-                    currentBitmap.width,
-                    currentBitmap.height,
-                    Bitmap.Config.ARGB_8888
-                )
-                val canvas = Canvas(transparentBitmap)
-                val tempPaint = Paint()
-                for (stroke in sketchStrokes) {
-                    tempPaint.set(stroke.paint)
-                    // Apply the same color filter used for display
-                    tempPaint.colorFilter = imagePaint.colorFilter
-                    canvas.drawPath(stroke.path, tempPaint)
-                }
-                return transparentBitmap
-            }
-        }
+        // REMOVE entire if (isSketchMode) block
         return getDrawingOnTransparent()
     }
     
@@ -582,7 +532,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
                 var finalAssociatedStroke: DrawingAction? = null
 
-                // For BOTH sketch mode AND imported images: merge strokes into baseBitmap
                 val inverseMatrix = Matrix()
                 imageMatrix.invert(inverseMatrix)
                 
@@ -593,10 +542,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 val bitmapPath = Path()
                 action.path.transform(inverseMatrix, bitmapPath)
                 
-                val bitmapSpaceAction = DrawingAction(bitmapPath, bitmapSpacePaint)
-                sketchStrokes.add(bitmapSpaceAction)
-                undoneSketchStrokes.clear()
-                finalAssociatedStroke = bitmapSpaceAction
+                finalAssociatedStroke = DrawingAction(bitmapPath, bitmapSpacePaint)
+                // REMOVE: sketchStrokes.add(bitmapSpaceAction)
+                // REMOVE: undoneSketchStrokes.clear()
 
                 if (bitmapBeforeDrawing != null) {
                     onBitmapChanged?.invoke(EditAction.BitmapChange(
