@@ -487,7 +487,6 @@ class MainActivity : AppCompatActivity() {
             updateDrawModeSelection(drawModeSquare)
         }
         
--------
         // Initialize slider listeners for shared drawing state
         drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
