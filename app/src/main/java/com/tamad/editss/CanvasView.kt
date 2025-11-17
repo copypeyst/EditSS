@@ -785,8 +785,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
             // Calculate potential new width and height based on drag
             // We use the raw x/y here and handle minimum size later.
-            var newWidth = kotlin.math.abs(x - fixedX)
-            var newHeight = kotlin.math.abs(y - fixedY)
+            // THIS IS THE FIX: We determine the sign of the width/height based on the handle being dragged.
+            // This prevents the rectangle from re-expanding when the drag goes past the fixed corner.
+            val signX = if (resizeHandle == 1 || resizeHandle == 3) -1 else 1
+            val signY = if (resizeHandle == 1 || resizeHandle == 2) -1 else 1
+
+            var newWidth = (x - fixedX) * signX
+            var newHeight = (y - fixedY) * signY
+
+            // Ensure width/height don't become negative, effectively stopping the drag at size 0.
+            newWidth = newWidth.coerceAtLeast(0f)
+            newHeight = newHeight.coerceAtLeast(0f)
 
             // Adjust dimensions to fit aspect ratio based on the dominant drag direction
             if (newWidth / newHeight > aspectRatio) { // Dragged wider than ratio allows
