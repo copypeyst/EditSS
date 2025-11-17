@@ -788,10 +788,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             // which prevents the rectangle from flipping/inverting at minimum size.
             var newX = x
             var newY = y
-            if (resizeHandle == 1 || resizeHandle == 3) newX = newX.coerceAtMost(fixedX) // Dragging left, don't pass fixed X
-            if (resizeHandle == 2 || resizeHandle == 4) newX = newX.coerceAtLeast(fixedX) // Dragging right, don't pass fixed X
-            if (resizeHandle == 1 || resizeHandle == 2) newY = newY.coerceAtMost(fixedY) // Dragging up, don't pass fixed Y
-            if (resizeHandle == 3 || resizeHandle == 4) newY = newY.coerceAtLeast(fixedY) // Dragging down, don't pass fixed Y
+            if (resizeHandle == 1 || resizeHandle == 3) newX = newX.coerceAtMost(fixedX - minCropSize) // Dragging left, stop before fixed X
+            if (resizeHandle == 2 || resizeHandle == 4) newX = newX.coerceAtLeast(fixedX + minCropSize) // Dragging right, stop after fixed X
+            if (resizeHandle == 1 || resizeHandle == 2) newY = newY.coerceAtMost(fixedY - minCropSize) // Dragging up, stop before fixed Y
+            if (resizeHandle == 3 || resizeHandle == 4) newY = newY.coerceAtLeast(fixedY + minCropSize) // Dragging down, stop after fixed Y
 
             // Calculate potential new width and height based on drag
             var newWidth = kotlin.math.abs(newX - fixedX)
@@ -802,14 +802,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 newWidth = newHeight * aspectRatio
             } else { // Dragged taller than ratio allows
                 newHeight = newWidth / aspectRatio
-            }
-
-            // --- BOUNDARY AND MINIMUM SIZE CHECKS ---
-            // 1. Check against minimum size
-            if (newWidth < minCropSize || newHeight < minCropSize) {
-                newWidth = kotlin.math.max(newWidth, minCropSize)
-                newHeight = kotlin.math.max(newHeight, minCropSize)
-                if (newWidth / newHeight > aspectRatio) newWidth = newHeight * aspectRatio else newHeight = newWidth / aspectRatio
             }
 
             // 2. Check against visible image bounds
