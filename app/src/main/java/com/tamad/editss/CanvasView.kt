@@ -100,9 +100,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isResizingCropRect = false
     private var resizeHandle: Int = 0 // 0=none, 1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right
     
-    // REMOVE these lines:
-    // private val sketchStrokes = mutableListOf<DrawingAction>()
-    // private val undoneSketchStrokes = mutableListOf<DrawingAction>()
+    private var isSketchMode = false // Track if we're in sketch mode (no imported/captured image)
 
     private var lastTouchX = 0f
     private var lastTouchY = 0f
