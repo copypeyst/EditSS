@@ -132,6 +132,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var drawingView: CanvasView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
+    
+    // Slider overlays for value display
+    private lateinit var drawSizeOverlay: SliderValueOverlay
+    private lateinit var drawOpacityOverlay: SliderValueOverlay
+    private lateinit var brightnessOverlay: SliderValueOverlay
+    private lateinit var contrastOverlay: SliderValueOverlay
+    private lateinit var saturationOverlay: SliderValueOverlay
     // --- END: ADDED FOR OVERWRITE FIX ---
 
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -232,6 +239,11 @@ class MainActivity : AppCompatActivity() {
         // Initialize drawing controls
         drawSizeSlider = findViewById(R.id.draw_size_slider)
         drawOpacitySlider = findViewById(R.id.draw_opacity_slider)
+        
+        // Initialize slider overlays
+        drawSizeOverlay = findViewById(R.id.draw_size_overlay)
+        drawOpacityOverlay = findViewById(R.id.draw_opacity_overlay)
+        
         drawOptionsLayout = findViewById(R.id.draw_options)
         cropOptionsLayout = findViewById(R.id.crop_options)
         adjustOptionsLayout = findViewById(R.id.adjust_options)
@@ -496,10 +508,15 @@ class MainActivity : AppCompatActivity() {
                     // Map progress (0-99) to size (1-100)
                     val size = (progress + 1).toFloat()
                     editViewModel.updateDrawingSize(size)
+                    
+                    // Show overlay with value
+                    drawSizeOverlay.updateFromSlider(seekBar!!, progress, "${progress + 1}")
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                drawSizeOverlay.hideOverlay()
+            }
         })
 
         drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -508,10 +525,15 @@ class MainActivity : AppCompatActivity() {
                     // Map progress (0-99) to opacity percentage (1-100)
                     val opacity = progress + 1
                     editViewModel.updateDrawingOpacity(opacity)
+                    
+                    // Show overlay with percentage value
+                    drawOpacityOverlay.updateFromSlider(seekBar!!, progress, "${opacity}%")
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                drawOpacityOverlay.hideOverlay()
+            }
         })
 
         // Initialize Crop Options
@@ -589,6 +611,11 @@ class MainActivity : AppCompatActivity() {
         val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
         val buttonAdjustApply: Button = findViewById(R.id.button_adjust_apply)
         val buttonAdjustCancel: Button = findViewById(R.id.button_adjust_cancel)
+        
+        // Initialize adjust overlays
+        brightnessOverlay = findViewById(R.id.brightness_overlay)
+        contrastOverlay = findViewById(R.id.contrast_overlay)
+        saturationOverlay = findViewById(R.id.saturation_overlay)
 
         // Set slider max to 199 for 200 steps (0-199) and default to middle (100)
         brightnessSlider.max = 199
@@ -606,10 +633,16 @@ class MainActivity : AppCompatActivity() {
                     // Map progress (0-199) to brightness value (-100 to 100) for 200 steps
                     val value = progress - 100
                     editViewModel.updateBrightness(value.toFloat())
+                    
+                    // Show overlay with value
+                    val displayValue = if (value > 0) "+$value" else "$value"
+                    brightnessOverlay.updateFromSlider(seekBar!!, progress, displayValue)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                brightnessOverlay.hideOverlay()
+            }
         })
 
         contrastSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -618,10 +651,16 @@ class MainActivity : AppCompatActivity() {
                     // Map progress (0-199) to contrast value (0.0 to 2.0) for 200 steps
                     val value = progress / 100f
                     editViewModel.updateContrast(value)
+                    
+                    // Show overlay with value
+                    val displayValue = String.format("%.1f", value)
+                    contrastOverlay.updateFromSlider(seekBar!!, progress, displayValue)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                contrastOverlay.hideOverlay()
+            }
         })
 
         saturationSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -630,10 +669,16 @@ class MainActivity : AppCompatActivity() {
                     // Map progress (0-199) to saturation value (0.0 to 2.0) for 200 steps
                     val value = progress / 100f
                     editViewModel.updateSaturation(value)
+                    
+                    // Show overlay with value
+                    val displayValue = String.format("%.1f", value)
+                    saturationOverlay.updateFromSlider(seekBar!!, progress, displayValue)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                saturationOverlay.hideOverlay()
+            }
         })
 
         buttonAdjustApply.setOnClickListener {
