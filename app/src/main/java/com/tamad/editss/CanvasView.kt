@@ -28,6 +28,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private var baseBitmap: Bitmap? = null
+    private var originalBitmap: Bitmap? = null  // Track the original clean bitmap for proper undo/redo
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
@@ -156,6 +157,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun setBitmap(bitmap: Bitmap?) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        // Store the original clean bitmap for proper undo/redo operations
+        originalBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
         background = resources.getDrawable(R.drawable.outer_bounds, null)
 
         updateImageMatrix()
@@ -176,14 +179,48 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun getBaseBitmap(): Bitmap? = baseBitmap
 
     fun handleCropUndo(cropAction: CropAction) {
+        // Fix: Restore both baseBitmap and originalBitmap to handle drawings properly
         baseBitmap = cropAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        originalBitmap = cropAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
         updateImageMatrix()
         cropRect.setEmpty()
+        scaleFactor = 1.0f
+        translationX = 0f
+        translationY = 0f
         invalidate()
     }
 
     fun handleCropRedo(cropAction: CropAction) {
-        // This is handled by EditAction.BitmapChange
+        // Re-apply the crop operation
+        if (baseBitmap == null) return
+        
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        val imageCropRect = RectF()
+        inverseMatrix.mapRect(imageCropRect, cropAction.cropRect)
+
+        val left = imageCropRect.left.coerceIn(0f, baseBitmap!!.width.toFloat())
+        val top = imageCropRect.top.coerceIn(0f, baseBitmap!!.height.toFloat())
+        val right = imageCropRect.right.coerceIn(0f, baseBitmap!!.width.toFloat())
+        val bottom = imageCropRect.bottom.coerceIn(0f, baseBitmap!!.height.toFloat())
+
+        if (right <= left || bottom <= top) return
+
+        val croppedBitmap = Bitmap.createBitmap(
+            baseBitmap!!,
+            left.toInt(),
+            top.toInt(),
+            (right - left).toInt(),
+            (bottom - top).toInt()
+        )
+
+        baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        updateImageMatrix()
+        cropRect.setEmpty()
+        scaleFactor = 1.0f
+        translationX = 0f
+        translationY = 0f
+        invalidate()
     }
 
     fun handleAdjustUndo(action: AdjustAction) {
@@ -308,7 +345,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
         val bitmapWithDrawings = baseBitmap ?: return null
-        val previousBaseBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+        // Fix: Use originalBitmap for proper undo/redo - this contains the state before any drawings
+        val previousBaseBitmap = originalBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+            ?: baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
 
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
@@ -330,13 +369,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             (bottom - top).toInt()
         )
 
-        baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val newBaseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        
+        // Fix: Create proper CropAction that includes the bitmap state for undo/redo
+        val cropAction = CropAction(
+            previousBitmap = previousBaseBitmap,
+            cropRect = imageCropRect,
+            cropMode = currentCropMode
+        )
         
         onBitmapChanged?.invoke(EditAction.BitmapChange(
             previousBitmap = previousBaseBitmap,
-            newBitmap = baseBitmap!!
+            newBitmap = newBaseBitmap,
+            cropAction = cropAction  // Include crop action for proper undo/redo
         ))
 
+        // Update both baseBitmap and originalBitmap to the new cropped state
+        baseBitmap = newBaseBitmap
+        originalBitmap = newBaseBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        
         cropRect.setEmpty()
         scaleFactor = 1.0f
         translationX = 0f

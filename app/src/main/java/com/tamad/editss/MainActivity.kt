@@ -705,7 +705,14 @@ class MainActivity : AppCompatActivity() {
         // Connect undo/redo action handlers to CanvasView
         drawingView.onUndoAction = { action ->
             when (action) {
-                is EditAction.BitmapChange -> drawingView.handleBitmapChangeUndo(action)
+                is EditAction.BitmapChange -> {
+                    // If this bitmap change contains a crop action, handle it as a crop
+                    if (action.cropAction != null) {
+                        drawingView.handleCropUndo(action.cropAction)
+                    } else {
+                        drawingView.handleBitmapChangeUndo(action)
+                    }
+                }
                 is EditAction.Adjust -> drawingView.handleAdjustUndo(action.action)
                 is EditAction.Crop -> drawingView.handleCropUndo(action.action)
                 else -> { /* Handle other action types if needed */ }
@@ -714,7 +721,14 @@ class MainActivity : AppCompatActivity() {
 
         drawingView.onRedoAction = { action ->
             when (action) {
-                is EditAction.BitmapChange -> drawingView.handleBitmapChangeRedo(action)
+                is EditAction.BitmapChange -> {
+                    // If this bitmap change contains a crop action, handle it as a crop
+                    if (action.cropAction != null) {
+                        drawingView.handleCropRedo(action.cropAction)
+                    } else {
+                        drawingView.handleBitmapChangeRedo(action)
+                    }
+                }
                 is EditAction.Adjust -> drawingView.handleAdjustRedo(action.action)
                 is EditAction.Crop -> drawingView.handleCropRedo(action.action)
                 else -> { /* Handle other action types if needed */ }

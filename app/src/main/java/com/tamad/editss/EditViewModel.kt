@@ -60,9 +60,10 @@ sealed class EditAction {
     data class Crop(val action: CropAction) : EditAction()
     data class Adjust(val action: AdjustAction) : EditAction()
     data class BitmapChange(
-        val previousBitmap: Bitmap, 
+        val previousBitmap: Bitmap,
         val newBitmap: Bitmap,
-        val associatedStroke: DrawingAction? = null
+        val associatedStroke: DrawingAction? = null,
+        val cropAction: CropAction? = null
     ) : EditAction()
 }
 
