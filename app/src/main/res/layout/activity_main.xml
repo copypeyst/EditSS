@@ -730,32 +730,27 @@
     <com.tamad.editss.SliderValueOverlay
         android:id="@+id/draw_size_overlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:pointerEvents="none" />
+        android:layout_height="match_parent" />
 
     <com.tamad.editss.SliderValueOverlay
         android:id="@+id/draw_opacity_overlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:pointerEvents="none" />
+        android:layout_height="match_parent" />
 
     <com.tamad.editss.SliderValueOverlay
         android:id="@+id/brightness_overlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:pointerEvents="none" />
+        android:layout_height="match_parent" />
 
     <com.tamad.editss.SliderValueOverlay
         android:id="@+id/contrast_overlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:pointerEvents="none" />
+        android:layout_height="match_parent" />
 
     <com.tamad.editss.SliderValueOverlay
         android:id="@+id/saturation_overlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:pointerEvents="none" />
+        android:layout_height="match_parent" />
 
 </FrameLayout>
 
