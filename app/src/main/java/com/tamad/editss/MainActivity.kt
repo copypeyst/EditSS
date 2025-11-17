@@ -491,7 +491,7 @@ class MainActivity : AppCompatActivity() {
         drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    val size = progress.toFloat() // Convert to 1-100 range as Float
+                    val size = progress.coerceIn(1, 100).toFloat() // Convert to 1-100 range as Float
                     editViewModel.updateDrawingSize(size)
                 }
             }
