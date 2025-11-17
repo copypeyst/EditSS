@@ -1402,8 +1402,10 @@ class MainActivity : AppCompatActivity() {
                     if (isSketchMode) {
                         when (selectedSaveFormat) {
                             "image/png", "image/webp" -> {
-                                // For transparent formats, use transparent version
-                                bitmapToSave = drawingView.getTransparentDrawing()
+                                // For transparent formats in sketch mode:
+                                // Use getBaseBitmap() directly to preserve adjustments that were applied
+                                // getBaseBitmap() already has strokes merged AND adjustments baked in
+                                bitmapToSave = drawingView.getBaseBitmap()
                             }
                             "image/jpeg" -> {
                                 // For JPEG, render strokes on white background
