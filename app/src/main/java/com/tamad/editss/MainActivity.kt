@@ -242,9 +242,11 @@ class MainActivity : AppCompatActivity() {
         drawingView = findViewById(R.id.drawing_view)
 
 
-        // Initialize sliders with default values (25% size, 100% opacity)
+        // Initialize sliders with a max of 99 for 100 steps (0-99)
         val defaultSize = 25 // 25% of slider range
-        val defaultOpacity = 100 // 100% of slider range
+        val defaultOpacity = 99 // Corresponds to 100%
+        drawSizeSlider.max = 99
+        drawOpacitySlider.max = 99
         drawSizeSlider.progress = defaultSize
         drawOpacitySlider.progress = defaultOpacity
 
@@ -491,19 +493,20 @@ class MainActivity : AppCompatActivity() {
         drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    val size = progress.coerceIn(1, 100).toFloat() // Convert to 1-100 range as Float
+                    // Map progress (0-99) to size (1-100)
+                    val size = (progress + 1).toFloat()
                     editViewModel.updateDrawingSize(size)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
-        
+
         drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Progress is already in 1-100 percentage range
-                    val opacity = progress.coerceIn(1, 100)
+                    // Map progress (0-99) to opacity percentage (1-100)
+                    val opacity = progress + 1
                     editViewModel.updateDrawingOpacity(opacity)
                 }
             }
