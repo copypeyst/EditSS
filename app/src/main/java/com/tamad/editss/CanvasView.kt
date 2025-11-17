@@ -369,7 +369,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         saveCurrentState()
         
         // Notify ViewModel about the crop operation
-        val cropAction = CropAction(previousBitmap, cropRect.copy(), currentCropMode)
+        val cropAction = CropAction(previousBitmap, RectF(cropRect), currentCropMode)
         baseBitmap?.let { newBitmap ->
             val editAction = EditAction.BitmapChange(previousBitmap, newBitmap.copy(Bitmap.Config.ARGB_8888, true), cropAction = cropAction)
             onBitmapChanged?.invoke(editAction)
