@@ -257,8 +257,8 @@ class MainActivity : AppCompatActivity() {
                 // Check if there are unapplied adjustments
                 val currentAdjustState = editViewModel.adjustState.value
                 val hasUnappliedAdjustments = currentAdjustState.brightness != 0f ||
-                                               currentAdjustState.contrast != 0f ||
-                                               currentAdjustState.saturation != 0f
+                                               currentAdjustState.contrast != 1f ||
+                                               currentAdjustState.saturation != 1f
                 
                 if (hasUnappliedAdjustments) {
                     // Show dialog asking to apply adjustments
@@ -587,12 +587,12 @@ class MainActivity : AppCompatActivity() {
         val buttonAdjustApply: Button = findViewById(R.id.button_adjust_apply)
         val buttonAdjustCancel: Button = findViewById(R.id.button_adjust_cancel)
 
-        // Set slider max to 200 for range -100 to +100 with 0 default
-        brightnessSlider.max = 200
-        contrastSlider.max = 200
-        saturationSlider.max = 200
+        // Set slider max to 199 for 200 steps (0-199) and default to middle (100)
+        brightnessSlider.max = 199
+        contrastSlider.max = 199
+        saturationSlider.max = 199
         
-        // Set sliders to the middle (100) by default for -100 to +100 range
+        // Set sliders to the middle (100) by default
         brightnessSlider.progress = 100
         contrastSlider.progress = 100
         saturationSlider.progress = 100
@@ -600,7 +600,7 @@ class MainActivity : AppCompatActivity() {
         brightnessSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-200) to brightness value (-100 to +100)
+                    // Map progress (0-199) to brightness value (-100 to 100) for 200 steps
                     val value = progress - 100
                     editViewModel.updateBrightness(value.toFloat())
                 }
@@ -612,9 +612,9 @@ class MainActivity : AppCompatActivity() {
         contrastSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-200) to contrast value (-100 to +100)
-                    val value = progress - 100
-                    editViewModel.updateContrast(value.toFloat())
+                    // Map progress (0-199) to contrast value (0.0 to 2.0) for 200 steps
+                    val value = progress / 100f
+                    editViewModel.updateContrast(value)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -624,9 +624,9 @@ class MainActivity : AppCompatActivity() {
         saturationSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-200) to saturation value (-100 to +100)
-                    val value = progress - 100
-                    editViewModel.updateSaturation(value.toFloat())
+                    // Map progress (0-199) to saturation value (0.0 to 2.0) for 200 steps
+                    val value = progress / 100f
+                    editViewModel.updateSaturation(value)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
