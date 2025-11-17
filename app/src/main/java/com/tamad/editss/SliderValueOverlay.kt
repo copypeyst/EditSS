@@ -8,7 +8,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import android.widget.SeekBar
-import androidx.core.content.ContextCompat
+import android.animation.ValueAnimator
 
 /**
  * A floating overlay that displays slider values as the user moves the slider thumb.
@@ -26,6 +26,8 @@ class SliderValueOverlay @JvmOverloads constructor(
     private var isVisible: Boolean = false
     private var hideRunnable: Runnable? = null
     private var isBeingDragged: Boolean = false
+    private var currentAlpha: Int = 255
+    private var fadeOutAnimator: ValueAnimator? = null
 
     // Paint for the background bubble
     private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -54,8 +56,13 @@ class SliderValueOverlay @JvmOverloads constructor(
         super.onDraw(canvas)
 
         if (isVisible && currentValue.isNotEmpty()) {
+            // Update alpha for both paints based on fade animation
+            bubblePaint.alpha = (220 * currentAlpha / 255f).toInt()
+            strokePaint.alpha = currentAlpha
+            textPaint.alpha = currentAlpha
+
             // Draw background bubble with rounded corners
-            // Center the bubble horizontally on the thumb (fixed alignment)
+            // Center the bubble horizontally on the thumb
             val bubbleLeft = thumbX - bubbleRadius - padding
             val bubbleTop = thumbY - bubbleRadius * 2.2f
             val bubbleRight = thumbX + bubbleRadius + padding
@@ -75,69 +82,82 @@ class SliderValueOverlay @JvmOverloads constructor(
 
     /**
      * Call this when the user touches/starts dragging the slider
-     * Prepares the overlay for display
+     * Shows the overlay immediately with the current value
      */
     fun onSliderTouched() {
         isBeingDragged = true
-        // Cancel any pending hide
+        currentAlpha = 255
+        isVisible = true
+        invalidate()
+        
+        // Cancel any pending hide or fade
         removeCallbacks(hideRunnable)
+        fadeOutAnimator?.cancel()
     }
 
     /**
      * Update the overlay position and value based on the slider.
      * This is called during slider movement.
-     * Stays visible while dragging, fades out 2 seconds after release.
      */
     fun updateFromSlider(seekBar: SeekBar, value: Int, displayValue: String) {
         currentValue = displayValue
         
-        // Get the thumb position on the slider
+        // Get the thumb position on the slider using a more accurate method
         val thumb = seekBar.thumb
-        val thumbBounds = thumb?.bounds
-        
-        if (thumbBounds != null) {
-            // Convert slider coordinates to overlay view coordinates
+        if (thumb != null) {
+            // Get slider position on screen
             val sliderLocation = IntArray(2)
             seekBar.getLocationOnScreen(sliderLocation)
             
+            // Get overlay position on screen
             val overlayLocation = IntArray(2)
             this.getLocationOnScreen(overlayLocation)
             
-            // Calculate thumb center X in overlay coordinates
-            // Use thumbBounds.right to get the actual center of the circular thumb
-            thumbX = (sliderLocation[0] + thumbBounds.centerX() - overlayLocation[0]).toFloat()
+            // The thumb bounds are relative to the SeekBar
+            // Calculate the center of the thumb
+            val thumb_x_in_seekbar = thumb.bounds.left + thumb.bounds.width() / 2
+            
+            // Convert to screen coordinates then to overlay coordinates
+            thumbX = (sliderLocation[0] + thumb_x_in_seekbar - overlayLocation[0]).toFloat()
             
             // Position Y above the slider
             thumbY = (sliderLocation[1] - overlayLocation[1]).toFloat()
         }
         
         isVisible = true
-        isBeingDragged = true
+        currentAlpha = 255
         invalidate()
         
-        // Cancel any pending hide
+        // Cancel any pending hide or fade
         removeCallbacks(hideRunnable)
+        fadeOutAnimator?.cancel()
     }
 
     /**
      * Call this when the user releases the slider
-     * Overlay will fade out after 2 seconds
+     * Overlay will fade out over 1 second then hide
      */
     fun onSliderReleased() {
         isBeingDragged = false
         
-        // Hide after 2 seconds of release
+        // Start fade out animation (1 second)
+        fadeOutAnimator?.cancel()
+        fadeOutAnimator = ValueAnimator.ofInt(255, 0).apply {
+            duration = 1000 // 1 second fade
+            addUpdateListener { animator ->
+                currentAlpha = animator.animatedValue as Int
+                invalidate()
+            }
+            start()
+        }
+        
+        // Hide after animation completes
         removeCallbacks(hideRunnable)
-        hideRunnable = Runnable { hideOverlay() }
-        postDelayed(hideRunnable!!, 2000)
-    }
-
-    /**
-     * Hide the overlay
-     */
-    private fun hideOverlay() {
-        isVisible = false
-        invalidate()
+        hideRunnable = Runnable { 
+            isVisible = false
+            invalidate()
+        }
+        postDelayed(hideRunnable!!, 1000)
     }
 
     /**
@@ -146,7 +166,9 @@ class SliderValueOverlay @JvmOverloads constructor(
     fun hide() {
         isVisible = false
         isBeingDragged = false
+        currentAlpha = 255
         removeCallbacks(hideRunnable)
+        fadeOutAnimator?.cancel()
         invalidate()
     }
 
