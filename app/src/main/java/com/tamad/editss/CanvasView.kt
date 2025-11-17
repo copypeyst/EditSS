@@ -786,9 +786,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
         
-        // Save state after adjustments
-        baseBitmap = adjustedBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        saveCurrentState()
+        // Don't save state here - let the caller decide when to add to history
+        // This is important for proper undo/redo integration
         
         return adjustedBitmap
     }
