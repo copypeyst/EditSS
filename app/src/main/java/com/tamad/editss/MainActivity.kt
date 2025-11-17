@@ -1733,7 +1733,7 @@ class MainActivity : AppCompatActivity() {
             }
             
             val quality = when (mimeType) {
-                "image/jpeg", "image/webp" -> 95 // High quality for lossy formats
+                "image/jpeg", "image/webp" -> 100 // Maximum quality for zero quality loss
                 else -> 100 // Lossless for PNG
             }
             
