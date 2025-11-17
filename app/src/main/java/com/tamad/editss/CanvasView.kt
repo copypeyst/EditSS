@@ -381,7 +381,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
     
     fun getSketchDrawingOnWhite(): Bitmap? {
-        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        // First, get the drawing with any adjustments.
+        val drawingBitmap = getFinalBitmap() ?: return null
+
+        // Create a new bitmap with a white background.
+        val whiteBitmap = Bitmap.createBitmap(drawingBitmap.width, drawingBitmap.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(whiteBitmap)
+        canvas.drawColor(Color.WHITE)
+
+        // Draw the sketch on top of the white background.
+        canvas.drawBitmap(drawingBitmap, 0f, 0f, null)
+        
+        return whiteBitmap
     }
 
     fun getFinalBitmap(): Bitmap? {
@@ -437,12 +448,20 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         updateImageMatrix()
     }
     
-     override fun onDraw(canvas: Canvas) {
+    override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+
+        // If in sketch mode, draw a white background first. This is for display only.
+        // The actual baseBitmap is transparent.
+        if (isSketchMode) {
+            canvas.drawColor(Color.WHITE)
+        }
+
         baseBitmap?.let {
             canvas.save()
             canvas.clipRect(imageBounds)
-            if (it.hasAlpha()) {
+            // Only show checkerboard for non-sketch mode transparent images
+            if (it.hasAlpha() && !isSketchMode) {
                 val checker = CheckerDrawable()
                 imageBounds.roundOut(checker.bounds)
                 checker.draw(canvas)
@@ -766,38 +785,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun getTransparentDrawingWithAdjustments(): Bitmap? {
-        baseBitmap?.let { currentBitmap ->
-            val transparentBitmap = Bitmap.createBitmap(
-                currentBitmap.width,
-                currentBitmap.height,
-                Bitmap.Config.ARGB_8888
-            )
-            
-            val pixels = IntArray(currentBitmap.width * currentBitmap.height)
-            currentBitmap.getPixels(pixels, 0, currentBitmap.width, 0, 0, currentBitmap.width, currentBitmap.height)
-            
-            for (i in pixels.indices) {
-                val pixel = pixels[i]
-                val alpha = (pixel shr 24) and 0xFF
-                val red = (pixel shr 16) and 0xFF
-                val green = (pixel shr 8) and 0xFF
-                val blue = pixel and 0xFF
-                
-                // Remove if: near-white (all RGB similar and high) AND fully opaque
-                // This catches adjusted whites from brightness/contrast/saturation
-                val isNearWhite = red > 240 && green > 240 && blue > 240 &&
-                                  kotlin.math.abs(red - green) < 5 &&
-                                  kotlin.math.abs(green - blue) < 5 &&
-                                  kotlin.math.abs(red - blue) < 5
-                
-                if (isNearWhite && alpha == 255) {
-                    pixels[i] = 0x00000000 // Transparent
-                }
-            }
-            
-            transparentBitmap.setPixels(pixels, 0, currentBitmap.width, 0, 0, currentBitmap.width, currentBitmap.height)
-            return transparentBitmap
-        }
-        return null
+        // In sketch mode, the baseBitmap is already on a transparent background.
+        // We just need to get the final version with adjustments applied.
+        return getFinalBitmap()
     }
 }

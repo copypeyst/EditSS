@@ -789,13 +789,13 @@ class MainActivity : AppCompatActivity() {
                 val width = view.width
                 val height = view.height
                 
-                // Create a mutable white bitmap
-                val whiteBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(whiteBitmap)
-                canvas.drawColor(android.graphics.Color.WHITE)
+                // Create a mutable transparent bitmap for sketch mode
+                val transparentBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(transparentBitmap)
+                canvas.drawColor(android.graphics.Color.TRANSPARENT)
                 
                 // Set it as the base for the drawing view
-                drawingView.setBitmap(whiteBitmap)
+                drawingView.setBitmap(transparentBitmap)
                 drawingView.setSketchMode(true) // Enable sketch mode for transparency
                 
                 // Create a dummy ImageInfo for sketch mode
