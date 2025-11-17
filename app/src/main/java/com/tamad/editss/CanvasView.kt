@@ -114,9 +114,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var cropStartTop = 0f
     private var cropStartRight = 0f
     private var cropStartBottom = 0f
-    private var brightness = 0f
-    private var contrast = 0f  // Now uses -100 to +100 range
-    private var saturation = 0f  // Now uses -100 to +100 range
+    private var brightness = 1f  // Now uses 0.0 to 2.0 range
+    private var contrast = 1f    // Now uses 0.0 to 2.0 range
+    private var saturation = 1f  // Now uses 0.0 to 2.0 range
 
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
@@ -401,7 +401,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
 
         // Only apply adjustments if they're not default values
-        val hasAdjustments = brightness != 0f || contrast != 0f || saturation != 0f
+        val hasAdjustments = brightness != 1f || contrast != 1f || saturation != 1f
         if (!hasAdjustments) {
             return baseBitmap
         }
@@ -732,9 +732,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
-        this.brightness = brightness
         // Convert from -100 to +100 range to ColorMatrix scale (0.0 to 2.0)
         // -100 -> 0.0, 0 -> 1.0, +100 -> 2.0
+        this.brightness = (brightness / 100f) + 1f
         this.contrast = (contrast / 100f) + 1f
         this.saturation = (saturation / 100f) + 1f
         updateColorFilter()
@@ -742,9 +742,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
     
     fun clearAdjustments() {
-        this.brightness = 0f
-        this.contrast = 0f
-        this.saturation = 0f
+        this.brightness = 1f
+        this.contrast = 1f
+        this.saturation = 1f
         imagePaint.colorFilter = null
         invalidate()
     }
@@ -752,10 +752,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun updateColorFilter() {
         val colorMatrix = ColorMatrix()
         
-        // Apply brightness/contrast while preserving alpha
-        // brightness is already in -100 to +100 range
-        // contrast and saturation are already converted to 0.0 to 2.0 range
-        val translation = brightness * 1.28f  // Scale brightness for proper range
+        // brightness, contrast, saturation are all in 0.0 to 2.0 range now
+        // Convert brightness (0.0 to 2.0) to translation values (-255 to +255)
+        val translation = (brightness - 1f) * 255f
         
         colorMatrix.set(floatArrayOf(
             contrast, 0f, 0f, 0f, translation,
