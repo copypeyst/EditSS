@@ -204,7 +204,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun handleBitmapChangeUndo(action: EditAction.BitmapChange) {
         baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        if (isSketchMode && action.associatedStroke != null) {
+        // Remove ONLY the associated stroke from the list
+        if (action.associatedStroke != null) {
             undoneSketchStrokes.add(action.associatedStroke)
             sketchStrokes.remove(action.associatedStroke)
         }
@@ -214,7 +215,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun handleBitmapChangeRedo(action: EditAction.BitmapChange) {
         baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        if (isSketchMode && action.associatedStroke != null) {
+        // Re-add ONLY the associated stroke to the list
+        if (action.associatedStroke != null) {
             sketchStrokes.add(action.associatedStroke)
             undoneSketchStrokes.remove(action.associatedStroke)
         }
@@ -814,9 +816,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun getTransparentDrawingWithAdjustments(): Bitmap? {
-        // For sketch mode with applied adjustments:
-        // Takes baseBitmap (which has white bg + strokes + adjustments)
-        // and converts white background to transparent
         baseBitmap?.let { currentBitmap ->
             val transparentBitmap = Bitmap.createBitmap(
                 currentBitmap.width,
@@ -827,8 +826,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val pixels = IntArray(currentBitmap.width * currentBitmap.height)
             currentBitmap.getPixels(pixels, 0, currentBitmap.width, 0, 0, currentBitmap.width, currentBitmap.height)
             
-            // Convert near-white pixels to transparent
-            // Only remove pixels that are VERY white (all RGB > 250) to preserve anti-aliased edges
             for (i in pixels.indices) {
                 val pixel = pixels[i]
                 val alpha = (pixel shr 24) and 0xFF
@@ -836,9 +833,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 val green = (pixel shr 8) and 0xFF
                 val blue = pixel and 0xFF
                 
-                // Only if pixel is nearly pure white AND has full opacity, make it transparent
-                // This preserves the anti-aliased stroke edges (which are gray/semi-transparent)
-                if (red > 250 && green > 250 && blue > 250 && alpha == 255) {
+                // Remove if: near-white (all RGB similar and high) AND fully opaque
+                // This catches adjusted whites from brightness/contrast/saturation
+                val isNearWhite = red > 240 && green > 240 && blue > 240 &&
+                                  kotlin.math.abs(red - green) < 5 &&
+                                  kotlin.math.abs(green - blue) < 5 &&
+                                  kotlin.math.abs(red - blue) < 5
+                
+                if (isNearWhite && alpha == 255) {
                     pixels[i] = 0x00000000 // Transparent
                 }
             }
