@@ -171,9 +171,7 @@ class ValueSeekBar @JvmOverloads constructor(
     private fun getThumbBounds(): Rect? {
         try {
             val thumb = seekBar.thumb ?: return null
-            val bounds = Rect()
-            thumb.getBounds(bounds)
-            return bounds
+            return thumb.bounds
         } catch (e: Exception) {
             return null
         }
