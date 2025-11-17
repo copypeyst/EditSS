@@ -20,6 +20,7 @@ import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.PopupWindow
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
 import android.widget.Toast
@@ -133,6 +134,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
+
+    // Popup for slider value visualization
+    private var sliderValuePopup: PopupWindow? = null
 
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -491,27 +495,37 @@ class MainActivity : AppCompatActivity() {
         
         // Initialize slider listeners for shared drawing state
         drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onStartTrackingTouch(seekBar: SeekBar) {
+                showSliderValuePopup(seekBar, seekBar.progress + 1)
+            }
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
+                if (fromUser && seekBar != null) {
                     // Map progress (0-99) to size (1-100)
                     val size = (progress + 1).toFloat()
                     editViewModel.updateDrawingSize(size)
+                    updateSliderValuePopup(seekBar, size.toInt())
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                hideSliderValuePopup()
+            }
         })
 
         drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onStartTrackingTouch(seekBar: SeekBar) {
+                showSliderValuePopup(seekBar, seekBar.progress + 1)
+            }
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
+                if (fromUser && seekBar != null) {
                     // Map progress (0-99) to opacity percentage (1-100)
                     val opacity = progress + 1
                     editViewModel.updateDrawingOpacity(opacity)
+                    updateSliderValuePopup(seekBar, opacity)
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                hideSliderValuePopup()
+            }
         })
 
         // Initialize Crop Options
@@ -601,39 +615,54 @@ class MainActivity : AppCompatActivity() {
         saturationSlider.progress = 100
 
         brightnessSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onStartTrackingTouch(seekBar: SeekBar) {
+                showSliderValuePopup(seekBar, seekBar.progress - 100)
+            }
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
+                if (fromUser && seekBar != null) {
                     // Map progress (0-199) to brightness value (-100 to 100) for 200 steps
                     val value = progress - 100
                     editViewModel.updateBrightness(value.toFloat())
+                    updateSliderValuePopup(seekBar, value)
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                hideSliderValuePopup()
+            }
         })
 
         contrastSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onStartTrackingTouch(seekBar: SeekBar) {
+                showSliderValuePopup(seekBar, seekBar.progress - 100)
+            }
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
+                if (fromUser && seekBar != null) {
                     // Map progress (0-199) to contrast value (0.0 to 2.0) for 200 steps
                     val value = progress / 100f
                     editViewModel.updateContrast(value)
+                    updateSliderValuePopup(seekBar, progress - 100)
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                hideSliderValuePopup()
+            }
         })
 
         saturationSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onStartTrackingTouch(seekBar: SeekBar) {
+                showSliderValuePopup(seekBar, seekBar.progress - 100)
+            }
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
+                if (fromUser && seekBar != null) {
                     // Map progress (0-199) to saturation value (0.0 to 2.0) for 200 steps
                     val value = progress / 100f
                     editViewModel.updateSaturation(value)
+                    updateSliderValuePopup(seekBar, progress - 100)
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                hideSliderValuePopup()
+            }
         })
 
         buttonAdjustApply.setOnClickListener {
@@ -1831,5 +1860,54 @@ class MainActivity : AppCompatActivity() {
         scrim.visibility = View.VISIBLE
     }
 
+    // --- START: ADDED FOR SLIDER VALUE POPUP ---
+    private fun showSliderValuePopup(seekBar: SeekBar, value: Int) {
+        // Inflate the popup layout
+        val inflater = getSystemService(LAYOUT_INFLATER_SERVICE) as android.view.LayoutInflater
+        val popupView = inflater.inflate(R.layout.slider_value_popup, null)
+        val valueText = popupView.findViewById<TextView>(R.id.slider_value_text)
+
+        // Create the popup window
+        sliderValuePopup = PopupWindow(
+            popupView,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            // Set a transparent background to remove the default frame
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            isOutsideTouchable = true
+        }
+
+        // Set initial value
+        valueText.text = value.toString()
+
+        // Calculate position and show the popup
+        val thumbRect = seekBar.thumb.bounds
+        val x = seekBar.left + thumbRect.centerX() - popupView.width / 2
+        val y = seekBar.top - seekBar.height - 10 // Position above the slider
+
+        sliderValuePopup?.showAsDropDown(seekBar, x, y)
+        updateSliderValuePopup(seekBar, value) // Call update to position it correctly
+    }
+
+    private fun updateSliderValuePopup(seekBar: SeekBar, value: Int) {
+        sliderValuePopup?.let { popup ->
+            val popupView = popup.contentView
+            val valueText = popupView.findViewById<TextView>(R.id.slider_value_text)
+            valueText.text = value.toString()
+
+            // Recalculate position based on thumb's current location
+            val thumbRect = seekBar.thumb.bounds
+            val x = seekBar.left + thumbRect.centerX() - popupView.width / 2
+            val y = seekBar.top - seekBar.height - 10
+
+            popup.update(seekBar, x, y, -1, -1)
+        }
+    }
+
+    private fun hideSliderValuePopup() {
+        sliderValuePopup?.dismiss()
+        sliderValuePopup = null
+    }
     // --- END: ADDED FOR OVERWRITE FIX ---
 }

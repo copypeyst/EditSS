@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The main rounded rectangle body -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#80000000" /> <!-- Semi-transparent black -->
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+    <!-- The triangle pointer at the bottom -->
+    <item
+        android:width="16dp"
+        android:height="8dp"
+        android:gravity="bottom|center_horizontal"
+        android:bottom="1dp">
+        <rotate
+            android:fromDegrees="45"
+            android:pivotX="50%"
+            android:pivotY="50%">
+            <shape android:shape="rectangle">
+                <solid android:color="#80000000" />
+            </shape>
+        </rotate>
+    </item>
+</layer-list>
