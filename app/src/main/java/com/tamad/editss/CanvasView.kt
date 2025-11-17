@@ -401,6 +401,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 val tempPaint = Paint()
                 for (stroke in sketchStrokes) {
                     tempPaint.set(stroke.paint)
+                    // Apply the same color filter used for display
+                    tempPaint.colorFilter = imagePaint.colorFilter
                     canvas.drawPath(stroke.path, tempPaint)
                 }
                 return transparentBitmap
