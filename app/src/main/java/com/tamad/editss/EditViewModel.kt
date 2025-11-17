@@ -27,7 +27,7 @@ enum class CropMode {
 data class DrawingState(
     val color: Int = android.graphics.Color.RED,
     val size: Float = 26f, // Default to position 25 on slider (matches (25 + 1))
-    val opacity: Int = 252, // Default to position 100 on slider (matches ((100 - 1) * 2.55))
+    val opacity: Int = 255, // Default to 100% opacity (255 out of 255)
     val drawMode: DrawMode = DrawMode.PEN
 )
 
@@ -154,8 +154,14 @@ class EditViewModel : ViewModel() {
         _drawingState.value = _drawingState.value.copy(size = size)
     }
 
-    fun updateDrawingOpacity(opacity: Int) {
-        _drawingState.value = _drawingState.value.copy(opacity = opacity)
+    // Convert percentage (1-100) to alpha value (0-255) for Android Paint
+    private fun percentageToAlpha(percentage: Int): Int {
+        return ((percentage / 100f) * 255).toInt().coerceIn(0, 255)
+    }
+
+    fun updateDrawingOpacity(opacityPercentage: Int) {
+        val alphaValue = percentageToAlpha(opacityPercentage)
+        _drawingState.value = _drawingState.value.copy(opacity = alphaValue)
     }
 
     fun updateDrawMode(drawMode: DrawMode) {

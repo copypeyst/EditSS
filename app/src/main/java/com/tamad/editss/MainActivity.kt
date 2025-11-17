@@ -502,7 +502,7 @@ class MainActivity : AppCompatActivity() {
         drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Convert progress (1-100) to opacity (1-100) for standard percentage mapping
+                    // Progress is already in 1-100 percentage range
                     val opacity = progress.coerceIn(1, 100)
                     editViewModel.updateDrawingOpacity(opacity)
                 }
