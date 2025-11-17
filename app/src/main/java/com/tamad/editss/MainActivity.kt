@@ -487,11 +487,12 @@ class MainActivity : AppCompatActivity() {
             updateDrawModeSelection(drawModeSquare)
         }
         
+-------
         // Initialize slider listeners for shared drawing state
         drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    val size = (progress + 1).toFloat() // Convert to 1-101 range as Float
+                    val size = progress.toFloat() // Convert to 1-100 range as Float
                     editViewModel.updateDrawingSize(size)
                 }
             }
@@ -502,8 +503,8 @@ class MainActivity : AppCompatActivity() {
         drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Convert progress (1-101) to opacity (0-255) for proper alpha mapping
-                    val opacity = ((progress - 1) * 2.55).toInt().coerceIn(0, 255)
+                    // Convert progress (1-100) to opacity (1-100) for standard percentage mapping
+                    val opacity = progress.coerceIn(1, 100)
                     editViewModel.updateDrawingOpacity(opacity)
                 }
             }
@@ -587,17 +588,22 @@ class MainActivity : AppCompatActivity() {
         val buttonAdjustApply: Button = findViewById(R.id.button_adjust_apply)
         val buttonAdjustCancel: Button = findViewById(R.id.button_adjust_cancel)
 
-        // Set sliders to the middle (50) by default
-        brightnessSlider.progress = 50
-        contrastSlider.progress = 50
-        saturationSlider.progress = 50
+        // Set slider max to 199 for 200 steps (0-199) and default to middle (100)
+        brightnessSlider.max = 199
+        contrastSlider.max = 199
+        saturationSlider.max = 199
+        
+        // Set sliders to the middle (100) by default
+        brightnessSlider.progress = 100
+        contrastSlider.progress = 100
+        saturationSlider.progress = 100
 
         brightnessSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-100) to brightness value (-100 to 100)
-                    val value = (progress - 50) * 2f
-                    editViewModel.updateBrightness(value)
+                    // Map progress (0-199) to brightness value (-100 to 100) for 200 steps
+                    val value = progress - 100
+                    editViewModel.updateBrightness(value.toFloat())
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -607,8 +613,8 @@ class MainActivity : AppCompatActivity() {
         contrastSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-100) to contrast value (0.0 to 2.0)
-                    val value = progress / 50f
+                    // Map progress (0-199) to contrast value (0.0 to 2.0) for 200 steps
+                    val value = progress / 100f
                     editViewModel.updateContrast(value)
                 }
             }
@@ -619,8 +625,8 @@ class MainActivity : AppCompatActivity() {
         saturationSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-100) to saturation value (0.0 to 2.0)
-                    val value = progress / 50f
+                    // Map progress (0-199) to saturation value (0.0 to 2.0) for 200 steps
+                    val value = progress / 100f
                     editViewModel.updateSaturation(value)
                 }
             }
@@ -640,17 +646,17 @@ class MainActivity : AppCompatActivity() {
             }
 
             editViewModel.resetAdjustments()
-            brightnessSlider.progress = 50
-            contrastSlider.progress = 50
-            saturationSlider.progress = 50
+            brightnessSlider.progress = 100
+            contrastSlider.progress = 100
+            saturationSlider.progress = 100
         }
 
         buttonAdjustCancel.setOnClickListener {
             drawingView.resetAdjustments()
             editViewModel.resetAdjustments()
-            brightnessSlider.progress = 50
-            contrastSlider.progress = 50
-            saturationSlider.progress = 50
+            brightnessSlider.progress = 100
+            contrastSlider.progress = 100
+            saturationSlider.progress = 100
         }
 
         // Color Swatches Logic
@@ -1814,9 +1820,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         editViewModel.resetAdjustments()
-        brightnessSlider.progress = 50
-        contrastSlider.progress = 50
-        saturationSlider.progress = 50
+        brightnessSlider.progress = 100
+        contrastSlider.progress = 100
+        saturationSlider.progress = 100
         
         // Now show the save panel
         savePanel.visibility = View.VISIBLE
