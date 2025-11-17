@@ -451,21 +451,23 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // If in sketch mode, draw a white background first. This is for display only.
-        // The actual baseBitmap is transparent.
-        if (isSketchMode) {
-            canvas.drawColor(Color.WHITE)
-        }
-
         baseBitmap?.let {
             canvas.save()
             canvas.clipRect(imageBounds)
+
+            // If in sketch mode, draw a white background *within the clipped image bounds*.
+            if (isSketchMode) {
+                // This white color is for display only and will be clipped.
+                canvas.drawColor(Color.WHITE)
+            }
+
             // Only show checkerboard for non-sketch mode transparent images
             if (it.hasAlpha() && !isSketchMode) {
                 val checker = CheckerDrawable()
                 imageBounds.roundOut(checker.bounds)
                 checker.draw(canvas)
             }
+            
             canvas.drawBitmap(it, imageMatrix, imagePaint)
             canvas.restore()
         }
