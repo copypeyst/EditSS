@@ -355,9 +355,19 @@
 
             <!-- Size/Opacity Sliders -->
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/size" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp" android:layout_marginTop="-5dp"/>
-            <SeekBar android:id="@+id/draw_size_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="-5dp" android:layout_marginBottom="-5dp"/>
+            <com.tamad.editss.ValueSeekBar
+                android:id="@+id/draw_size_slider"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="-5dp"
+                android:layout_marginBottom="-5dp"/>
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/opacity" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="12sp" android:layout_marginTop="-5dp"/>
-            <SeekBar android:id="@+id/draw_opacity_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="-5dp" android:layout_marginBottom="-5dp"/>
+            <com.tamad.editss.ValueSeekBar
+                android:id="@+id/draw_opacity_slider"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="-5dp"
+                android:layout_marginBottom="-5dp"/>
 
         </LinearLayout>
 
@@ -522,11 +532,26 @@
             android:orientation="vertical"
             android:visibility="gone">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/brightness" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="10sp" android:layout_marginTop="-3.7dp"/>
-            <SeekBar android:id="@+id/adjust_brightness_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="-4dp" android:layout_marginBottom="-4dp"/>
+            <com.tamad.editss.ValueSeekBar
+                android:id="@+id/adjust_brightness_slider"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="-4dp"
+                android:layout_marginBottom="-4dp"/>
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/contrast" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="10sp" android:layout_marginTop="-4dp"/>
-            <SeekBar android:id="@+id/adjust_contrast_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="-4dp" android:layout_marginBottom="-4dp"/>
+            <com.tamad.editss.ValueSeekBar
+                android:id="@+id/adjust_contrast_slider"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="-4dp"
+                android:layout_marginBottom="-4dp"/>
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/saturation" android:textColor="@color/white" android:gravity="center_horizontal" android:textSize="10sp" android:layout_marginTop="-4dp"/>
-            <SeekBar android:id="@+id/adjust_saturation_slider" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="-4dp" android:layout_marginBottom="-4dp"/>
+            <com.tamad.editss.ValueSeekBar
+                android:id="@+id/adjust_saturation_slider"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="-4dp"
+                android:layout_marginBottom="-4dp"/>
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
