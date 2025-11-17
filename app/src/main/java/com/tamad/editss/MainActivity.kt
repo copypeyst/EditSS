@@ -255,7 +255,7 @@ class MainActivity : AppCompatActivity() {
 
 
         // Initialize sliders with a max of 99 for 100 steps (0-99)
-        val defaultSize = 25 // 25% of slider range
+        val defaultSize = 24 // Default to 25 when displayed (24 + 1)
         val defaultOpacity = 99 // Corresponds to 100%
         drawSizeSlider.max = 99
         drawOpacitySlider.max = 99
