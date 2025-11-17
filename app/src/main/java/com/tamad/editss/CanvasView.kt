@@ -734,8 +734,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
         this.brightness = brightness
         // Convert from -100 to +100 range to ColorMatrix scale (0.0 to 2.0)
-        this.contrast = (contrast + 100f) / 100f
-        this.saturation = (saturation + 100f) / 100f
+        // -100 -> 0.0, 0 -> 1.0, +100 -> 2.0
+        this.contrast = (contrast / 100f) + 1f
+        this.saturation = (saturation / 100f) + 1f
         updateColorFilter()
         invalidate()
     }
@@ -750,9 +751,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun updateColorFilter() {
         val colorMatrix = ColorMatrix()
-        val translation = brightness + (1f - contrast) * 128f
         
         // Apply brightness/contrast while preserving alpha
+        // brightness is already in -100 to +100 range
+        // contrast and saturation are already converted to 0.0 to 2.0 range
+        val translation = brightness * 1.28f  // Scale brightness for proper range
+        
         colorMatrix.set(floatArrayOf(
             contrast, 0f, 0f, 0f, translation,
             0f, contrast, 0f, 0f, translation,
