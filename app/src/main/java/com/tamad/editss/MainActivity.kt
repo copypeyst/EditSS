@@ -48,6 +48,7 @@ import java.util.Date
 import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.tamad.editss.R // Import the R class
 
 // Step 8: Image origin tracking enum
 enum class ImageOrigin {
