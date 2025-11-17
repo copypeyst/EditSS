@@ -253,12 +253,12 @@ class MainActivity : AppCompatActivity() {
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
 
-        // Initialize sliders with higher max for finer control and to avoid snapping
-        // Use 999 for 1000 steps instead of 99 for 100 steps - this reduces the snapping effect
-        val defaultSize = 250 // 25% of slider range (250/999)
-        val defaultOpacity = 999 // Corresponds to 100%
-        drawSizeSlider.max = 999
-        drawOpacitySlider.max = 999
+
+        // Initialize sliders with a max of 99 for 100 steps (0-99)
+        val defaultSize = 25 // 25% of slider range
+        val defaultOpacity = 99 // Corresponds to 100%
+        drawSizeSlider.max = 99
+        drawOpacitySlider.max = 99
         drawSizeSlider.progress = defaultSize
         drawOpacitySlider.progress = defaultOpacity
 
@@ -505,18 +505,18 @@ class MainActivity : AppCompatActivity() {
         drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-999) to size (1-100) for display
-                    val displaySize = (progress / 10f + 1).toInt()
-                    // Map to actual size value
-                    val size = (progress / 10f + 1)
+                    // Map progress (0-99) to size (1-100)
+                    val size = (progress + 1).toFloat()
                     editViewModel.updateDrawingSize(size)
                     
-                    // Show overlay with value (clamped to 1-100)
-                    drawSizeOverlay.updateFromSlider(seekBar!!, progress, "$displaySize")
+                    // Show overlay with value
+                    drawSizeOverlay.updateFromSlider(seekBar!!, progress, "${progress + 1}")
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                drawSizeOverlay.onSliderTouched()
+                if (seekBar != null) {
+                    drawSizeOverlay.onSliderTouched(seekBar, seekBar.progress, "${seekBar.progress + 1}")
+                }
             }
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
                 drawSizeOverlay.onSliderReleased()
@@ -526,16 +526,19 @@ class MainActivity : AppCompatActivity() {
         drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-999) to opacity percentage (1-100)
-                    val opacity = (progress / 10f + 1).toInt()
+                    // Map progress (0-99) to opacity percentage (1-100)
+                    val opacity = progress + 1
                     editViewModel.updateDrawingOpacity(opacity)
                     
                     // Show overlay with percentage value
-                    drawOpacityOverlay.updateFromSlider(seekBar!!, progress, "$opacity%")
+                    drawOpacityOverlay.updateFromSlider(seekBar!!, progress, "${opacity}%")
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                drawOpacityOverlay.onSliderTouched()
+                if (seekBar != null) {
+                    val opacity = seekBar.progress + 1
+                    drawOpacityOverlay.onSliderTouched(seekBar, seekBar.progress, "${opacity}%")
+                }
             }
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
                 drawOpacityOverlay.onSliderReleased()
@@ -646,7 +649,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                brightnessOverlay.onSliderTouched()
+                if (seekBar != null) {
+                    val value = seekBar.progress - 100
+                    val displayValue = if (value > 0) "+$value" else "$value"
+                    brightnessOverlay.onSliderTouched(seekBar, seekBar.progress, displayValue)
+                }
             }
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
                 brightnessOverlay.onSliderReleased()
@@ -667,7 +674,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                contrastOverlay.onSliderTouched()
+                if (seekBar != null) {
+                    val rawValue = seekBar.progress - 100
+                    val displayValue = if (rawValue > 0) "+$rawValue" else "$rawValue"
+                    contrastOverlay.onSliderTouched(seekBar, seekBar.progress, displayValue)
+                }
             }
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
                 contrastOverlay.onSliderReleased()
@@ -688,7 +699,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                saturationOverlay.onSliderTouched()
+                if (seekBar != null) {
+                    val rawValue = seekBar.progress - 100
+                    val displayValue = if (rawValue > 0) "+$rawValue" else "$rawValue"
+                    saturationOverlay.onSliderTouched(seekBar, seekBar.progress, displayValue)
+                }
             }
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
                 saturationOverlay.onSliderReleased()
@@ -824,35 +839,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         buttonUndo.setOnClickListener {
-            // Handle ViewModel undo which includes adjustments
-            val lastAction = editViewModel.undoStack.value.lastOrNull()
-            if (lastAction != null) {
-                editViewModel.undo()
-                
-                // If the action is an adjustment, restore the previous bitmap
-                if (lastAction is EditAction.Adjust) {
-                    drawingView.setBitmap(lastAction.action.previousBitmap)
-                } else {
-                    // For other actions (like drawing), use the canvas view's undo
-                    drawingView.undo()
-                }
-            }
+            drawingView.undo()
+            // Update ViewModel to reflect the new state
+            editViewModel.clearAllActions()
         }
 
         buttonRedo.setOnClickListener {
-            // Handle ViewModel redo which includes adjustments
-            val lastAction = editViewModel.redoStack.value.lastOrNull()
-            if (lastAction != null) {
-                editViewModel.redo()
-                
-                // If the action is an adjustment, restore the new bitmap
-                if (lastAction is EditAction.Adjust) {
-                    drawingView.setBitmap(lastAction.action.newBitmap)
-                } else {
-                    // For other actions (like drawing), use the canvas view's redo
-                    drawingView.redo()
-                }
-            }
+            drawingView.redo()
+            // Update ViewModel to reflect the new state
+            editViewModel.clearAllActions()
         }
 
         cropModeFreeform.isSelected = true
