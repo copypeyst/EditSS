@@ -130,8 +130,8 @@ class MainActivity : AppCompatActivity() {
     
     // Drawing-related UI elements
     private lateinit var drawingView: CanvasView
-    private lateinit var drawSizeSlider: ValueSeekBar
-    private lateinit var drawOpacitySlider: ValueSeekBar
+    private lateinit var drawSizeSlider: SeekBar
+    private lateinit var drawOpacitySlider: SeekBar
     // --- END: ADDED FOR OVERWRITE FIX ---
 
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -242,17 +242,13 @@ class MainActivity : AppCompatActivity() {
         drawingView = findViewById(R.id.drawing_view)
 
 
-        // Initialize sliders with ValueSeekBar
+        // Initialize sliders with a max of 99 for 100 steps (0-99)
         val defaultSize = 25 // 25% of slider range
-        val defaultOpacity = 100 // 100%
-        drawSizeSlider.setRange(1f, 100f)
-        drawOpacitySlider.setRange(1f, 100f)
-        drawSizeSlider.setValue(defaultSize.toFloat())
-        drawOpacitySlider.setValue(defaultOpacity.toFloat())
-        
-        // Set value formatters
-        drawSizeSlider.setValueFormatter { "Size: ${it.toInt()}" }
-        drawOpacitySlider.setValueFormatter { "Opacity: ${it.toInt()}%" }
+        val defaultOpacity = 99 // Corresponds to 100%
+        drawSizeSlider.max = 99
+        drawOpacitySlider.max = 99
+        drawSizeSlider.progress = defaultSize
+        drawOpacitySlider.progress = defaultOpacity
 
         // Save Panel Logic
         buttonSave.setOnClickListener {
@@ -494,15 +490,29 @@ class MainActivity : AppCompatActivity() {
         }
         
         // Initialize slider listeners for shared drawing state
-        drawSizeSlider.setOnValueChangedListener { value ->
-            // Map size value (1-100) to drawing tool
-            editViewModel.updateDrawingSize(value)
-        }
+        drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    // Map progress (0-99) to size (1-100)
+                    val size = (progress + 1).toFloat()
+                    editViewModel.updateDrawingSize(size)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
-        drawOpacitySlider.setOnValueChangedListener { value ->
-            // Map opacity value (1-100) to drawing tool
-            editViewModel.updateDrawingOpacity(value.toInt())
-        }
+        drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    // Map progress (0-99) to opacity percentage (1-100)
+                    val opacity = progress + 1
+                    editViewModel.updateDrawingOpacity(opacity)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
         // Initialize Crop Options
         cropModeFreeform = findViewById(R.id.crop_mode_freeform)
@@ -574,43 +584,57 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Initialize Adjust Options
-        val brightnessSlider: ValueSeekBar = findViewById(R.id.adjust_brightness_slider)
-        val contrastSlider: ValueSeekBar = findViewById(R.id.adjust_contrast_slider)
-        val saturationSlider: ValueSeekBar = findViewById(R.id.adjust_saturation_slider)
+        val brightnessSlider: SeekBar = findViewById(R.id.adjust_brightness_slider)
+        val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
+        val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
         val buttonAdjustApply: Button = findViewById(R.id.button_adjust_apply)
         val buttonAdjustCancel: Button = findViewById(R.id.button_adjust_cancel)
 
-        // Set slider ranges (-100 to 100) and default to middle (0)
-        brightnessSlider.setRange(-100f, 100f)
-        contrastSlider.setRange(-100f, 100f)
-        saturationSlider.setRange(-100f, 100f)
+        // Set slider max to 199 for 200 steps (0-199) and default to middle (100)
+        brightnessSlider.max = 199
+        contrastSlider.max = 199
+        saturationSlider.max = 199
         
-        // Set sliders to the middle (0) by default
-        brightnessSlider.setValue(0f)
-        contrastSlider.setValue(0f)
-        saturationSlider.setValue(0f)
+        // Set sliders to the middle (100) by default
+        brightnessSlider.progress = 100
+        contrastSlider.progress = 100
+        saturationSlider.progress = 100
 
-        // Set value formatters
-        brightnessSlider.setValueFormatter { "Brightness: ${it.toInt()}" }
-        contrastSlider.setValueFormatter { "Contrast: ${it.toInt()}" }
-        saturationSlider.setValueFormatter { "Saturation: ${it.toInt()}" }
+        brightnessSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    // Map progress (0-199) to brightness value (-100 to 100) for 200 steps
+                    val value = progress - 100
+                    editViewModel.updateBrightness(value.toFloat())
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
-        brightnessSlider.setOnValueChangedListener { value ->
-            // Map brightness value (-100 to 100) to brightness adjustment
-            editViewModel.updateBrightness(value)
-        }
+        contrastSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    // Map progress (0-199) to contrast value (0.0 to 2.0) for 200 steps
+                    val value = progress / 100f
+                    editViewModel.updateContrast(value)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
-        contrastSlider.setOnValueChangedListener { value ->
-            // Map contrast value (-100 to 100) to contrast adjustment (0.0 to 2.0)
-            val contrastValue = (value + 100f) / 100f // Convert -100..100 to 0..2
-            editViewModel.updateContrast(contrastValue)
-        }
-
-        saturationSlider.setOnValueChangedListener { value ->
-            // Map saturation value (-100 to 100) to saturation adjustment (0.0 to 2.0)
-            val saturationValue = (value + 100f) / 100f // Convert -100..100 to 0..2
-            editViewModel.updateSaturation(saturationValue)
-        }
+        saturationSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    // Map progress (0-199) to saturation value (0.0 to 2.0) for 200 steps
+                    val value = progress / 100f
+                    editViewModel.updateSaturation(value)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
         buttonAdjustApply.setOnClickListener {
             val previousBitmap = drawingView.getBaseBitmap()
@@ -624,17 +648,17 @@ class MainActivity : AppCompatActivity() {
             }
 
             editViewModel.resetAdjustments()
-            brightnessSlider.setValue(0f)
-            contrastSlider.setValue(0f)
-            saturationSlider.setValue(0f)
+            brightnessSlider.progress = 100
+            contrastSlider.progress = 100
+            saturationSlider.progress = 100
         }
 
         buttonAdjustCancel.setOnClickListener {
             drawingView.resetAdjustments()
             editViewModel.resetAdjustments()
-            brightnessSlider.setValue(0f)
-            contrastSlider.setValue(0f)
-            saturationSlider.setValue(0f)
+            brightnessSlider.progress = 100
+            contrastSlider.progress = 100
+            saturationSlider.progress = 100
         }
 
         // Color Swatches Logic
@@ -1783,9 +1807,9 @@ class MainActivity : AppCompatActivity() {
 
     // Helper function to apply adjustments and show save panel (used from save button dialog)
     private fun applyAdjustmentsAndShowSavePanel() {
-        val brightnessSlider: ValueSeekBar = findViewById(R.id.adjust_brightness_slider)
-        val contrastSlider: ValueSeekBar = findViewById(R.id.adjust_contrast_slider)
-        val saturationSlider: ValueSeekBar = findViewById(R.id.adjust_saturation_slider)
+        val brightnessSlider: SeekBar = findViewById(R.id.adjust_brightness_slider)
+        val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
+        val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
         
         val previousBitmap = drawingView.getBaseBitmap()
         val newBitmap = drawingView.applyAdjustmentsToBitmap()
@@ -1798,9 +1822,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         editViewModel.resetAdjustments()
-        brightnessSlider.setValue(0f)
-        contrastSlider.setValue(0f)
-        saturationSlider.setValue(0f)
+        brightnessSlider.progress = 100
+        contrastSlider.progress = 100
+        saturationSlider.progress = 100
         
         // Now show the save panel
         savePanel.visibility = View.VISIBLE
