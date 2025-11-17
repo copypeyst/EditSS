@@ -783,25 +783,26 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 else -> return // Should not happen
             }
 
-            // --- PREVENT INVERSION ---
-            // This is the key fix. It stops the dragged point from crossing over the fixed point's axes,
-            // which prevents the rectangle from flipping/inverting at minimum size.
-            var newX = x
-            var newY = y
-            if (resizeHandle == 1 || resizeHandle == 3) newX = newX.coerceAtMost(fixedX - minCropSize) // Dragging left, stop before fixed X
-            if (resizeHandle == 2 || resizeHandle == 4) newX = newX.coerceAtLeast(fixedX + minCropSize) // Dragging right, stop after fixed X
-            if (resizeHandle == 1 || resizeHandle == 2) newY = newY.coerceAtMost(fixedY - minCropSize) // Dragging up, stop before fixed Y
-            if (resizeHandle == 3 || resizeHandle == 4) newY = newY.coerceAtLeast(fixedY + minCropSize) // Dragging down, stop after fixed Y
-
             // Calculate potential new width and height based on drag
-            var newWidth = kotlin.math.abs(newX - fixedX)
-            var newHeight = kotlin.math.abs(newY - fixedY)
+            // We use the raw x/y here and handle minimum size later.
+            var newWidth = kotlin.math.abs(x - fixedX)
+            var newHeight = kotlin.math.abs(y - fixedY)
 
             // Adjust dimensions to fit aspect ratio based on the dominant drag direction
             if (newWidth / newHeight > aspectRatio) { // Dragged wider than ratio allows
                 newWidth = newHeight * aspectRatio
             } else { // Dragged taller than ratio allows
                 newHeight = newWidth / aspectRatio
+            }
+
+            // --- MINIMUM SIZE CHECK (Prevents inversion/collision) ---
+            // If the calculated size is smaller than our minimum, lock it to the minimum.
+            // This is the correct way to stop the handles from colliding.
+            val minHeight = if (aspectRatio > 1) minCropSize else minCropSize / aspectRatio
+            val minWidth = if (aspectRatio < 1) minCropSize else minCropSize * aspectRatio
+            if (newWidth < minWidth || newHeight < minHeight) {
+                newWidth = minWidth
+                newHeight = minHeight
             }
 
             // 2. Check against visible image bounds
