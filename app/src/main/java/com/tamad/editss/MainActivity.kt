@@ -697,41 +697,20 @@ class MainActivity : AppCompatActivity() {
         // Set default selections
         updateDrawModeSelection(drawModePen)
 
-        // Connect bitmap change actions to ViewModel (for both drawing strokes and crops)
-        drawingView.onBitmapChanged = { bitmapChangeAction ->
-            editViewModel.pushBitmapChangeAction(bitmapChangeAction)
-        }
-
-        // Connect undo/redo action handlers to CanvasView
-        drawingView.onUndoAction = { action ->
-            when (action) {
-                is EditAction.BitmapChange -> {
-                    // If this bitmap change contains a crop action, handle it as a crop
-                    if (action.cropAction != null) {
-                        drawingView.handleCropUndo(action.cropAction)
-                    } else {
-                        drawingView.handleBitmapChangeUndo(action)
-                    }
-                }
-                is EditAction.Adjust -> drawingView.handleAdjustUndo(action.action)
-                is EditAction.Crop -> drawingView.handleCropUndo(action.action)
-                else -> { /* Handle other action types if needed */ }
+        // Connect simple undo/redo to CanvasView - MS Paint style
+        drawingView.onUndoAction = {
+            val undoneBitmap = drawingView.undo()
+            if (undoneBitmap != null) {
+                // Clear ViewModel history since we're using CanvasView history now
+                editViewModel.clearAllActions()
             }
         }
 
-        drawingView.onRedoAction = { action ->
-            when (action) {
-                is EditAction.BitmapChange -> {
-                    // If this bitmap change contains a crop action, handle it as a crop
-                    if (action.cropAction != null) {
-                        drawingView.handleCropRedo(action.cropAction)
-                    } else {
-                        drawingView.handleBitmapChangeRedo(action)
-                    }
-                }
-                is EditAction.Adjust -> drawingView.handleAdjustRedo(action.action)
-                is EditAction.Crop -> drawingView.handleCropRedo(action.action)
-                else -> { /* Handle other action types if needed */ }
+        drawingView.onRedoAction = {
+            val redoneBitmap = drawingView.redo()
+            if (redoneBitmap != null) {
+                // Clear ViewModel history since we're using CanvasView history now
+                editViewModel.clearAllActions()
             }
         }
 
@@ -778,13 +757,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         buttonUndo.setOnClickListener {
-            editViewModel.undo()
-            // The lastUndoneAction collector will handle updating the CanvasView
+            drawingView.undo()
+            // Update ViewModel to reflect the new state
+            editViewModel.clearAllActions()
         }
 
         buttonRedo.setOnClickListener {
-            editViewModel.redo()
-            // The lastRedoneAction collector will handle updating the CanvasView
+            drawingView.redo()
+            // Update ViewModel to reflect the new state
+            editViewModel.clearAllActions()
         }
 
         cropModeFreeform.isSelected = true

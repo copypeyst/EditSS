@@ -28,9 +28,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private var baseBitmap: Bitmap? = null
-    private var originalBitmap: Bitmap? = null  // Track the original clean bitmap for proper undo/redo
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
+    
+    // Simple approach: Keep complete bitmap snapshots for undo/redo
+    private val bitmapHistory = mutableListOf<Bitmap>()
+    private var currentHistoryIndex = -1
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f // For multi-touch panning
@@ -117,9 +120,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
-    var onUndoAction: ((EditAction) -> Unit)? = null // Callback for undo operations
-    var onRedoAction: ((EditAction) -> Unit)? = null // Callback for redo operations
-    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null // Callback for bitmap changes (drawing and crop)
+    var onUndoAction: (() -> Unit)? = null // Simple callback for undo operations
+    var onRedoAction: (() -> Unit)? = null // Simple callback for redo operations
+    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null // Keep for compatibility
 
     init {
         paint.isAntiAlias = true
@@ -157,8 +160,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun setBitmap(bitmap: Bitmap?) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
-        // Store the original clean bitmap for proper undo/redo operations
-        originalBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        // Reset history when new bitmap is loaded
+        bitmapHistory.clear()
+        currentHistoryIndex = -1
+        if (baseBitmap != null) {
+            saveCurrentState() // Save initial state
+        }
         background = resources.getDrawable(R.drawable.outer_bounds, null)
 
         updateImageMatrix()
@@ -169,6 +176,50 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
     }
+    
+    // Simple MS Paint-style history management
+    private fun saveCurrentState() {
+        baseBitmap?.let { bitmap ->
+            // Remove any history after current position (when adding new action after undo)
+            if (currentHistoryIndex < bitmapHistory.size - 1) {
+                bitmapHistory.subList(currentHistoryIndex + 1, bitmapHistory.size).clear()
+            }
+            // Add current state to history
+            bitmapHistory.add(bitmap.copy(Bitmap.Config.ARGB_8888, true))
+            currentHistoryIndex = bitmapHistory.size - 1
+            
+            // Limit history to prevent memory issues (MS Paint style)
+            if (bitmapHistory.size > 50) {
+                bitmapHistory.removeAt(0)
+                currentHistoryIndex = bitmapHistory.size - 1
+            }
+        }
+    }
+    
+    fun undo(): Bitmap? {
+        if (currentHistoryIndex > 0) {
+            currentHistoryIndex--
+            baseBitmap = bitmapHistory[currentHistoryIndex].copy(Bitmap.Config.ARGB_8888, true)
+            updateImageMatrix()
+            invalidate()
+            return baseBitmap
+        }
+        return null
+    }
+    
+    fun redo(): Bitmap? {
+        if (currentHistoryIndex < bitmapHistory.size - 1) {
+            currentHistoryIndex++
+            baseBitmap = bitmapHistory[currentHistoryIndex].copy(Bitmap.Config.ARGB_8888, true)
+            updateImageMatrix()
+            invalidate()
+            return baseBitmap
+        }
+        return null
+    }
+    
+    fun canUndo(): Boolean = currentHistoryIndex > 0
+    fun canRedo(): Boolean = currentHistoryIndex < bitmapHistory.size - 1
 
     fun setSketchMode(isSketch: Boolean) {
         this.isSketchMode = isSketch
@@ -178,74 +229,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun getBaseBitmap(): Bitmap? = baseBitmap
 
-    fun handleCropUndo(cropAction: CropAction) {
-        // Fix: Restore both baseBitmap and originalBitmap to handle drawings properly
-        baseBitmap = cropAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        originalBitmap = cropAction.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
-        cropRect.setEmpty()
-        scaleFactor = 1.0f
-        translationX = 0f
-        translationY = 0f
-        invalidate()
-    }
-
-    fun handleCropRedo(cropAction: CropAction) {
-        // Re-apply the crop operation
-        if (baseBitmap == null) return
-        
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        val imageCropRect = RectF()
-        inverseMatrix.mapRect(imageCropRect, cropAction.cropRect)
-
-        val left = imageCropRect.left.coerceIn(0f, baseBitmap!!.width.toFloat())
-        val top = imageCropRect.top.coerceIn(0f, baseBitmap!!.height.toFloat())
-        val right = imageCropRect.right.coerceIn(0f, baseBitmap!!.width.toFloat())
-        val bottom = imageCropRect.bottom.coerceIn(0f, baseBitmap!!.height.toFloat())
-
-        if (right <= left || bottom <= top) return
-
-        val croppedBitmap = Bitmap.createBitmap(
-            baseBitmap!!,
-            left.toInt(),
-            top.toInt(),
-            (right - left).toInt(),
-            (bottom - top).toInt()
-        )
-
-        baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
-        cropRect.setEmpty()
-        scaleFactor = 1.0f
-        translationX = 0f
-        translationY = 0f
-        invalidate()
-    }
-
-    fun handleAdjustUndo(action: AdjustAction) {
-        baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
-        invalidate()
-    }
-
-    fun handleAdjustRedo(action: AdjustAction) {
-        baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
-        invalidate()
-    }
-
-    fun handleBitmapChangeUndo(action: EditAction.BitmapChange) {
-        baseBitmap = action.previousBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
-        invalidate()
-    }
-
-    fun handleBitmapChangeRedo(action: EditAction.BitmapChange) {
-        baseBitmap = action.newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
-        invalidate()
-    }
+    // Remove old complex undo/redo handlers - now using simple bitmap history
+    // The old handlers are no longer needed with the MS Paint-style approach
 
     fun setToolType(toolType: ToolType) {
         this.currentTool = toolType
@@ -345,9 +330,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
         val bitmapWithDrawings = baseBitmap ?: return null
-        // Fix: Use originalBitmap for proper undo/redo - this contains the state before any drawings
-        val previousBaseBitmap = originalBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-            ?: baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
 
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
@@ -369,24 +351,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             (bottom - top).toInt()
         )
 
-        val newBaseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
-        // Fix: Create proper CropAction that includes the bitmap state for undo/redo
-        val cropAction = CropAction(
-            previousBitmap = previousBaseBitmap,
-            cropRect = imageCropRect,
-            cropMode = currentCropMode
-        )
-        
-        onBitmapChanged?.invoke(EditAction.BitmapChange(
-            previousBitmap = previousBaseBitmap,
-            newBitmap = newBaseBitmap,
-            cropAction = cropAction  // Include crop action for proper undo/redo
-        ))
-
-        // Update both baseBitmap and originalBitmap to the new cropped state
-        baseBitmap = newBaseBitmap
-        originalBitmap = newBaseBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        // Save state for simple undo/redo
+        saveCurrentState()
         
         cropRect.setEmpty()
         scaleFactor = 1.0f
@@ -458,6 +426,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         imageMatrix.invert(inverseMatrix)
         canvas.concat(inverseMatrix)
         canvas.drawPath(action.path, action.paint)
+        
+        // Save state after each drawing stroke
+        saveCurrentState()
         invalidate()
     }
 
@@ -576,32 +547,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             
             val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
             screenSpaceAction?.let { action ->
-                val bitmapBeforeDrawing = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
                 mergeDrawingStrokeIntoBitmap(action)
-
-                var finalAssociatedStroke: DrawingAction? = null
-
-                val inverseMatrix = Matrix()
-                imageMatrix.invert(inverseMatrix)
-                
-                val bitmapSpacePaint = Paint(paint)
-                val bitmapStrokeWidth = inverseMatrix.mapRadius(paint.strokeWidth)
-                bitmapSpacePaint.strokeWidth = bitmapStrokeWidth
-                
-                val bitmapPath = Path()
-                action.path.transform(inverseMatrix, bitmapPath)
-                
-                finalAssociatedStroke = DrawingAction(bitmapPath, bitmapSpacePaint)
-                // REMOVE: sketchStrokes.add(bitmapSpaceAction)
-                // REMOVE: undoneSketchStrokes.clear()
-
-                if (bitmapBeforeDrawing != null) {
-                    onBitmapChanged?.invoke(EditAction.BitmapChange(
-                        previousBitmap = bitmapBeforeDrawing,
-                        newBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true),
-                        associatedStroke = finalAssociatedStroke
-                    ))
-                }
+                // State is now saved automatically in mergeDrawingStrokeIntoBitmap
+                // No need for complex bitmap change tracking
             }
             invalidate()
             return true
@@ -805,6 +753,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val canvas = Canvas(adjustedBitmap)
         val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
+        
+        // Save state after adjustments
+        baseBitmap = adjustedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        saveCurrentState()
+        
         return adjustedBitmap
     }
 
