@@ -33,8 +33,8 @@ data class DrawingState(
 
 data class AdjustState(
     val brightness: Float = 0f,
-    val contrast: Float = 1f,
-    val saturation: Float = 1f
+    val contrast: Float = 0f,
+    val saturation: Float = 0f
 )
 
 data class DrawingAction(

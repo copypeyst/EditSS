@@ -115,8 +115,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var cropStartRight = 0f
     private var cropStartBottom = 0f
     private var brightness = 0f
-    private var contrast = 1f
-    private var saturation = 1f
+    private var contrast = 0f  // Now uses -100 to +100 range
+    private var saturation = 0f  // Now uses -100 to +100 range
 
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
@@ -401,7 +401,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
 
         // Only apply adjustments if they're not default values
-        val hasAdjustments = brightness != 0f || contrast != 1f || saturation != 1f
+        val hasAdjustments = brightness != 0f || contrast != 0f || saturation != 0f
         if (!hasAdjustments) {
             return baseBitmap
         }
@@ -733,16 +733,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
         this.brightness = brightness
-        this.contrast = contrast
-        this.saturation = saturation
+        // Convert from -100 to +100 range to ColorMatrix scale (0.0 to 2.0)
+        this.contrast = (contrast + 100f) / 100f
+        this.saturation = (saturation + 100f) / 100f
         updateColorFilter()
         invalidate()
     }
     
     fun clearAdjustments() {
         this.brightness = 0f
-        this.contrast = 1f
-        this.saturation = 1f
+        this.contrast = 0f
+        this.saturation = 0f
         imagePaint.colorFilter = null
         invalidate()
     }
