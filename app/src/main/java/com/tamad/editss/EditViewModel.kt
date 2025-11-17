@@ -26,7 +26,7 @@ enum class CropMode {
 // Shared drawing state for Draw, Circle, and Square tools only
 data class DrawingState(
     val color: Int = android.graphics.Color.RED,
-    val size: Float = 26f, // Default to position 25 on slider (matches (25 + 1))
+    val size: Float = 25f, // Default to 25
     val opacity: Int = 255, // Default to 100% opacity (255 out of 255)
     val drawMode: DrawMode = DrawMode.PEN
 )
