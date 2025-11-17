@@ -819,10 +819,19 @@ class MainActivity : AppCompatActivity() {
         // Handle undone actions
         lifecycleScope.launch {
             editViewModel.lastUndoneAction.collect { action ->
-                action?.let {
-                    drawingView.onUndoAction?.invoke()
-                    // Clear the action to prevent duplicate processing
-                    editViewModel.clearLastUndoneAction()
+                action?.let { act ->
+                    when (act) {
+                        is EditAction.Adjust -> {
+                            // For adjust actions, restore the previous bitmap
+                            drawingView.setBitmap(act.action.previousBitmap)
+                            editViewModel.clearLastUndoneAction()
+                        }
+                        else -> {
+                            // For drawing/crop actions, use the CanvasView's undo
+                            drawingView.onUndoAction?.invoke()
+                            editViewModel.clearLastUndoneAction()
+                        }
+                    }
                 }
             }
         }
@@ -830,24 +839,29 @@ class MainActivity : AppCompatActivity() {
         // Handle redone actions
         lifecycleScope.launch {
             editViewModel.lastRedoneAction.collect { action ->
-                action?.let {
-                    drawingView.onRedoAction?.invoke()
-                    // Clear the action to prevent duplicate processing
-                    editViewModel.clearLastRedoneAction()
+                action?.let { act ->
+                    when (act) {
+                        is EditAction.Adjust -> {
+                            // For adjust actions, restore the new bitmap
+                            drawingView.setBitmap(act.action.newBitmap)
+                            editViewModel.clearLastRedoneAction()
+                        }
+                        else -> {
+                            // For drawing/crop actions, use the CanvasView's redo
+                            drawingView.onRedoAction?.invoke()
+                            editViewModel.clearLastRedoneAction()
+                        }
+                    }
                 }
             }
         }
 
         buttonUndo.setOnClickListener {
-            drawingView.undo()
-            // Update ViewModel to reflect the new state
-            editViewModel.clearAllActions()
+            editViewModel.undo()
         }
 
         buttonRedo.setOnClickListener {
-            drawingView.redo()
-            // Update ViewModel to reflect the new state
-            editViewModel.clearAllActions()
+            editViewModel.redo()
         }
 
         cropModeFreeform.isSelected = true
