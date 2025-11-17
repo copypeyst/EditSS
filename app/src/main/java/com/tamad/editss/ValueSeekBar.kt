@@ -48,7 +48,7 @@ class ValueSeekBar @JvmOverloads constructor(
         // Set up seek bar listener
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
+                if (fromUser && seekBar != null) {
                     val value = minValue + (progress / seekBar.max.toFloat()) * (maxValue - minValue)
                     updateValue(value, true)
                     valueChangedListener?.invoke(value)
@@ -56,11 +56,15 @@ class ValueSeekBar @JvmOverloads constructor(
             }
             
             override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                showValue(true)
+                if (seekBar != null) {
+                    showValue(true)
+                }
             }
             
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                showValue(false)
+                if (seekBar != null) {
+                    showValue(false)
+                }
             }
         })
         
@@ -169,14 +173,7 @@ class ValueSeekBar @JvmOverloads constructor(
             val thumb = seekBar.thumb ?: return null
             val bounds = Rect()
             thumb.getBounds(bounds)
-            
-            // Adjust bounds to get actual thumb position considering track height
-            val trackHeight = seekBar.height
-            val thumbHeight = bounds.height()
-            val thumbTop = (trackHeight - thumbHeight) / 2
-            val adjustedBounds = Rect(bounds.left, thumbTop, bounds.right, thumbTop + thumbHeight)
-            
-            return adjustedBounds
+            return bounds
         } catch (e: Exception) {
             return null
         }
