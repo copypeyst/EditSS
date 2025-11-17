@@ -738,7 +738,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             editViewModel.lastUndoneAction.collect { action ->
                 action?.let {
-                    drawingView.onUndoAction?.invoke(it)
+                    drawingView.onUndoAction?.invoke()
                     // Clear the action to prevent duplicate processing
                     editViewModel.clearLastUndoneAction()
                 }
@@ -749,7 +749,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             editViewModel.lastRedoneAction.collect { action ->
                 action?.let {
-                    drawingView.onRedoAction?.invoke(it)
+                    drawingView.onRedoAction?.invoke()
                     // Clear the action to prevent duplicate processing
                     editViewModel.clearLastRedoneAction()
                 }
