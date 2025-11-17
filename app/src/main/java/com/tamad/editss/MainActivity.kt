@@ -717,7 +717,7 @@ class MainActivity : AppCompatActivity() {
             if (previousBitmap != null && newBitmap != null) {
                 val action = AdjustAction(previousBitmap, newBitmap)
                 editViewModel.pushAdjustAction(action)
-                drawingView.setBitmap(newBitmap)
+                drawingView.updateBitmapWithHistory(newBitmap)
                 showCustomToast(getString(R.string.adjustment_applied))
             }
 
@@ -819,19 +819,10 @@ class MainActivity : AppCompatActivity() {
         // Handle undone actions
         lifecycleScope.launch {
             editViewModel.lastUndoneAction.collect { action ->
-                action?.let { act ->
-                    when (act) {
-                        is EditAction.Adjust -> {
-                            // For adjust actions, restore the previous bitmap
-                            drawingView.setBitmap(act.action.previousBitmap)
-                            editViewModel.clearLastUndoneAction()
-                        }
-                        else -> {
-                            // For drawing/crop actions, use the CanvasView's undo
-                            drawingView.onUndoAction?.invoke()
-                            editViewModel.clearLastUndoneAction()
-                        }
-                    }
+                action?.let {
+                    drawingView.onUndoAction?.invoke()
+                    // Clear the action to prevent duplicate processing
+                    editViewModel.clearLastUndoneAction()
                 }
             }
         }
@@ -839,29 +830,24 @@ class MainActivity : AppCompatActivity() {
         // Handle redone actions
         lifecycleScope.launch {
             editViewModel.lastRedoneAction.collect { action ->
-                action?.let { act ->
-                    when (act) {
-                        is EditAction.Adjust -> {
-                            // For adjust actions, restore the new bitmap
-                            drawingView.setBitmap(act.action.newBitmap)
-                            editViewModel.clearLastRedoneAction()
-                        }
-                        else -> {
-                            // For drawing/crop actions, use the CanvasView's redo
-                            drawingView.onRedoAction?.invoke()
-                            editViewModel.clearLastRedoneAction()
-                        }
-                    }
+                action?.let {
+                    drawingView.onRedoAction?.invoke()
+                    // Clear the action to prevent duplicate processing
+                    editViewModel.clearLastRedoneAction()
                 }
             }
         }
 
         buttonUndo.setOnClickListener {
-            editViewModel.undo()
+            drawingView.undo()
+            // Update ViewModel to reflect the new state
+            editViewModel.clearAllActions()
         }
 
         buttonRedo.setOnClickListener {
-            editViewModel.redo()
+            drawingView.redo()
+            // Update ViewModel to reflect the new state
+            editViewModel.clearAllActions()
         }
 
         cropModeFreeform.isSelected = true

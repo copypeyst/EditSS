@@ -176,6 +176,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
     }
+
+    /**
+     * Update bitmap and add to undo/redo history without clearing history.
+     * Used for operations like adjustments that need to maintain undo/redo chain.
+     */
+    fun updateBitmapWithHistory(bitmap: Bitmap?) {
+        baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        saveCurrentState()
+        updateImageMatrix()
+        invalidate()
+    }
     
     // Simple MS Paint-style history management
     private fun saveCurrentState() {
