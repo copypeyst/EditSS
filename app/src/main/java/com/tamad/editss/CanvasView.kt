@@ -783,9 +783,19 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 else -> return // Should not happen
             }
 
+            // --- PREVENT INVERSION ---
+            // This is the key fix. It stops the dragged point from crossing over the fixed point's axes,
+            // which prevents the rectangle from flipping/inverting at minimum size.
+            var newX = x
+            var newY = y
+            if (resizeHandle == 1 || resizeHandle == 3) newX = newX.coerceAtMost(fixedX) // Dragging left, don't pass fixed X
+            if (resizeHandle == 2 || resizeHandle == 4) newX = newX.coerceAtLeast(fixedX) // Dragging right, don't pass fixed X
+            if (resizeHandle == 1 || resizeHandle == 2) newY = newY.coerceAtMost(fixedY) // Dragging up, don't pass fixed Y
+            if (resizeHandle == 3 || resizeHandle == 4) newY = newY.coerceAtLeast(fixedY) // Dragging down, don't pass fixed Y
+
             // Calculate potential new width and height based on drag
-            var newWidth = kotlin.math.abs(x - fixedX)
-            var newHeight = kotlin.math.abs(y - fixedY)
+            var newWidth = kotlin.math.abs(newX - fixedX)
+            var newHeight = kotlin.math.abs(newY - fixedY)
 
             // Adjust dimensions to fit aspect ratio based on the dominant drag direction
             if (newWidth / newHeight > aspectRatio) { // Dragged wider than ratio allows
