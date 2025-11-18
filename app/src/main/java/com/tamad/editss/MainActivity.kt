@@ -48,7 +48,6 @@ import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
-// Step 8: Image origin tracking enum
 enum class ImageOrigin {
     IMPORTED_READONLY,
     IMPORTED_WRITABLE,
@@ -56,7 +55,6 @@ enum class ImageOrigin {
     EDITED_INTERNAL
 }
 
-// MODIFIED: Added originalMimeType to track the image's starting format
 data class ImageInfo(
     val uri: Uri,
     val origin: ImageOrigin,
@@ -97,33 +95,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cropModePortrait: View
     private lateinit var cropModeLandscape: View
     
-    // Step 8: Track current image information
     private var currentImageInfo: ImageInfo? = null
-    
-    // Step 23: Track selected save format for proper naming
-    private var selectedSaveFormat: String = "image/jpeg" // Default to JPEG
-    
-    // Track if current image has transparency
+    private var selectedSaveFormat: String = "image/jpeg"
     private var currentImageHasTransparency = false
-    
-    // Step 13: Store camera capture URI temporarily
     private var currentCameraUri: Uri? = null
-    
-    // Fix: Add loading state to prevent crashes
     private var isImageLoading = false
-    
-    // Coil-based image loading state
     private var isImageLoadAttempted = false
     private var lastImageLoadFailed = false
     private var isSketchMode = false
     
-    // --- START: ADDED FOR OVERWRITE FIX ---
-    // Handles the result of the delete confirmation dialog
     private lateinit var deleteRequestLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.IntentSenderRequest>
-
-    // Temporarily stores the URI of the new file while we wait for user confirmation
     private var pendingOverwriteUri: Uri? = null
-    // --- END: ADDED FOR OVERWRITE FIX ---
 
     // Drawing tools ViewModel for shared state
     private lateinit var editViewModel: EditViewModel
@@ -139,7 +121,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var brightnessOverlay: SliderValueOverlay
     private lateinit var contrastOverlay: SliderValueOverlay
     private lateinit var saturationOverlay: SliderValueOverlay
-    // --- END: ADDED FOR OVERWRITE FIX ---
 
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -247,16 +228,14 @@ class MainActivity : AppCompatActivity() {
         drawOptionsLayout = findViewById(R.id.draw_options)
         cropOptionsLayout = findViewById(R.id.crop_options)
         adjustOptionsLayout = findViewById(R.id.adjust_options)
-        scrim = findViewById(R.id.scrim)
-        transparencyWarningText = findViewById(R.id.transparency_warning_text)
         
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
 
 
         // Initialize sliders with a max of 99 for 100 steps (0-99)
-        val defaultSize = 24 // Default to 25 when displayed (24 + 1)
-        val defaultOpacity = 99 // Corresponds to 100%
+        val defaultSize = 24
+        val defaultOpacity = 99
         drawSizeSlider.max = 99
         drawOpacitySlider.max = 99
         drawSizeSlider.progress = defaultSize
@@ -332,7 +311,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Camera Button Logic - Step 13: Create writable URI in MediaStore for camera capture
+        // Camera Button Logic
         buttonCamera.setOnClickListener {
             if (editViewModel.hasUnsavedChanges) {
                 AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
@@ -352,7 +331,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Step 1 & 2: Share Button Logic - Content URI sharing for saved images, cache-based for unsaved edits
+        //Share Button Logic
         buttonShare.setOnClickListener {
             shareCurrentImage()
         }
@@ -394,13 +373,8 @@ class MainActivity : AppCompatActivity() {
             toolCrop.isSelected = true
             currentActiveTool = toolCrop
             
-            // Re-initialize crop rectangle when crop mode is activated
-            // This ensures the marquee appears and adjusts to fit the current image
-            // Similar to the post block in your snippet - happens whenever crop mode button is pressed
             drawingView.post {
-                // Always re-apply the current crop mode to adjust the marquee to fit the current image
                 if (currentCropMode != null) {
-                    // If a crop mode option is already selected, re-apply it
                     when (currentCropMode?.id) {
                         R.id.crop_mode_freeform -> drawingView.setCropMode(CropMode.FREEFORM)
                         R.id.crop_mode_square -> drawingView.setCropMode(CropMode.SQUARE)
@@ -408,7 +382,6 @@ class MainActivity : AppCompatActivity() {
                         R.id.crop_mode_landscape -> drawingView.setCropMode(CropMode.LANDSCAPE)
                     }
                 } else {
-                    // If no crop mode option is selected, default to freeform and select it
                     drawingView.setCropMode(CropMode.FREEFORM)
                     cropModeFreeform.isSelected = true
                     currentCropMode = cropModeFreeform
@@ -437,7 +410,7 @@ class MainActivity : AppCompatActivity() {
         val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
         
-        // Step 21, 22, 23: Save button click handlers
+        // Save button click handlers
         buttonSaveCopy.setOnClickListener {
             saveImageAsCopy()
         }
@@ -461,7 +434,7 @@ class MainActivity : AppCompatActivity() {
         buttonSaveCopy.setOnTouchListener(touchListener)
         buttonOverwrite.setOnTouchListener(touchListener)
         
-        // Step 23 & 24: Format selection handling
+        // Format selection handling
         val radioJPG: RadioButton = findViewById(R.id.radio_jpg)
         val radioPNG: RadioButton = findViewById(R.id.radio_png)
         val radioWEBP: RadioButton = findViewById(R.id.radio_webp)
@@ -586,13 +559,11 @@ class MainActivity : AppCompatActivity() {
         buttonCropApply.setOnClickListener {
             val croppedBitmap = drawingView.applyCrop()
             if (croppedBitmap != null) {
-                // Image was cropped successfully - clear crop mode selection
                 currentCropMode?.isSelected = false
                 currentCropMode = null
                 drawingView.setCropModeInactive()
                 showCustomToast(getString(R.string.crop_applied))
             } else {
-                // Toast removed: "No crop area selected" - UX improvement
             }
         }
 
@@ -809,9 +780,6 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             editViewModel.undoStack.collect { actions ->
-                // Drawing actions are now handled immediately as bitmap changes
-                // No need to set paths anymore since drawings are merged into bitmap
-                // The CanvasView handles drawing actions via the onNewPath callback
             }
         }
 
@@ -869,8 +837,6 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
 
         drawingView.doOnLayout { view ->
-            // This block runs once the view has been laid out and has dimensions.
-            // We only want to do this if no image has been loaded from an intent.
             if (currentImageInfo == null) {
                 isSketchMode = true
                 val width = view.width
@@ -900,42 +866,29 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // --- START: ADDED FOR OVERWRITE FIX ---
-        // Initialize the launcher that will handle the result of the delete request.
         deleteRequestLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { result ->
-            // This code runs AFTER the user responds to the delete confirmation dialog.
             if (result.resultCode == RESULT_OK) {
-                // User confirmed the deletion.
-                // Toast removed: "Original file deleted" - UX improvement
-                
-                // Now, safely update our app's reference to point to the new file.
                 pendingOverwriteUri?.let {
-                    // Invalidate Coil's cache for the old URI to prevent showing a stale image.
                     currentImageInfo?.uri?.let { oldUri ->
                         imageLoader.memoryCache?.remove(MemoryCache.Key(oldUri.toString()))
                     }
                     currentImageInfo = currentImageInfo?.copy(uri = it)
-                    pendingOverwriteUri = null // Clean up the temporary variable
+                    pendingOverwriteUri = null
                 }
             } else {
-                // User cancelled the deletion. The original file remains.
-                // Toast removed: "Original file was not deleted" - UX improvement
-                // We still need to update our app's reference to the new file that was created.
                 pendingOverwriteUri?.let {
                     currentImageInfo = currentImageInfo?.copy(uri = it)
-                    pendingOverwriteUri = null // Clean up
+                    pendingOverwriteUri = null
                 }
             }
         }
-        // --- END: ADDED FOR OVERWRITE FIX ---
     }
 
-    // Step 1 & 2: Implement sharing functionality
+    // Implement sharing functionality
     // Item 1: Content URI sharing for saved images
     // Item 2: Cache-based sharing for unsaved edits
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
-            // Toast removed: "No image to share" - UX improvement
             return
         }
 
@@ -993,8 +946,6 @@ class MainActivity : AppCompatActivity() {
                                 
                                 val chooser = Intent.createChooser(shareIntent, getString(R.string.share_image))
                                 startActivity(chooser)
-
-                                // Toast removed: "Sharing image" - UX improvement
                             } catch (e: Exception) {
                                 showCustomToast(getString(R.string.share_failed, e.message ?: "Unknown error"))
                             }
@@ -1025,7 +976,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Step 6: Check if permissions are revoked mid-session
+        // Check if permissions are revoked mid-session
         checkPermissionRevocation()
     }
 
@@ -1043,7 +994,6 @@ class MainActivity : AppCompatActivity() {
                     val itemCount = clipData.itemCount
                     if (itemCount > 1) {
                         // Multiple images - reject for safety
-                    // Toast removed: "Multiple images not supported" - UX improvement
                         return
                     }
                     // Single image from clip data
@@ -1061,7 +1011,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // New camera capture flow: Private file storage with user confirmation
     private fun captureImageFromCamera() {
         try {
             // Create private file in app's external files directory
@@ -1107,22 +1056,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Simple Coil-based image loading - replaces all complex crash prevention logic
+    // Simple Coil-based image loading
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
         isSketchMode = false
         drawingView.setSketchMode(false) // Disable sketch mode for imported/captured images
         // Clear any existing actions when a new image is loaded
         editViewModel.clearAllActions()
 
-        // Prevent loading while already loading
         if (isImageLoading) {
-            // Toast removed: "Image is still loading" - UX improvement
             return
         }
         
-        // Prevent rapid successive attempts after failure
         if (isImageLoadAttempted && lastImageLoadFailed) {
-            // Toast removed: "Previous load failed" - UX improvement
             return
         }
         
@@ -1145,7 +1090,7 @@ class MainActivity : AppCompatActivity() {
                             // Hide loading overlay
                             hideLoadingSpinner()
                             
-                            // Step 8: Track image origin and set canOverwrite flag appropriately
+                            // Track image origin and set canOverwrite flag appropriately
                             val origin = determineImageOrigin(uri)
                             val canOverwrite = determineCanOverwrite(origin)
 
@@ -1263,7 +1208,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Step 8: Helper method to determine image origin
+    // Helper method to determine image origin
     private fun determineImageOrigin(uri: Uri): ImageOrigin {
         // Check if we have persisted write permission for this URI
         val isPersistedWritable = contentResolver.persistedUriPermissions.any {
@@ -1286,7 +1231,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Step 8: Helper method to determine canOverwrite flag
+    // Helper method to determine canOverwrite flag
     private fun determineCanOverwrite(origin: ImageOrigin): Boolean {
         return when (origin) {
             ImageOrigin.CAMERA_CAPTURED, ImageOrigin.EDITED_INTERNAL -> true
@@ -1335,7 +1280,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Permission checking methods - Step 4: Only check READ_MEDIA_IMAGES for Android 13+
+    // Permission checking methods
     private fun hasImagePermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
@@ -1370,7 +1315,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Permission denied dialog (Step 5)
+    // Permission denied dialog
     private fun showPermissionDeniedDialog() {
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.permission_required))
@@ -1381,7 +1326,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // Step 6: Detect permission revocation mid-session and prompt user
+    // Detect permission revocation mid-session and prompt user
     private fun checkPermissionRevocation() {
         val wasOverwriteAvailable = currentImageInfo?.canOverwrite ?: false
         
@@ -1406,7 +1351,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Step 9 & 10: Update save panel UI based on image origin and canOverwrite flag
+    // Update save panel UI based on image origin and canOverwrite flag
     private fun updateSavePanelUI() {
         updateSaveButtonsState() // Consolidate logic into one function
         updateSaveButtonText() // Update button text based on image origin
@@ -1470,7 +1415,6 @@ class MainActivity : AppCompatActivity() {
     // Updated function to save a copy using Coil to fetch the bitmap reliably.
     private fun saveImageAsCopy() {
         val imageInfo = currentImageInfo ?: run {
-            // Toast removed: "No image to save" - UX improvement
             return
         }
 
@@ -1539,7 +1483,7 @@ class MainActivity : AppCompatActivity() {
                             values.put(MediaStore.Images.Media.IS_PENDING, 0)
                             contentResolver.update(uri, values, null, null)
                             
-                            // Step 26: MediaScannerConnection for Android 9 and older
+                            // MediaScannerConnection for Android 9 and older
                             if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
                                 try {
                                     val filePath = getRealPathFromUri(uri)
@@ -1587,18 +1531,14 @@ class MainActivity : AppCompatActivity() {
     // FINAL, CORRECTED VERSION - This one avoids deletion and uses MediaStore update instead.
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: run {
-            // Toast removed: "No image to overwrite" - UX improvement
             return
         }
 
         if (!imageInfo.canOverwrite) {
-            // Toast removed: "Cannot overwrite this image" - UX improvement
             return
         }
         
-        // Double-check that format hasn't changed, as a safeguard.
         if (selectedSaveFormat != imageInfo.originalMimeType) {
-            // Toast removed: "Format changed please save a copy" - UX improvement
             return
         }
 
@@ -1726,7 +1666,7 @@ class MainActivity : AppCompatActivity() {
         return "${nameWithoutExt}${uniqueSuffix}.${extension}"
     }
     
-    // Step 24 & 25: Update transparency warning based on actual image content
+    // Update transparency warning based on actual image content
     private fun updateTransparencyWarning() {
         if (currentImageHasTransparency) {
             when {
@@ -1798,16 +1738,12 @@ class MainActivity : AppCompatActivity() {
                 else -> "Unknown"
             }
             
-            // Toast removed: "Detected format" - too technical, UX improvement
-            
         } catch (e: Exception) {
             // If detection fails, keep current default
             selectedSaveFormat = "image/jpeg"
             updateFormatSelectionUI()
         }
     }
-    
-    // NOTE: The getCanvasBitmap() function has been removed as it is no longer needed.
     
     // Helper to compress bitmap to output stream in selected format
     private fun compressBitmapToStream(bitmap: Bitmap, outputStream: OutputStream, mimeType: String) {
@@ -1909,6 +1845,4 @@ class MainActivity : AppCompatActivity() {
         savePanel.visibility = View.VISIBLE
         scrim.visibility = View.VISIBLE
     }
-
-    // --- END: ADDED FOR OVERWRITE FIX ---
 }

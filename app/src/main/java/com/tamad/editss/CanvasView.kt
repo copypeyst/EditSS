@@ -31,7 +31,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
     
-    // Simple approach: Keep complete bitmap snapshots for undo/redo
     private val bitmapHistory = mutableListOf<Bitmap>()
     private var currentHistoryIndex = -1
 
@@ -177,10 +176,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    /**
-     * Update bitmap and add to undo/redo history without clearing history.
-     * Used for operations like adjustments that need to maintain undo/redo chain.
-     */
     fun updateBitmapWithHistory(bitmap: Bitmap?) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
         saveCurrentState()
@@ -188,18 +183,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
     
-    // Simple MS Paint-style history management
     private fun saveCurrentState() {
         baseBitmap?.let { bitmap ->
-            // Remove any history after current position (when adding new action after undo)
             if (currentHistoryIndex < bitmapHistory.size - 1) {
                 bitmapHistory.subList(currentHistoryIndex + 1, bitmapHistory.size).clear()
             }
-            // Add current state to history
             bitmapHistory.add(bitmap.copy(Bitmap.Config.ARGB_8888, true))
             currentHistoryIndex = bitmapHistory.size - 1
             
-            // Limit history to prevent memory issues (MS Paint style)
             if (bitmapHistory.size > 50) {
                 bitmapHistory.removeAt(0)
                 currentHistoryIndex = bitmapHistory.size - 1
@@ -361,10 +352,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
-        // Save state for simple undo/redo
         saveCurrentState()
         
-        // Notify ViewModel about the crop operation
         val cropAction = CropAction(previousBitmap, RectF(cropRect), currentCropMode)
         baseBitmap?.let { newBitmap ->
             val editAction = EditAction.BitmapChange(previousBitmap, newBitmap.copy(Bitmap.Config.ARGB_8888, true), cropAction = cropAction)
@@ -447,7 +436,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
         if (baseBitmap == null) return
         
-        // Keep reference to previous bitmap state before drawing
         val previousBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
         
         val canvas = Canvas(baseBitmap!!)
@@ -456,10 +444,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         canvas.concat(inverseMatrix)
         canvas.drawPath(action.path, action.paint)
         
-        // Save state after each drawing stroke
         saveCurrentState()
         
-        // Notify ViewModel about the bitmap change
         baseBitmap?.let { newBitmap ->
             val editAction = EditAction.BitmapChange(previousBitmap, newBitmap.copy(Bitmap.Config.ARGB_8888, true), associatedStroke = action)
             onBitmapChanged?.invoke(editAction)
@@ -480,13 +466,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             canvas.save()
             canvas.clipRect(imageBounds)
 
-            // If in sketch mode, draw a white background *within the clipped image bounds*.
             if (isSketchMode) {
-                // This white color is for display only and will be clipped.
                 canvas.drawColor(Color.WHITE)
             }
 
-            // Only show checkerboard for non-sketch mode transparent images
             if (it.hasAlpha() && !isSketchMode) {
                 val checker = CheckerDrawable()
                 imageBounds.roundOut(checker.bounds)
@@ -564,7 +547,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return false
         }
 
-        // Cancel drawing during multi-touch
         if (isDrawing && currentTool == ToolType.DRAW) {
             currentDrawingTool.onTouchEvent(
                 MotionEvent.obtain(event.downTime, event.eventTime, MotionEvent.ACTION_CANCEL, event.x, event.y, 0),
@@ -574,7 +556,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             invalidate()
         }
 
-        // Cancel crop operations during multi-touch
         if (currentTool == ToolType.CROP && (isMovingCropRect || isResizingCropRect)) {
             isMovingCropRect = false
             isResizingCropRect = false
@@ -582,7 +563,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             invalidate()
         }
 
-        // Handle panning during zoom
         if (scaleFactor > 1.0f) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_MOVE -> {
@@ -974,8 +954,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun updateColorFilter() {
         val colorMatrix = ColorMatrix()
         val translation = brightness + (1f - contrast) * 128f
-        
-        // Apply brightness/contrast while preserving alpha
         colorMatrix.set(floatArrayOf(
             contrast, 0f, 0f, 0f, translation,
             0f, contrast, 0f, 0f, translation,
@@ -987,8 +965,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val saturationMatrix = ColorMatrix().apply { setSaturation(saturation) }
         colorMatrix.postConcat(saturationMatrix)
         imagePaint.colorFilter = ColorMatrixColorFilter(colorMatrix)
-        
-        // Ensure proper PorterDuff mode for transparent images
         imagePaint.xfermode = null
     }
 
@@ -998,10 +974,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val canvas = Canvas(adjustedBitmap)
         val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
-        
-        // Don't save state here - let the caller decide when to add to history
-        // This is important for proper undo/redo integration
-        
         return adjustedBitmap
     }
 
@@ -1010,8 +982,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun getTransparentDrawingWithAdjustments(): Bitmap? {
-        // In sketch mode, the baseBitmap is already on a transparent background.
-        // We just need to get the final version with adjustments applied.
         return getFinalBitmap()
     }
 }
