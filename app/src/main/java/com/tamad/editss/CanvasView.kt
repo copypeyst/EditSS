@@ -33,6 +33,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     
     private val bitmapHistory = mutableListOf<Bitmap>()
     private var currentHistoryIndex = -1
+    private var savedHistoryIndex = -1
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f // For multi-touch panning
@@ -42,6 +43,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isZooming = false
     private var isDrawing = false
     private var lastPointerCount = 1 // Track pointer count for scale detection
+
+    fun markAsSaved() {
+        savedHistoryIndex = currentHistoryIndex
+    }
+
+    fun hasUnsavedChanges(): Boolean {
+        return savedHistoryIndex != currentHistoryIndex
+    }
 
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
 
@@ -165,6 +174,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (baseBitmap != null) {
             saveCurrentState() // Save initial state
         }
+        savedHistoryIndex = currentHistoryIndex // Mark the initial state as saved
+
         background = resources.getDrawable(R.drawable.outer_bounds, null)
 
         updateImageMatrix()

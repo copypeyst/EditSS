@@ -282,7 +282,7 @@ class MainActivity : AppCompatActivity() {
 
         // Import Button Logic
         buttonImport.setOnClickListener {
-            if (editViewModel.hasUnsavedChanges) {
+            if (drawingView.hasUnsavedChanges()) {
                 AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
                     .setTitle(getString(R.string.discard_changes_title))
                     .setMessage(getString(R.string.discard_changes_message))
@@ -310,7 +310,7 @@ class MainActivity : AppCompatActivity() {
 
         // Camera Button Logic
         buttonCamera.setOnClickListener {
-            if (editViewModel.hasUnsavedChanges) {
+            if (drawingView.hasUnsavedChanges()) {
                 AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
                     .setTitle(getString(R.string.discard_changes_title))
                     .setMessage(getString(R.string.discard_changes_message))
@@ -1329,7 +1329,7 @@ class MainActivity : AppCompatActivity() {
                 
                 savePanel.visibility = View.GONE
                 scrim.visibility = View.GONE
-                editViewModel.markActionsAsSaved()
+                drawingView.markAsSaved()
 
             } catch (e: Exception) {
                 showCustomToast(e.message ?: "Unknown error")
@@ -1424,7 +1424,7 @@ class MainActivity : AppCompatActivity() {
                         
                         savePanel.visibility = View.GONE
                         scrim.visibility = View.GONE
-                        editViewModel.markActionsAsSaved()
+                        drawingView.markAsSaved()
 
                         imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
                         imageLoader.diskCache?.remove(imageInfo.uri.toString())
