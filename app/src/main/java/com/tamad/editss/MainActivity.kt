@@ -86,7 +86,6 @@ class MainActivity : AppCompatActivity() {
     private var currentActiveTool: ImageView? = null
 
     private var currentCropMode: View? = null
-    private var currentSelectedColor: FrameLayout? = null
     private var currentDrawMode: ImageView? = null
     
     // Crop mode option buttons
@@ -99,9 +98,6 @@ class MainActivity : AppCompatActivity() {
     private var selectedSaveFormat: String = "image/jpeg"
     private var currentImageHasTransparency = false
     private var currentCameraUri: Uri? = null
-    private var isImageLoading = false
-    private var isImageLoadAttempted = false
-    private var lastImageLoadFailed = false
     private var isSketchMode = false
     
     private lateinit var deleteRequestLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.IntentSenderRequest>
@@ -145,7 +141,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 currentCameraUri = null
             }
-        } else {
+        }
+    } else {
             val cameraUri = currentCameraUri
             if (cameraUri != null) {
                 cleanupCameraFile(cameraUri)
@@ -293,7 +290,8 @@ class MainActivity : AppCompatActivity() {
                         editViewModel.clearAllActions()
                         if (hasImagePermission()) {
                             openImagePicker()
-                        } else {
+                        }
+                    } else {
                             requestImagePermission()
                         }
                         dialog.dismiss()
@@ -716,36 +714,25 @@ class MainActivity : AppCompatActivity() {
         val colorOrangeContainer: FrameLayout = findViewById(R.id.color_orange_container)
         val colorPinkContainer: FrameLayout = findViewById(R.id.color_pink_container)
 
+        val colorSwatchMap = mapOf(
+            android.graphics.Color.BLACK to colorBlackContainer,
+            android.graphics.Color.WHITE to colorWhiteContainer,
+            android.graphics.Color.RED to colorRedContainer,
+            android.graphics.Color.GREEN to colorGreenContainer,
+            android.graphics.Color.BLUE to colorBlueContainer,
+            android.graphics.Color.YELLOW to colorYellowContainer,
+            android.graphics.Color.rgb(255, 165, 0) to colorOrangeContainer,
+            android.graphics.Color.rgb(255, 192, 203) to colorPinkContainer
+        )
+
         val colorClickListener = View.OnClickListener { v ->
-            currentSelectedColor?.findViewWithTag<View>("border")?.visibility = View.GONE
-            val border = v.findViewWithTag<View>("border")
-            border?.visibility = View.VISIBLE
-            currentSelectedColor = v as FrameLayout
-            
-            // Update shared drawing state in ViewModel
-            val selectedColor = when (v.id) {
-                R.id.color_black_container -> android.graphics.Color.BLACK
-                R.id.color_white_container -> android.graphics.Color.WHITE
-                R.id.color_red_container -> android.graphics.Color.RED
-                R.id.color_green_container -> android.graphics.Color.GREEN
-                R.id.color_blue_container -> android.graphics.Color.BLUE
-                R.id.color_yellow_container -> android.graphics.Color.YELLOW
-                R.id.color_orange_container -> android.graphics.Color.rgb(255, 165, 0) // Orange
-                R.id.color_pink_container -> android.graphics.Color.rgb(255, 192, 203) // Pink
-                else -> android.graphics.Color.RED // Default fallback
+            val selectedColor = colorSwatchMap.entries.firstOrNull { it.value == v }?.key
+            selectedColor?.let {
+                editViewModel.updateDrawingColor(it)
             }
-            
-            editViewModel.updateDrawingColor(selectedColor)
         }
 
-        colorBlackContainer.setOnClickListener(colorClickListener)
-        colorWhiteContainer.setOnClickListener(colorClickListener)
-        colorRedContainer.setOnClickListener(colorClickListener)
-        colorGreenContainer.setOnClickListener(colorClickListener)
-        colorBlueContainer.setOnClickListener(colorClickListener)
-        colorYellowContainer.setOnClickListener(colorClickListener)
-        colorOrangeContainer.setOnClickListener(colorClickListener)
-        colorPinkContainer.setOnClickListener(colorClickListener)
+        colorSwatchMap.values.forEach { it.setOnClickListener(colorClickListener) }
 
         // Set default selections
         updateDrawModeSelection(drawModePen)
@@ -773,8 +760,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            editViewModel.drawingState.collect {
-                drawingView.setDrawingState(it)
+            editViewModel.drawingState.collect { state ->
+                drawingView.setDrawingState(state)
+                // Update color swatch selection
+                colorSwatchMap.forEach { (color, container) ->
+                    val border = container.findViewWithTag<View>("border")
+                    border?.visibility = if (color == state.color) View.VISIBLE else View.GONE
+                }
             }
         }
 
@@ -825,8 +817,6 @@ class MainActivity : AppCompatActivity() {
 
         cropModeFreeform.isSelected = true
         currentCropMode = cropModeFreeform
-
-        colorRedContainer.performClick()
 
         // Set draw as default active tool
         toolDraw.isSelected = true
