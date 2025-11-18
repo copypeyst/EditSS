@@ -7,6 +7,12 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.graphics.RectF
+import com.tamad.editss.DrawMode
+import com.tamad.editss.DrawingState
+import com.tamad.editss.CropMode
+import com.tamad.editss.CropAction
+import com.tamad.editss.EditAction
+import com.tamad.editss.DrawingAction
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -14,8 +20,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var currentDrawingTool: DrawingTool = PenTool()
     private val cropPaint = Paint()
     private val cropCornerPaint = Paint()
-    private val layerPaint = Paint()
-    private val scaledPaint = Paint()
 
     private val imagePaint = Paint().apply {
         isAntiAlias = true
@@ -24,9 +28,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private var baseBitmap: Bitmap? = null
-    private var drawnPaths = listOf<DrawingAction>()
-    private val imageMatrix = Matrix()
+    private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
+    
+    private val bitmapHistory = mutableListOf<Bitmap>()
+    private var currentHistoryIndex = -1
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f // For multi-touch panning
@@ -113,7 +119,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
-    var onDrawingAction: ((DrawingAction) -> Unit)? = null
+    var onUndoAction: (() -> Unit)? = null // Simple callback for undo operations
+    var onRedoAction: (() -> Unit)? = null // Simple callback for redo operations
+    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null // Keep for compatibility
 
     init {
         paint.isAntiAlias = true
@@ -130,8 +138,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
         cropCornerPaint.alpha = 192 // 75% opacity
-
-        setLayerType(View.LAYER_TYPE_HARDWARE, layerPaint)
     }
 
     enum class ToolType {
@@ -153,6 +159,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun setBitmap(bitmap: Bitmap?) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        // Reset history when new bitmap is loaded
+        bitmapHistory.clear()
+        currentHistoryIndex = -1
+        if (baseBitmap != null) {
+            saveCurrentState() // Save initial state
+        }
         background = resources.getDrawable(R.drawable.outer_bounds, null)
 
         updateImageMatrix()
@@ -164,10 +176,52 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    fun setDrawnPaths(paths: List<DrawingAction>) {
-        this.drawnPaths = paths
+    fun updateBitmapWithHistory(bitmap: Bitmap?) {
+        baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        saveCurrentState()
+        updateImageMatrix()
         invalidate()
     }
+    
+    private fun saveCurrentState() {
+        baseBitmap?.let { bitmap ->
+            if (currentHistoryIndex < bitmapHistory.size - 1) {
+                bitmapHistory.subList(currentHistoryIndex + 1, bitmapHistory.size).clear()
+            }
+            bitmapHistory.add(bitmap.copy(Bitmap.Config.ARGB_8888, true))
+            currentHistoryIndex = bitmapHistory.size - 1
+            
+            if (bitmapHistory.size > 50) {
+                bitmapHistory.removeAt(0)
+                currentHistoryIndex = bitmapHistory.size - 1
+            }
+        }
+    }
+    
+    fun undo(): Bitmap? {
+        if (currentHistoryIndex > 0) {
+            currentHistoryIndex--
+            baseBitmap = bitmapHistory[currentHistoryIndex].copy(Bitmap.Config.ARGB_8888, true)
+            updateImageMatrix()
+            invalidate()
+            return baseBitmap
+        }
+        return null
+    }
+    
+    fun redo(): Bitmap? {
+        if (currentHistoryIndex < bitmapHistory.size - 1) {
+            currentHistoryIndex++
+            baseBitmap = bitmapHistory[currentHistoryIndex].copy(Bitmap.Config.ARGB_8888, true)
+            updateImageMatrix()
+            invalidate()
+            return baseBitmap
+        }
+        return null
+    }
+    
+    fun canUndo(): Boolean = currentHistoryIndex > 0
+    fun canRedo(): Boolean = currentHistoryIndex < bitmapHistory.size - 1
 
     fun setSketchMode(isSketch: Boolean) {
         this.isSketchMode = isSketch
@@ -270,30 +324,34 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         onCropCanceled?.invoke()
     }
 
-    fun applyCrop(): Pair<Bitmap, Bitmap>? {
+    fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
-        val previousBitmap = getFinalBitmap() ?: return null
+        saveCurrentState()
+
+        val bitmapWithDrawings = baseBitmap ?: return null
 
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
         val imageCropRect = RectF()
         inverseMatrix.mapRect(imageCropRect, cropRect)
 
-        val left = imageCropRect.left.coerceIn(0f, previousBitmap.width.toFloat())
-        val top = imageCropRect.top.coerceIn(0f, previousBitmap.height.toFloat())
-        val right = imageCropRect.right.coerceIn(0f, previousBitmap.width.toFloat())
-        val bottom = imageCropRect.bottom.coerceIn(0f, previousBitmap.height.toFloat())
+        val left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat())
+        val top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat())
+        val right = imageCropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat())
+        val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat())
 
         if (right <= left || bottom <= top) return null
 
-        val newBitmap = Bitmap.createBitmap(
-            previousBitmap,
+        val croppedBitmap = Bitmap.createBitmap(
+            bitmapWithDrawings,
             left.toInt(),
             top.toInt(),
             (right - left).toInt(),
             (bottom - top).toInt()
         )
+
+        baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
         cropRect.setEmpty()
         scaleFactor = 1.0f
@@ -301,49 +359,62 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         translationY = 0f
         updateImageMatrix()
         invalidate()
-        onCropApplied?.invoke(newBitmap)
+        onCropApplied?.invoke(baseBitmap!!)
 
-        return Pair(previousBitmap, newBitmap)
+        return baseBitmap
     }
 
     fun getDrawing(): Bitmap? {
-        return getFinalBitmap()
+        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+    }
+
+    fun getDrawingOnTransparent(): Bitmap? {
+        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+    }
+    
+    fun getTransparentDrawing(): Bitmap? {
+        return getDrawingOnTransparent()
     }
     
     fun getSketchDrawingOnWhite(): Bitmap? {
+        // First, get the drawing with any adjustments.
         val drawingBitmap = getFinalBitmap() ?: return null
+
+        // Create a new bitmap with a white background.
         val whiteBitmap = Bitmap.createBitmap(drawingBitmap.width, drawingBitmap.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(whiteBitmap)
         canvas.drawColor(Color.WHITE)
+
+        // Draw the sketch on top of the white background.
         canvas.drawBitmap(drawingBitmap, 0f, 0f, null)
+        
         return whiteBitmap
     }
 
     fun getFinalBitmap(): Bitmap? {
-        val base = baseBitmap ?: return null
-        val finalBitmap = base.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(finalBitmap)
-
-        // Apply drawn paths
-        drawnPaths.forEach { action ->
-            canvas.drawPath(action.path, action.paint)
+        if (baseBitmap == null) {
+            return null
         }
 
-        // Apply live adjustments
+        // Only apply adjustments if they're not default values
         val hasAdjustments = brightness != 0f || contrast != 1f || saturation != 1f
         if (!hasAdjustments) {
-            return finalBitmap
+            return baseBitmap
         }
 
-        val adjustedBitmap = Bitmap.createBitmap(finalBitmap.width, finalBitmap.height, Bitmap.Config.ARGB_8888)
-        val adjustCanvas = Canvas(adjustedBitmap)
+        // Create a new bitmap with the adjustments baked in
+        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(adjustedBitmap)
+        
+        // Apply the same color filter used for display
         val paint = Paint().apply {
             colorFilter = imagePaint.colorFilter
             isAntiAlias = true
             isFilterBitmap = true
             isDither = true
         }
-        adjustCanvas.drawBitmap(finalBitmap, 0f, 0f, paint)
+        
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
         return adjustedBitmap
     }
     
@@ -353,6 +424,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         canvas.drawColor(Color.WHITE)
         canvas.drawBitmap(bitmap, 0f, 0f, null)
         return whiteBitmap
+    }
+
+    fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
+        if (baseBitmap == null) return
+        
+        val canvas = Canvas(baseBitmap!!)
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        canvas.concat(inverseMatrix)
+        canvas.drawPath(action.path, action.paint)
+        
+        invalidate()
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -378,32 +461,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
             
             canvas.drawBitmap(it, imageMatrix, imagePaint)
-
-            // Apply the same transformation for both committed and in-progress drawing
-            val matrixToApply = Matrix(imageMatrix)
-            canvas.concat(matrixToApply)
-
-            // Calculate the current scale to adjust stroke width
-            val values = FloatArray(9)
-            matrixToApply.getValues(values)
-            val currentCanvasScale = values[Matrix.MSCALE_X]
-
-            // Draw the committed paths with scaled stroke width
-            drawnPaths.forEach { action ->
-                scaledPaint.set(action.paint)
-                val originalStrokeWidth = action.paint.strokeWidth
-                scaledPaint.strokeWidth = originalStrokeWidth / currentCanvasScale
-                canvas.drawPath(action.path, scaledPaint)
-            }
-
-            // Draw the current in-progress path with scaled stroke width
-            scaledPaint.set(paint)
-            scaledPaint.strokeWidth = paint.strokeWidth / currentCanvasScale
-            currentDrawingTool.onDraw(canvas, scaledPaint)
-            
-            canvas.restore() // Restore from the matrix concat
+            canvas.restore()
         }
 
+        currentDrawingTool.onDraw(canvas, paint)
 
         if (currentTool == ToolType.CROP && !cropRect.isEmpty) {
             drawCropOverlay(canvas)
@@ -517,20 +578,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> isDrawing = true
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> isDrawing = false
+            MotionEvent.ACTION_DOWN -> {
+                isDrawing = true
+                saveCurrentState() // Save state BEFORE the drawing action begins
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isDrawing = false
+            }
         }
         
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        val transformedEvent = MotionEvent.obtain(event)
-        transformedEvent.transform(inverseMatrix)
-
-        val screenSpaceAction = currentDrawingTool.onTouchEvent(transformedEvent, paint)
-        transformedEvent.recycle()
-
+        val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
         screenSpaceAction?.let { action ->
-            onDrawingAction?.invoke(action)
+            mergeDrawingStrokeIntoBitmap(action)
         }
         invalidate()
         return true
@@ -877,7 +936,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         this.brightness = 0f
         this.contrast = 1f
         this.saturation = 1f
-        layerPaint.colorFilter = null
         imagePaint.colorFilter = null
         invalidate()
     }
@@ -895,18 +953,24 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Apply saturation while preserving alpha
         val saturationMatrix = ColorMatrix().apply { setSaturation(saturation) }
         colorMatrix.postConcat(saturationMatrix)
-        layerPaint.colorFilter = ColorMatrixColorFilter(colorMatrix)
-        imagePaint.colorFilter = null
+        imagePaint.colorFilter = ColorMatrixColorFilter(colorMatrix)
         imagePaint.xfermode = null
     }
 
-    fun applyAdjustmentsToBitmap(): Pair<Bitmap, Bitmap>? {
-        val previousBitmap = getFinalBitmap() ?: return null
-        val adjustedBitmap = Bitmap.createBitmap(previousBitmap.width, previousBitmap.height, Bitmap.Config.ARGB_8888)
+    fun applyAdjustmentsToBitmap(): Bitmap? {
+        if (baseBitmap == null) return null
+
+        saveCurrentState()
+
+        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(adjustedBitmap)
-        val paint = Paint().apply { colorFilter = layerPaint.colorFilter }
-        canvas.drawBitmap(previousBitmap, 0f, 0f, paint)
-        return Pair(previousBitmap, adjustedBitmap)
+        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
+        
+        baseBitmap = adjustedBitmap
+        invalidate()
+        
+        return baseBitmap
     }
 
     fun resetAdjustments() {

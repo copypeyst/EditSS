@@ -8,6 +8,7 @@ import android.util.Log
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
+import android.content.ClipData
 import android.content.pm.PackageManager
 import android.os.Build
 import android.Manifest
@@ -30,6 +31,7 @@ import android.graphics.Bitmap
 import android.graphics.Bitmap.CompressFormat
 import android.os.Environment
 import android.content.ContentValues
+import android.media.MediaScannerConnection
 import kotlinx.coroutines.*
 import androidx.core.view.doOnLayout
 import androidx.lifecycle.lifecycleScope
@@ -42,8 +44,9 @@ import coil.memory.MemoryCache
 import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
+import com.tamad.editss.DrawMode
+import com.tamad.editss.EditAction
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.lifecycle.ViewModelProvider
 
 enum class ImageOrigin {
     IMPORTED_READONLY,
@@ -58,6 +61,8 @@ data class ImageInfo(
     var canOverwrite: Boolean,
     val originalMimeType: String // Added to track original format
 )
+
+// Coil handles all caching, memory management, and bitmap processing automatically
 
 class MainActivity : AppCompatActivity() {
 
@@ -187,7 +192,7 @@ class MainActivity : AppCompatActivity() {
         adView.loadAd(adRequest)
 
         // Initialize ViewModel for shared drawing state
-        editViewModel = ViewModelProvider(this).get(EditViewModel::class.java)
+        editViewModel = EditViewModel()
 
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
@@ -549,14 +554,14 @@ class MainActivity : AppCompatActivity() {
         val buttonCropCancel: Button = findViewById(R.id.button_crop_cancel)
 
         buttonCropApply.setOnClickListener {
-            drawingView.applyCrop()?.let { (previousBitmap, newBitmap) ->
-                val action = CropAction(previousBitmap, newBitmap)
-                editViewModel.pushCropAction(action)
+            val croppedBitmap = drawingView.applyCrop()
+            if (croppedBitmap != null) {
+                currentCropMode?.isSelected = false
+                currentCropMode = null
+                drawingView.setCropModeInactive()
                 showCustomToast(getString(R.string.crop_applied))
+            } else {
             }
-            currentCropMode?.isSelected = false
-            currentCropMode = null
-            drawingView.setCropModeInactive()
         }
 
         buttonCropCancel.setOnClickListener {
@@ -674,11 +679,8 @@ class MainActivity : AppCompatActivity() {
         })
 
         buttonAdjustApply.setOnClickListener {
-            drawingView.applyAdjustmentsToBitmap()?.let { (previousBitmap, newBitmap) ->
-                val action = AdjustAction(previousBitmap, newBitmap)
-                editViewModel.pushAdjustAction(action)
-                showCustomToast(getString(R.string.adjustment_applied))
-            }
+            drawingView.applyAdjustmentsToBitmap()
+            showCustomToast(getString(R.string.adjustment_applied))
 
             editViewModel.resetAdjustments()
             brightnessSlider.progress = 100
@@ -726,27 +728,44 @@ class MainActivity : AppCompatActivity() {
         // Set default selections
         updateDrawModeSelection(drawModePen)
 
-        // Connect drawing actions from CanvasView to the ViewModel
-        drawingView.onDrawingAction = { action ->
-            editViewModel.pushDrawingAction(action)
-        }
-
-        // Observe the canvas state from the ViewModel and update the UI
-        lifecycleScope.launch {
-            editViewModel.canvasState.collect { state ->
-                drawingView.setBitmap(state.baseBitmap)
-                drawingView.setDrawnPaths(state.drawnPaths)
+        // Connect simple undo/redo to CanvasView - MS Paint style
+        drawingView.onUndoAction = {
+            val undoneBitmap = drawingView.undo()
+            if (undoneBitmap != null) {
+                // Clear ViewModel history since we're using CanvasView history now
+                editViewModel.clearAllActions()
             }
         }
 
+        drawingView.onRedoAction = {
+            val redoneBitmap = drawingView.redo()
+            if (redoneBitmap != null) {
+                // Clear ViewModel history since we're using CanvasView history now
+                editViewModel.clearAllActions()
+            }
+        }
+
+        // Connect bitmap changes (drawing and crop operations) to ViewModel
+        drawingView.onBitmapChanged = { editAction ->
+            editViewModel.pushBitmapChangeAction(editAction)
+        }
+
+        // Observe the drawing state from the ViewModel and update the UI accordingly
         lifecycleScope.launch {
             editViewModel.drawingState.collect { state ->
+                // Update the drawing view with the latest state
                 drawingView.setDrawingState(state)
-                // Update color swatch selection
+
+                // Update the visual selection of the color swatches
                 colorSwatchMap.forEach { (color, container) ->
                     val border = container.findViewWithTag<View>("border")
                     border?.visibility = if (color == state.color) View.VISIBLE else View.GONE
                 }
+            }
+        }
+
+        lifecycleScope.launch {
+            editViewModel.undoStack.collect { actions ->
             }
         }
 
@@ -756,12 +775,38 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Handle undone actions
+        lifecycleScope.launch {
+            editViewModel.lastUndoneAction.collect { action ->
+                action?.let {
+                    drawingView.onUndoAction?.invoke()
+                    // Clear the action to prevent duplicate processing
+                    editViewModel.clearLastUndoneAction()
+                }
+            }
+        }
+
+        // Handle redone actions
+        lifecycleScope.launch {
+            editViewModel.lastRedoneAction.collect { action ->
+                action?.let {
+                    drawingView.onRedoAction?.invoke()
+                    // Clear the action to prevent duplicate processing
+                    editViewModel.clearLastRedoneAction()
+                }
+            }
+        }
+
         buttonUndo.setOnClickListener {
-            editViewModel.undo()
+            drawingView.undo()
+            // Update ViewModel to reflect the new state
+            editViewModel.clearAllActions()
         }
 
         buttonRedo.setOnClickListener {
-            editViewModel.redo()
+            drawingView.redo()
+            // Update ViewModel to reflect the new state
+            editViewModel.clearAllActions()
         }
 
         cropModeFreeform.isSelected = true
@@ -778,7 +823,6 @@ class MainActivity : AppCompatActivity() {
         drawingView.doOnLayout { view ->
             if (currentImageInfo == null) {
                 isSketchMode = true
-                drawingView.setSketchMode(true)
                 val width = view.width
                 val height = view.height
                 
@@ -787,7 +831,9 @@ class MainActivity : AppCompatActivity() {
                 val canvas = android.graphics.Canvas(transparentBitmap)
                 canvas.drawColor(android.graphics.Color.TRANSPARENT)
                 
-                editViewModel.setInitialBitmap(transparentBitmap)
+                // Set it as the base for the drawing view
+                drawingView.setBitmap(transparentBitmap)
+                drawingView.setSketchMode(true) // Enable sketch mode for transparency
                 
                 // Create a dummy ImageInfo for sketch mode
                 currentImageInfo = ImageInfo(
@@ -993,13 +1039,13 @@ class MainActivity : AppCompatActivity() {
                     val drawable = result.drawable
                     val bitmap = (drawable as android.graphics.drawable.BitmapDrawable).bitmap
 
-                    editViewModel.setInitialBitmap(bitmap)
-
                     val origin = determineImageOrigin(uri)
                     val canOverwrite = determineCanOverwrite(origin)
                     val originalMimeType = contentResolver.getType(uri) ?: "image/jpeg"
                     
                     currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
+                    
+                    drawingView.setBitmap(bitmap)
                     
                     val displayName = getDisplayNameFromUri(uri) ?: "Image"
                     showCustomToast(getString(R.string.loaded_image_successfully, displayName))
@@ -1407,7 +1453,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val nameWithoutExt = originalDisplayName.substringBeforeLast('.')
-        val copyPattern = Pattern.compile("""\s-\sCopy(\s\(\d+\))?$""")
+        val copyPattern = Pattern.compile("\\s-\\sCopy(\\s\\(\\d+\\))?$")
         val matcher = copyPattern.matcher(nameWithoutExt)
         val baseName = if (matcher.find()) {
             nameWithoutExt.substring(0, matcher.start())
@@ -1607,9 +1653,13 @@ class MainActivity : AppCompatActivity() {
         val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
         val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
         
-        drawingView.applyAdjustmentsToBitmap()?.let { (previousBitmap, newBitmap) ->
+        val previousBitmap = drawingView.getBaseBitmap()
+        val newBitmap = drawingView.applyAdjustmentsToBitmap()
+
+        if (previousBitmap != null && newBitmap != null) {
             val action = AdjustAction(previousBitmap, newBitmap)
             editViewModel.pushAdjustAction(action)
+            drawingView.setBitmap(newBitmap)
             showCustomToast(getString(R.string.adjustment_applied))
         }
 
