@@ -91,7 +91,6 @@ class MainActivity : AppCompatActivity() {
     private var currentSelectedColor: FrameLayout? = null
     private var currentDrawMode: ImageView? = null
     
-    private lateinit var drawModePen: ImageView
     // Crop mode option buttons
     private lateinit var cropModeFreeform: View
     private lateinit var cropModeSquare: View
@@ -141,17 +140,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var contrastOverlay: SliderValueOverlay
     private lateinit var saturationOverlay: SliderValueOverlay
     // --- END: ADDED FOR OVERWRITE FIX ---
-
-    // Buttons and Tools promoted to class properties
-    private lateinit var buttonUndo: ImageView
-    private lateinit var buttonRedo: ImageView
-    private lateinit var buttonSave: ImageView
-    private lateinit var buttonImport: ImageView
-    private lateinit var buttonCamera: ImageView
-    private lateinit var buttonShare: ImageView
-    private lateinit var toolDraw: ImageView
-    private lateinit var toolCrop: ImageView
-    private lateinit var toolAdjust: ImageView
 
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -230,15 +218,15 @@ class MainActivity : AppCompatActivity() {
 
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
-        buttonUndo = findViewById(R.id.button_undo)
-        buttonRedo = findViewById(R.id.button_redo)
-        buttonSave = findViewById(R.id.button_save)
-        buttonImport = findViewById(R.id.button_import)
-        buttonCamera = findViewById(R.id.button_camera)
-        buttonShare = findViewById(R.id.button_share)
-        toolDraw = findViewById(R.id.tool_draw)
-        toolCrop = findViewById(R.id.tool_crop)
-        toolAdjust = findViewById(R.id.tool_adjust)
+        val buttonUndo: ImageView = findViewById(R.id.button_undo)
+        val buttonRedo: ImageView = findViewById(R.id.button_redo)
+        val buttonSave: ImageView = findViewById(R.id.button_save)
+        val buttonImport: ImageView = findViewById(R.id.button_import)
+        val buttonCamera: ImageView = findViewById(R.id.button_camera)
+        val buttonShare: ImageView = findViewById(R.id.button_share)
+        val toolDraw: ImageView = findViewById(R.id.tool_draw)
+        val toolCrop: ImageView = findViewById(R.id.tool_crop)
+        val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
 
         // Initialize loading overlay elements
         overlayContainer = findViewById(R.id.overlay_container)
@@ -265,22 +253,6 @@ class MainActivity : AppCompatActivity() {
         // Initialize DrawingView and connect to ViewModel
         drawingView = findViewById(R.id.drawing_view)
 
-        setupActionButtons()
-        setupToolButtons()
-        setupSavePanel()
-        setupDrawOptions()
-        setupCropOptions()
-        setupAdjustOptions()
-        setupColorSwatches()
-        setupUndoRedo()
-        setupViewModelObservers()
-
-        // Set default selections
-        toolDraw.performClick()
-        findViewById<FrameLayout>(R.id.color_red_container).performClick()
-        
-        // Handle incoming intents
-        handleIntent(intent)
 
         // Initialize sliders with a max of 99 for 100 steps (0-99)
         val defaultSize = 24 // Default to 25 when displayed (24 + 1)
@@ -290,110 +262,6 @@ class MainActivity : AppCompatActivity() {
         drawSizeSlider.progress = defaultSize
         drawOpacitySlider.progress = defaultOpacity
 
-        drawingView.doOnLayout { view ->
-            // This block runs once the view has been laid out and has dimensions.
-            // We only want to do this if no image has been loaded from an intent.
-            if (currentImageInfo == null) {
-                isSketchMode = true
-                val width = view.width
-                val height = view.height
-                
-                // Create a mutable transparent bitmap for sketch mode
-                val transparentBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(transparentBitmap)
-                canvas.drawColor(android.graphics.Color.TRANSPARENT)
-                
-                // Set it as the base for the drawing view
-                drawingView.setBitmap(transparentBitmap)
-                drawingView.setSketchMode(true) // Enable sketch mode for transparency
-                
-                // Create a dummy ImageInfo for sketch mode
-                currentImageInfo = ImageInfo(
-                    uri = Uri.EMPTY,
-                    origin = ImageOrigin.EDITED_INTERNAL,
-                    canOverwrite = false,
-                    originalMimeType = "image/jpeg" // Default to JPEG for sketch mode
-                )
-                
-                // Set JPEG as the selected format for sketch mode
-                selectedSaveFormat = "image/jpeg"
-                updateFormatSelectionUI()
-                updateSavePanelUI()
-            }
-        }
-
-        // --- START: ADDED FOR OVERWRITE FIX ---
-        // Initialize the launcher that will handle the result of the delete request.
-        deleteRequestLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { result ->
-            // This code runs AFTER the user responds to the delete confirmation dialog.
-            if (result.resultCode == RESULT_OK) {
-                // User confirmed the deletion.
-                // Toast removed: "Original file deleted" - UX improvement
-                
-                // Now, safely update our app's reference to point to the new file.
-                pendingOverwriteUri?.let {
-                    // Invalidate Coil's cache for the old URI to prevent showing a stale image.
-                    currentImageInfo?.uri?.let { oldUri ->
-                        imageLoader.memoryCache?.remove(MemoryCache.Key(oldUri.toString()))
-                    }
-                    currentImageInfo = currentImageInfo?.copy(uri = it)
-                    pendingOverwriteUri = null // Clean up the temporary variable
-                }
-            } else {
-                // User cancelled the deletion. The original file remains.
-                // Toast removed: "Original file was not deleted" - UX improvement
-                // We still need to update our app's reference to the new file that was created.
-                pendingOverwriteUri?.let {
-                    currentImageInfo = currentImageInfo?.copy(uri = it)
-                    pendingOverwriteUri = null // Clean up
-                }
-            }
-        }
-        // --- END: ADDED FOR OVERWRITE FIX ---
-    }
-
-    private fun setupActionButtons() {
-
-        // Import Button Logic
-        buttonImport.setOnClickListener {
-            if (editViewModel.hasUnsavedChanges) {
-                AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
-                    .setTitle(getString(R.string.discard_changes_title))
-                    .setMessage(getString(R.string.discard_changes_message))
-                    .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
-                        editViewModel.clearAllActions()
-                        if (hasImagePermission()) {
-                            openImagePicker()
-                        } else {
-                            requestImagePermission()
-                        }
-                        dialog.dismiss()
-                    }
-                    .setNegativeButton(getString(R.string.cancel)) { dialog, _ ->
-                        dialog.dismiss()
-                    }
-                    .show()
-            } else {
-                if (hasImagePermission()) {
-                    openImagePicker()
-                } else {
-                    requestImagePermission()
-                }
-            }
-        }
-
-        // Camera Button Logic
-        buttonCamera.setOnClickListener {
-            // ... (logic from onCreate)
-        }
-
-        // Share Button Logic
-        buttonShare.setOnClickListener {
-            shareCurrentImage()
-        }
-    }
-
-    private fun setupSavePanel() {
         // Save Panel Logic
         buttonSave.setOnClickListener {
             if (savePanel.visibility == View.VISIBLE) {
@@ -435,14 +303,136 @@ class MainActivity : AppCompatActivity() {
             savePanel.visibility = View.GONE
             scrim.visibility = View.GONE
         }
-        // ... (rest of save panel logic from onCreate)
-    }
 
-    private fun setupToolButtons() {
-        // ... (toolDraw, toolCrop, toolAdjust listener logic from onCreate)
-    }
+        // Import Button Logic
+        buttonImport.setOnClickListener {
+            if (editViewModel.hasUnsavedChanges) {
+                AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
+                    .setTitle(getString(R.string.discard_changes_title))
+                    .setMessage(getString(R.string.discard_changes_message))
+                    .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
+                        editViewModel.clearAllActions()
+                        if (hasImagePermission()) {
+                            openImagePicker()
+                        } else {
+                            requestImagePermission()
+                        }
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton(getString(R.string.cancel)) { dialog, _ ->
+                        dialog.dismiss()
+                    }
+                    .show()
+            } else {
+                if (hasImagePermission()) {
+                    openImagePicker()
+                } else {
+                    requestImagePermission()
+                }
+            }
+        }
 
-    private fun setupDrawOptions() {
+        // Camera Button Logic - Step 13: Create writable URI in MediaStore for camera capture
+        buttonCamera.setOnClickListener {
+            if (editViewModel.hasUnsavedChanges) {
+                AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
+                    .setTitle(getString(R.string.discard_changes_title))
+                    .setMessage(getString(R.string.discard_changes_message))
+                    .setPositiveButton(getString(R.string.confirm)) { dialog, _ ->
+                        editViewModel.clearAllActions()
+                        captureImageFromCamera()
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton(getString(R.string.cancel)) { dialog, _ ->
+                        dialog.dismiss()
+                    }
+                    .show()
+            } else {
+                captureImageFromCamera()
+            }
+        }
+
+        // Step 1 & 2: Share Button Logic - Content URI sharing for saved images, cache-based for unsaved edits
+        buttonShare.setOnClickListener {
+            shareCurrentImage()
+        }
+
+        // Tool Buttons Logic
+        toolDraw.setOnClickListener {
+            drawOptionsLayout.visibility = View.VISIBLE
+            cropOptionsLayout.visibility = View.GONE
+            adjustOptionsLayout.visibility = View.GONE
+            savePanel.visibility = View.GONE // Hide save panel
+            drawingView.visibility = View.VISIBLE // Show drawing view
+            drawingView.setToolType(CanvasView.ToolType.DRAW) // Set draw mode
+            drawingView.setCropModeInactive() // Clear crop mode active state
+            
+            // Clear adjustments when switching away from Adjust mode
+            if (currentActiveTool == toolAdjust) {
+                drawingView.clearAdjustments()
+            }
+            
+            currentActiveTool?.isSelected = false
+            toolDraw.isSelected = true
+            currentActiveTool = toolDraw
+        }
+
+        toolCrop.setOnClickListener {
+            cropOptionsLayout.visibility = View.VISIBLE
+            drawOptionsLayout.visibility = View.GONE
+            adjustOptionsLayout.visibility = View.GONE
+            savePanel.visibility = View.GONE // Hide save panel
+            drawingView.visibility = View.VISIBLE // Keep drawing view visible for cropping
+            drawingView.setToolType(CanvasView.ToolType.CROP) // Set crop mode
+            
+            // Clear adjustments when switching away from Adjust mode
+            if (currentActiveTool == toolAdjust) {
+                drawingView.clearAdjustments()
+            }
+            
+            currentActiveTool?.isSelected = false
+            toolCrop.isSelected = true
+            currentActiveTool = toolCrop
+            
+            // Re-initialize crop rectangle when crop mode is activated
+            // This ensures the marquee appears and adjusts to fit the current image
+            // Similar to the post block in your snippet - happens whenever crop mode button is pressed
+            drawingView.post {
+                // Always re-apply the current crop mode to adjust the marquee to fit the current image
+                if (currentCropMode != null) {
+                    // If a crop mode option is already selected, re-apply it
+                    when (currentCropMode?.id) {
+                        R.id.crop_mode_freeform -> drawingView.setCropMode(CropMode.FREEFORM)
+                        R.id.crop_mode_square -> drawingView.setCropMode(CropMode.SQUARE)
+                        R.id.crop_mode_portrait -> drawingView.setCropMode(CropMode.PORTRAIT)
+                        R.id.crop_mode_landscape -> drawingView.setCropMode(CropMode.LANDSCAPE)
+                    }
+                } else {
+                    // If no crop mode option is selected, default to freeform and select it
+                    drawingView.setCropMode(CropMode.FREEFORM)
+                    cropModeFreeform.isSelected = true
+                    currentCropMode = cropModeFreeform
+                }
+            }
+        }
+
+        toolAdjust.setOnClickListener {
+            adjustOptionsLayout.visibility = View.VISIBLE
+            drawOptionsLayout.visibility = View.GONE
+            cropOptionsLayout.visibility = View.GONE
+            savePanel.visibility = View.GONE // Hide save panel
+            drawingView.visibility = View.VISIBLE // Show drawing view
+            drawingView.setToolType(CanvasView.ToolType.ADJUST) // Set tool type
+            drawingView.setCropModeInactive() // Clear crop mode active state
+            currentActiveTool?.isSelected = false
+            toolAdjust.isSelected = true
+            currentActiveTool = toolAdjust
+            
+            // Re-apply adjustments when switching back to Adjust mode
+            val currentAdjustState = editViewModel.adjustState.value
+            drawingView.setAdjustments(currentAdjustState.brightness, currentAdjustState.contrast, currentAdjustState.saturation)
+        }
+
         // Initialize Save Panel buttons
         val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
@@ -471,10 +461,6 @@ class MainActivity : AppCompatActivity() {
         buttonSaveCopy.setOnTouchListener(touchListener)
         buttonOverwrite.setOnTouchListener(touchListener)
         
-        // ... (rest of draw options logic from onCreate)
-    }
-
-    private fun setupCropOptions() {
         // Step 23 & 24: Format selection handling
         val radioJPG: RadioButton = findViewById(R.id.radio_jpg)
         val radioPNG: RadioButton = findViewById(R.id.radio_png)
@@ -496,12 +482,9 @@ class MainActivity : AppCompatActivity() {
             updateTransparencyWarning()
             updateSaveButtonsState()
         }
-        // ... (rest of crop options logic from onCreate)
-    }
 
-    private fun setupAdjustOptions() {
-        // ... (adjust options logic from onCreate)
-        drawModePen = findViewById(R.id.draw_mode_pen)
+        // Initialize Draw Options
+        val drawModePen: ImageView = findViewById(R.id.draw_mode_pen)
         val drawModeCircle: ImageView = findViewById(R.id.draw_mode_circle)
         val drawModeSquare: ImageView = findViewById(R.id.draw_mode_square)
 
@@ -517,33 +500,6 @@ class MainActivity : AppCompatActivity() {
             editViewModel.updateDrawMode(DrawMode.SQUARE)
             updateDrawModeSelection(drawModeSquare)
         }
-    }
-
-    private fun setupColorSwatches() {
-        // ... (color swatch listener logic from onCreate)
-    }
-
-    private fun setupUndoRedo() {
-        // Connect simple undo/redo to CanvasView - MS Paint style
-        drawingView.onUndoAction = {
-            val undoneBitmap = drawingView.undo()
-            if (undoneBitmap != null) {
-                // Clear ViewModel history since we're using CanvasView history now
-                editViewModel.clearAllActions()
-            }
-        }
-
-        drawingView.onRedoAction = {
-            val redoneBitmap = drawingView.redo()
-            if (redoneBitmap != null) {
-                // Clear ViewModel history since we're using CanvasView history now
-                editViewModel.clearAllActions()
-            }
-        }
-    }
-
-    private fun setupViewModelObservers() {
-        // ... (lifecycleScope.launch blocks from onCreate)
         
         // Initialize slider listeners for shared drawing state
         drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -823,6 +779,28 @@ class MainActivity : AppCompatActivity() {
         // Set default selections
         updateDrawModeSelection(drawModePen)
 
+        // Connect simple undo/redo to CanvasView - MS Paint style
+        drawingView.onUndoAction = {
+            val undoneBitmap = drawingView.undo()
+            if (undoneBitmap != null) {
+                // Clear ViewModel history since we're using CanvasView history now
+                editViewModel.clearAllActions()
+            }
+        }
+
+        drawingView.onRedoAction = {
+            val redoneBitmap = drawingView.redo()
+            if (redoneBitmap != null) {
+                // Clear ViewModel history since we're using CanvasView history now
+                editViewModel.clearAllActions()
+            }
+        }
+
+        // Connect bitmap changes (drawing and crop operations) to ViewModel
+        drawingView.onBitmapChanged = { editAction ->
+            editViewModel.pushBitmapChangeAction(editAction)
+        }
+
         lifecycleScope.launch {
             editViewModel.drawingState.collect {
                 drawingView.setDrawingState(it)
@@ -866,13 +844,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         buttonUndo.setOnClickListener {
-            drawingView.onUndoAction?.invoke()
+            drawingView.undo()
             // Update ViewModel to reflect the new state
             editViewModel.clearAllActions()
         }
 
         buttonRedo.setOnClickListener {
-            drawingView.onRedoAction?.invoke()
+            drawingView.redo()
             // Update ViewModel to reflect the new state
             editViewModel.clearAllActions()
         }
@@ -891,7 +869,65 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
 
         drawingView.doOnLayout { view ->
+            // This block runs once the view has been laid out and has dimensions.
+            // We only want to do this if no image has been loaded from an intent.
+            if (currentImageInfo == null) {
+                isSketchMode = true
+                val width = view.width
+                val height = view.height
+                
+                // Create a mutable transparent bitmap for sketch mode
+                val transparentBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(transparentBitmap)
+                canvas.drawColor(android.graphics.Color.TRANSPARENT)
+                
+                // Set it as the base for the drawing view
+                drawingView.setBitmap(transparentBitmap)
+                drawingView.setSketchMode(true) // Enable sketch mode for transparency
+                
+                // Create a dummy ImageInfo for sketch mode
+                currentImageInfo = ImageInfo(
+                    uri = Uri.EMPTY,
+                    origin = ImageOrigin.EDITED_INTERNAL,
+                    canOverwrite = false,
+                    originalMimeType = "image/jpeg" // Default to JPEG for sketch mode
+                )
+                
+                // Set JPEG as the selected format for sketch mode
+                selectedSaveFormat = "image/jpeg"
+                updateFormatSelectionUI()
+                updateSavePanelUI()
+            }
         }
+
+        // --- START: ADDED FOR OVERWRITE FIX ---
+        // Initialize the launcher that will handle the result of the delete request.
+        deleteRequestLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            // This code runs AFTER the user responds to the delete confirmation dialog.
+            if (result.resultCode == RESULT_OK) {
+                // User confirmed the deletion.
+                // Toast removed: "Original file deleted" - UX improvement
+                
+                // Now, safely update our app's reference to point to the new file.
+                pendingOverwriteUri?.let {
+                    // Invalidate Coil's cache for the old URI to prevent showing a stale image.
+                    currentImageInfo?.uri?.let { oldUri ->
+                        imageLoader.memoryCache?.remove(MemoryCache.Key(oldUri.toString()))
+                    }
+                    currentImageInfo = currentImageInfo?.copy(uri = it)
+                    pendingOverwriteUri = null // Clean up the temporary variable
+                }
+            } else {
+                // User cancelled the deletion. The original file remains.
+                // Toast removed: "Original file was not deleted" - UX improvement
+                // We still need to update our app's reference to the new file that was created.
+                pendingOverwriteUri?.let {
+                    currentImageInfo = currentImageInfo?.copy(uri = it)
+                    pendingOverwriteUri = null // Clean up
+                }
+            }
+        }
+        // --- END: ADDED FOR OVERWRITE FIX ---
     }
 
     // Step 1 & 2: Implement sharing functionality
@@ -948,14 +984,26 @@ class MainActivity : AppCompatActivity() {
                     // Create and launch share intent
                     if (shareUri != null) {
                         withContext(Dispatchers.Main) {
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = selectedSaveFormat
-                                putExtra(Intent.EXTRA_STREAM, shareUri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            try {
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = selectedSaveFormat
+                                    putExtra(Intent.EXTRA_STREAM, shareUri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                
+                                val chooser = Intent.createChooser(shareIntent, getString(R.string.share_image))
+                                startActivity(chooser)
+
+                                // Toast removed: "Sharing image" - UX improvement
+                            } catch (e: Exception) {
+                                showCustomToast(getString(R.string.share_failed, e.message ?: "Unknown error"))
                             }
-                            startActivity(Intent.createChooser(shareIntent, getString(R.string.share_image)))
                         }
+                    } else {
+                        throw Exception("Failed to create share URI")
                     }
+                } else {
+                    throw Exception("No image to share")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
