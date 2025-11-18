@@ -1370,12 +1370,14 @@ class MainActivity : AppCompatActivity() {
     private suspend fun saveBitmapToMediaStore(bitmap: Bitmap): Uri = withContext(Dispatchers.IO) {
         val imageInfo = currentImageInfo ?: throw Exception("Image info is missing")
         
-        val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
-        val uniqueDisplayName = if (imageInfo.origin == ImageOrigin.CAMERA_CAPTURED) {
-            generateUniqueCameraName()
-        } else {
-            val originalDisplayName = getDisplayNameFromUri(imageInfo.uri) ?: "Image"
-            generateUniqueCopyName(originalDisplayName, picturesDirectory)
+        val uniqueDisplayName = when (imageInfo.origin) {
+            ImageOrigin.CAMERA_CAPTURED, ImageOrigin.EDITED_INTERNAL -> {
+                generateTimestampFileName()
+            }
+            else -> {
+                val originalDisplayName = getDisplayNameFromUri(imageInfo.uri) ?: "Image"
+                generateUniqueCopyName(originalDisplayName)
+            }
         }
 
         val values = ContentValues().apply {
@@ -1395,22 +1397,6 @@ class MainActivity : AppCompatActivity() {
         values.clear()
         values.put(MediaStore.Images.Media.IS_PENDING, 0)
         contentResolver.update(uri, values, null, null)
-        
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            try {
-                val filePath = getRealPathFromUri(uri)
-                if (filePath != null) {
-                    MediaScannerConnection.scanFile(
-                        this@MainActivity,
-                        arrayOf(filePath),
-                        arrayOf(selectedSaveFormat),
-                        null
-                    )
-                }
-            } catch (e: Exception) {
-                // MediaScannerConnection is not critical, just log the error
-            }
-        }
         
         uri
     }
@@ -1464,20 +1450,16 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
     
-    // NEW: Robust function to generate Windows-style copy names.
-    private fun generateUniqueCopyName(originalDisplayName: String, directory: String): String {
+    // NEW: Robust function to generate Windows-style copy names using ContentResolver.
+    private fun generateUniqueCopyName(originalDisplayName: String): String {
         val newExtension = when (selectedSaveFormat) {
-            "image/jpeg" -> ".jpg"
-            "image/png" -> ".png"
-            "image/webp" -> ".webp"
-            else -> ".jpg"
+            "image/jpeg" -> "jpg"
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            else -> "jpg"
         }
 
-        // 1. Get the name without the original extension
         val nameWithoutExt = originalDisplayName.substringBeforeLast('.')
-
-        // 2. Find the true base name by stripping any existing " - Copy" or " - Copy (n)" suffixes
-        // This regex finds " - Copy" optionally followed by " (n)" at the end of the string.
         val copyPattern = Pattern.compile("\\s-\\sCopy(\\s\\(\\d+\\))?$")
         val matcher = copyPattern.matcher(nameWithoutExt)
         val baseName = if (matcher.find()) {
@@ -1486,54 +1468,51 @@ class MainActivity : AppCompatActivity() {
             nameWithoutExt
         }
 
-        // 3. Check for "baseName - Copy.ext"
-        var newName = "$baseName - Copy$newExtension"
-        var file = File(directory, newName)
-        if (!file.exists()) {
+        // Check for "baseName - Copy.ext"
+        var newName = "$baseName - Copy.$newExtension"
+        if (!fileNameExistsInEditSS(newName)) {
             return newName
         }
 
-        // 4. If it exists, start incrementing with "baseName - Copy (n).ext"
+        // If it exists, start incrementing with "baseName - Copy (n).ext"
         var counter = 2
         while (true) {
-            newName = "$baseName - Copy ($counter)$newExtension"
-            file = File(directory, newName)
-            if (!file.exists()) {
+            newName = "$baseName - Copy ($counter).$newExtension"
+            if (!fileNameExistsInEditSS(newName)) {
                 return newName
             }
             counter++
         }
     }
 
-    // NEW: Generate proper display name for camera-captured images
-    private fun generateCameraDisplayName(): String {
+    // NEW: Helper to check for file existence in the Pictures/EditSS directory using MediaStore.
+    private fun fileNameExistsInEditSS(fileName: String): Boolean {
+        val projection = arrayOf(MediaStore.Images.Media._ID)
+        val selection = "${MediaStore.Images.Media.DISPLAY_NAME} = ? AND ${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?"
+        val selectionArgs = arrayOf(fileName, "%Pictures/EditSS%")
+
+        contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            null
+        )?.use { cursor ->
+            return cursor.count > 0
+        }
+        return false
+    }
+
+    // NEW: Generate a unique filename using a timestamp, for camera captures.
+    private fun generateTimestampFileName(): String {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val extension = when (selectedSaveFormat) {
-            "image/jpeg" -> ".jpg"
-            "image/png" -> ".png"
-            "image/webp" -> ".webp"
-            else -> ".jpg"
+            "image/jpeg" -> "jpg"
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            else -> "jpg"
         }
-        return "IMG_${timestamp}$extension"
-    }
-    
-    // NEW: Generate unique camera name without "- Copy" suffixes for camera captures
-    private fun generateUniqueCameraName(): String {
-        val baseName = generateCameraDisplayName()
-        val picturesDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + "/EditSS"
-        
-        // Check if the base name already exists
-        var file = File(picturesDirectory, baseName)
-        if (!file.exists()) {
-            return baseName
-        }
-        
-        // If it exists, append timestamp to make it unique (camera originals shouldn't have - Copy)
-        val uniqueSuffix = SimpleDateFormat("_yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val extension = baseName.substringAfterLast('.')
-        val nameWithoutExt = baseName.substringBeforeLast('.')
-        
-        return "${nameWithoutExt}${uniqueSuffix}.${extension}"
+        return "IMG_${timestamp}.$extension"
     }
     
     // Update transparency warning based on actual image content
@@ -1673,21 +1652,6 @@ class MainActivity : AppCompatActivity() {
             toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, 100)
         }
         toast.show()
-    }
-
-    // Helper to get real file path from content URI for MediaScannerConnection
-    private fun getRealPathFromUri(uri: Uri): String? {
-        return try {
-            val projection = arrayOf(android.provider.MediaStore.Images.Media.DATA)
-            contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-                val columnIndex = cursor.getColumnIndex(android.provider.MediaStore.Images.Media.DATA)
-                if (cursor.moveToFirst() && columnIndex != -1) {
-                    cursor.getString(columnIndex)
-                } else null
-            }
-        } catch (e: Exception) {
-            null
-        }
     }
 
     // Helper function to apply adjustments and show save panel (used from save button dialog)
