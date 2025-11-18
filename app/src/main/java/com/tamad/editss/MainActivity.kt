@@ -98,6 +98,7 @@ class MainActivity : AppCompatActivity() {
     private var selectedSaveFormat: String = "image/jpeg"
     private var currentImageHasTransparency = false
     private var currentCameraUri: Uri? = null
+    private var isImageLoading = false
     private var isSketchMode = false
     
     private lateinit var deleteRequestLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.IntentSenderRequest>
@@ -1023,6 +1024,9 @@ class MainActivity : AppCompatActivity() {
 
     // Simple Coil-based image loading
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
+        if (isImageLoading) return
+        isImageLoading = true
+
         isSketchMode = false
         drawingView.setSketchMode(false)
         editViewModel.clearAllActions()
@@ -1067,13 +1071,13 @@ class MainActivity : AppCompatActivity() {
                 handleImageLoadFailure("Image loading error: ${e.message ?: "Unknown error"}")
             } finally {
                 hideLoadingSpinner()
+                isImageLoading = false
             }
         }
     }
     
     // Centralized failure handling
     private fun handleImageLoadFailure(errorMessage: String) {
-        lastImageLoadFailed = true
         runOnUiThread {
             try {
                 // Clear canvas on failed load
