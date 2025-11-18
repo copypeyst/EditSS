@@ -91,6 +91,7 @@ class MainActivity : AppCompatActivity() {
     private var currentSelectedColor: FrameLayout? = null
     private var currentDrawMode: ImageView? = null
     
+    private lateinit var drawModePen: ImageView
     // Crop mode option buttons
     private lateinit var cropModeFreeform: View
     private lateinit var cropModeSquare: View
@@ -500,8 +501,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupAdjustOptions() {
         // ... (adjust options logic from onCreate)
-        // Initialize Draw Options
-        val drawModePen: ImageView = findViewById(R.id.draw_mode_pen)
+        drawModePen = findViewById(R.id.draw_mode_pen)
         val drawModeCircle: ImageView = findViewById(R.id.draw_mode_circle)
         val drawModeSquare: ImageView = findViewById(R.id.draw_mode_square)
 
@@ -891,6 +891,77 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
 
         drawingView.doOnLayout { view ->
+        }
+    }
+
+    // Step 1 & 2: Implement sharing functionality
+    // Item 1: Content URI sharing for saved images
+    // Item 2: Cache-based sharing for unsaved edits
+    private fun shareCurrentImage() {
+        val imageInfo = currentImageInfo ?: run {
+            // Toast removed: "No image to share" - UX improvement
+            return
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Get bitmap from Coil
+                val bitmapToShare = drawingView.getDrawing()
+
+                if (bitmapToShare != null) {
+                    var shareUri: Uri? = null
+
+                    // Determine sharing strategy based on image origin
+                    when (imageInfo.origin) {
+                        ImageOrigin.EDITED_INTERNAL, ImageOrigin.CAMERA_CAPTURED -> {
+                            // Item 2: Cache-based sharing for unsaved edits
+                            // Create temporary file in cache directory
+                            val cacheDir = cacheDir
+                            val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
+                            val tempFile = File(cacheDir, fileName)
+
+                            contentResolver.openOutputStream(Uri.fromFile(tempFile))?.use { outputStream ->
+                                compressBitmapToStream(bitmapToShare, outputStream, selectedSaveFormat)
+                            }
+
+                            shareUri = androidx.core.content.FileProvider.getUriForFile(
+                                this@MainActivity,
+                                "${packageName}.fileprovider",
+                                tempFile
+                            )
+
+                            // Schedule cleanup after sharing (in 5 minutes to be safe)
+                            lifecycleScope.launch {
+                                delay(5 * 60 * 1000) // 5 minutes
+                                if (tempFile.exists()) {
+                                    tempFile.delete()
+                                }
+                            }
+                        }
+                        else -> {
+                            // Item 1: Content URI sharing for saved images
+                            // Use the original content URI with read permission
+                            shareUri = imageInfo.uri
+                        }
+                    }
+
+                    // Create and launch share intent
+                    if (shareUri != null) {
+                        withContext(Dispatchers.Main) {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = selectedSaveFormat
+                                putExtra(Intent.EXTRA_STREAM, shareUri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            startActivity(Intent.createChooser(shareIntent, getString(R.string.share_image)))
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    showCustomToast(getString(R.string.share_failed, e.message ?: "Unknown error"))
+                }
+            }
         }
     }
 
