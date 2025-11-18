@@ -327,8 +327,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
-        saveCurrentState()
-
         val bitmapWithDrawings = baseBitmap ?: return null
 
         val inverseMatrix = Matrix()
@@ -352,6 +350,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         )
 
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        
+        saveCurrentState()
         
         cropRect.setEmpty()
         scaleFactor = 1.0f
@@ -580,10 +580,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 isDrawing = true
-                saveCurrentState() // Save state BEFORE the drawing action begins
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 isDrawing = false
+                saveCurrentState() // Save state AFTER the drawing action is complete
             }
         }
         
@@ -959,15 +959,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun applyAdjustmentsToBitmap(): Bitmap? {
         if (baseBitmap == null) return null
-
-        saveCurrentState()
-
+        
         val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(adjustedBitmap)
         val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
         
         baseBitmap = adjustedBitmap
+        saveCurrentState()
         invalidate()
         
         return baseBitmap
