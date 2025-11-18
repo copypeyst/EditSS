@@ -15,6 +15,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val cropPaint = Paint()
     private val cropCornerPaint = Paint()
     private val layerPaint = Paint()
+    private val scaledPaint = Paint()
 
     private val imagePaint = Paint().apply {
         isAntiAlias = true
@@ -378,15 +379,27 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             
             canvas.drawBitmap(it, imageMatrix, imagePaint)
 
-            // Draw the committed paths
+            // Apply the same transformation for both committed and in-progress drawing
             val matrixToApply = Matrix(imageMatrix)
             canvas.concat(matrixToApply)
+
+            // Calculate the current scale to adjust stroke width
+            val values = FloatArray(9)
+            matrixToApply.getValues(values)
+            val currentCanvasScale = values[Matrix.MSCALE_X]
+
+            // Draw the committed paths with scaled stroke width
             drawnPaths.forEach { action ->
-                canvas.drawPath(action.path, action.paint)
+                scaledPaint.set(action.paint)
+                val originalStrokeWidth = action.paint.strokeWidth
+                scaledPaint.strokeWidth = originalStrokeWidth / currentCanvasScale
+                canvas.drawPath(action.path, scaledPaint)
             }
 
-            // Draw the current in-progress path
-            currentDrawingTool.onDraw(canvas, paint)
+            // Draw the current in-progress path with scaled stroke width
+            scaledPaint.set(paint)
+            scaledPaint.strokeWidth = paint.strokeWidth / currentCanvasScale
+            currentDrawingTool.onDraw(canvas, scaledPaint)
             
             canvas.restore() // Restore from the matrix concat
         }
@@ -891,7 +904,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val previousBitmap = getFinalBitmap() ?: return null
         val adjustedBitmap = Bitmap.createBitmap(previousBitmap.width, previousBitmap.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(adjustedBitmap)
-        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
+        val paint = Paint().apply { colorFilter = layerPaint.colorFilter }
         canvas.drawBitmap(previousBitmap, 0f, 0f, paint)
         return Pair(previousBitmap, adjustedBitmap)
     }
