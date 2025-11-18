@@ -1,3 +1,5 @@
+package com.tamad.editss
+
 import android.graphics.Bitmap
 import android.graphics.Paint
 import android.graphics.Path
@@ -89,7 +91,7 @@ class EditViewModel : ViewModel() {
     val adjustState: StateFlow<AdjustState> = _adjustState.asStateFlow()
 
     fun setInitialBitmap(bitmap: Bitmap) {
-        initialBitmap = bitmap
+        initialBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
         clearAllActions()
     }
 
@@ -135,15 +137,15 @@ class EditViewModel : ViewModel() {
         if (_undoStack.value.isNotEmpty()) {
             val lastAction = _undoStack.value.last()
             _undoStack.value = _undoStack.value.dropLast(1)
-            _redoStack.value = _redoStack.value + lastAction
+            _redoStack.value = listOf(lastAction) + _redoStack.value
             recalculateCanvasState()
         }
     }
 
     fun redo() {
         if (_redoStack.value.isNotEmpty()) {
-            val actionToRedo = _redoStack.value.last()
-            _redoStack.value = _redoStack.value.dropLast(1)
+            val actionToRedo = _redoStack.value.first()
+            _redoStack.value = _redoStack.value.drop(1)
             _undoStack.value = _undoStack.value + actionToRedo
             recalculateCanvasState()
         }
@@ -203,18 +205,4 @@ class EditViewModel : ViewModel() {
     // hasUnsavedChanges now indicates if there are unsaved changes
     val hasUnsavedChanges: Boolean
         get() = _undoStack.value.size != _lastSavedActionCount.value
-
-    // Backward compatibility - still available for drawing-only operations
-    fun clearDrawings() {
-        clearAllActions()
-    }
-
-    // Backward compatibility - still available for drawing-only operations
-    val hasDrawings: Boolean
-        get() = hasUnsavedChanges
-
-    // Backward compatibility - still available for drawing-only operations
-    fun markDrawingsAsSaved() {
-        markActionsAsSaved()
-    }
 }

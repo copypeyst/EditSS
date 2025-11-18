@@ -7,10 +7,6 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.graphics.RectF
-import com.tamad.editss.DrawMode
-import com.tamad.editss.DrawingState
-import com.tamad.editss.CropMode
-import com.tamad.editss.DrawingAction
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -27,7 +23,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private var baseBitmap: Bitmap? = null
     private var drawnPaths = listOf<DrawingAction>()
-    private val imageMatrix = android.graphics.Matrix()
+    private val imageMatrix = Matrix()
     private val imageBounds = RectF()
 
     private var scaleFactor = 1.0f
@@ -153,7 +149,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun setBitmap(bitmap: Bitmap?) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
-        drawnPaths = emptyList() // Clear drawn paths when new bitmap is loaded
         background = resources.getDrawable(R.drawable.outer_bounds, null)
 
         updateImageMatrix()

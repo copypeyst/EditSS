@@ -8,7 +8,6 @@ import android.util.Log
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
-import android.content.ClipData
 import android.content.pm.PackageManager
 import android.os.Build
 import android.Manifest
@@ -31,7 +30,6 @@ import android.graphics.Bitmap
 import android.graphics.Bitmap.CompressFormat
 import android.os.Environment
 import android.content.ContentValues
-import android.media.MediaScannerConnection
 import kotlinx.coroutines.*
 import androidx.core.view.doOnLayout
 import androidx.lifecycle.lifecycleScope
@@ -44,9 +42,8 @@ import coil.memory.MemoryCache
 import java.util.regex.Pattern
 import java.text.SimpleDateFormat
 import java.util.Date
-import com.tamad.editss.DrawMode
-import com.tamad.editss.EditAction
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.ViewModelProvider
 
 enum class ImageOrigin {
     IMPORTED_READONLY,
@@ -61,8 +58,6 @@ data class ImageInfo(
     var canOverwrite: Boolean,
     val originalMimeType: String // Added to track original format
 )
-
-// Coil handles all caching, memory management, and bitmap processing automatically
 
 class MainActivity : AppCompatActivity() {
 
@@ -192,7 +187,7 @@ class MainActivity : AppCompatActivity() {
         adView.loadAd(adRequest)
 
         // Initialize ViewModel for shared drawing state
-        editViewModel = EditViewModel()
+        editViewModel = ViewModelProvider(this).get(EditViewModel::class.java)
 
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
@@ -817,8 +812,7 @@ class MainActivity : AppCompatActivity() {
                     currentImageInfo = currentImageInfo?.copy(uri = it)
                     pendingOverwriteUri = null
                 }
-            }
-        } else {
+            } else {
                 pendingOverwriteUri?.let {
                     currentImageInfo = currentImageInfo?.copy(uri = it)
                     pendingOverwriteUri = null
@@ -1412,7 +1406,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val nameWithoutExt = originalDisplayName.substringBeforeLast('.')
-        val copyPattern = Pattern.compile("\\s-\\sCopy(\\s\\(\\d+\\))?$")
+        val copyPattern = Pattern.compile("\s-\sCopy(\s\(\d+\))?$")
         val matcher = copyPattern.matcher(nameWithoutExt)
         val baseName = if (matcher.find()) {
             nameWithoutExt.substring(0, matcher.start())
@@ -1612,13 +1606,9 @@ class MainActivity : AppCompatActivity() {
         val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
         val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
         
-        val previousBitmap = drawingView.getBaseBitmap()
-        val newBitmap = drawingView.applyAdjustmentsToBitmap()
-
-        if (previousBitmap != null && newBitmap != null) {
+        drawingView.applyAdjustmentsToBitmap()?.let { (previousBitmap, newBitmap) ->
             val action = AdjustAction(previousBitmap, newBitmap)
             editViewModel.pushAdjustAction(action)
-            drawingView.setBitmap(newBitmap)
             showCustomToast(getString(R.string.adjustment_applied))
         }
 
