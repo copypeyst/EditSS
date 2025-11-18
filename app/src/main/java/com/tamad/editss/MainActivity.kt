@@ -141,8 +141,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 currentCameraUri = null
             }
-        }
-    } else {
+        } else {
             val cameraUri = currentCameraUri
             if (cameraUri != null) {
                 cleanupCameraFile(cameraUri)
@@ -290,8 +289,7 @@ class MainActivity : AppCompatActivity() {
                         editViewModel.clearAllActions()
                         if (hasImagePermission()) {
                             openImagePicker()
-                        }
-                    } else {
+                        } else {
                             requestImagePermission()
                         }
                         dialog.dismiss()
@@ -714,6 +712,7 @@ class MainActivity : AppCompatActivity() {
         val colorOrangeContainer: FrameLayout = findViewById(R.id.color_orange_container)
         val colorPinkContainer: FrameLayout = findViewById(R.id.color_pink_container)
 
+        // Map color values to their corresponding UI container
         val colorSwatchMap = mapOf(
             android.graphics.Color.BLACK to colorBlackContainer,
             android.graphics.Color.WHITE to colorWhiteContainer,
@@ -725,13 +724,11 @@ class MainActivity : AppCompatActivity() {
             android.graphics.Color.rgb(255, 192, 203) to colorPinkContainer
         )
 
+        // When a swatch is clicked, just update the ViewModel
         val colorClickListener = View.OnClickListener { v ->
-            val selectedColor = colorSwatchMap.entries.firstOrNull { it.value == v }?.key
-            selectedColor?.let {
-                editViewModel.updateDrawingColor(it)
-            }
+            val clickedColor = colorSwatchMap.entries.find { it.value == v }?.key
+            clickedColor?.let { editViewModel.updateDrawingColor(it) }
         }
-
         colorSwatchMap.values.forEach { it.setOnClickListener(colorClickListener) }
 
         // Set default selections
@@ -759,10 +756,13 @@ class MainActivity : AppCompatActivity() {
             editViewModel.pushBitmapChangeAction(editAction)
         }
 
+        // Observe the drawing state from the ViewModel and update the UI accordingly
         lifecycleScope.launch {
             editViewModel.drawingState.collect { state ->
+                // Update the drawing view with the latest state
                 drawingView.setDrawingState(state)
-                // Update color swatch selection
+
+                // Update the visual selection of the color swatches
                 colorSwatchMap.forEach { (color, container) ->
                     val border = container.findViewWithTag<View>("border")
                     border?.visibility = if (color == state.color) View.VISIBLE else View.GONE
