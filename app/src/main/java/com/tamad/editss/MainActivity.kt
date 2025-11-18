@@ -778,6 +778,7 @@ class MainActivity : AppCompatActivity() {
         drawingView.doOnLayout { view ->
             if (currentImageInfo == null) {
                 isSketchMode = true
+                drawingView.setSketchMode(true)
                 val width = view.width
                 val height = view.height
                 

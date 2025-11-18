@@ -14,6 +14,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var currentDrawingTool: DrawingTool = PenTool()
     private val cropPaint = Paint()
     private val cropCornerPaint = Paint()
+    private val layerPaint = Paint()
 
     private val imagePaint = Paint().apply {
         isAntiAlias = true
@@ -128,6 +129,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
         cropCornerPaint.alpha = 192 // 75% opacity
+
+        setLayerType(View.LAYER_TYPE_HARDWARE, layerPaint)
     }
 
     enum class ToolType {
@@ -381,10 +384,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             drawnPaths.forEach { action ->
                 canvas.drawPath(action.path, action.paint)
             }
-            canvas.restore() // Restore from the matrix concat
 
             // Draw the current in-progress path
             currentDrawingTool.onDraw(canvas, paint)
+            
+            canvas.restore() // Restore from the matrix concat
         }
 
 
@@ -860,6 +864,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         this.brightness = 0f
         this.contrast = 1f
         this.saturation = 1f
+        layerPaint.colorFilter = null
         imagePaint.colorFilter = null
         invalidate()
     }
@@ -877,7 +882,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Apply saturation while preserving alpha
         val saturationMatrix = ColorMatrix().apply { setSaturation(saturation) }
         colorMatrix.postConcat(saturationMatrix)
-        imagePaint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+        layerPaint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+        imagePaint.colorFilter = null
         imagePaint.xfermode = null
     }
 
