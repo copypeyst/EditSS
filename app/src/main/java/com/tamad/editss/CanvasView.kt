@@ -577,20 +577,26 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
+        // Let the tool handle the event and return a potential drawing action
+        val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
+
+        // If an action is returned (e.g., a path was updated), merge it into the bitmap
+        screenSpaceAction?.let { action ->
+            mergeDrawingStrokeIntoBitmap(action)
+        }
+
+        // Handle state changes based on the event type
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 isDrawing = true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 isDrawing = false
-                saveCurrentState() // Save state AFTER the drawing action is complete
+                // The final state of the bitmap is now ready, save it to history.
+                saveCurrentState()
             }
         }
-        
-        val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
-        screenSpaceAction?.let { action ->
-            mergeDrawingStrokeIntoBitmap(action)
-        }
+
         invalidate()
         return true
     }
