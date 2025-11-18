@@ -234,14 +234,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun setSketchMode(isSketch: Boolean) {
         this.isSketchMode = isSketch
-        // REMOVE: if (!isSketch) { sketchStrokes.clear() }
         invalidate()
     }
 
     fun getBaseBitmap(): Bitmap? = baseBitmap
-
-    // Remove old complex undo/redo handlers - now using simple bitmap history
-    // The old handlers are no longer needed with the MS Paint-style approach
 
     fun setToolType(toolType: ToolType) {
         this.currentTool = toolType
@@ -395,7 +391,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
     
     fun getTransparentDrawing(): Bitmap? {
-        // REMOVE entire if (isSketchMode) block
         return getDrawingOnTransparent()
     }
     
@@ -550,130 +545,177 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         lastPointerCount = event.pointerCount
         scaleGestureDetector.onTouchEvent(event)
 
-        if (isZooming || event.pointerCount > 1) {
-            if (isDrawing && currentTool == ToolType.DRAW) {
-                currentDrawingTool.onTouchEvent(MotionEvent.obtain(event.downTime, event.eventTime, MotionEvent.ACTION_CANCEL, event.x, event.y, 0), paint)
-                isDrawing = false
-                invalidate()
-            }
-            if (currentTool == ToolType.CROP && (isMovingCropRect || isResizingCropRect)) {
-                isMovingCropRect = false
-                isResizingCropRect = false
-                resizeHandle = 0
-                invalidate()
-            }
-            if (scaleFactor > 1.0f) {
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_MOVE -> {
-                        if (event.pointerCount > 1) {
-                            val focusX = (event.getX(0) + event.getX(1)) / 2
-                            val focusY = (event.getY(0) + event.getY(1)) / 2
-                            if (lastFocusX != 0f || lastFocusY != 0f) {
-                                translationX += focusX - lastFocusX
-                                translationY += focusY - lastFocusY
-                            }
-                            lastFocusX = focusX
-                            lastFocusY = focusY
-                            updateImageMatrix()
-                            invalidate()
-                        }
-                    }
-                    MotionEvent.ACTION_POINTER_UP -> {
-                        lastFocusX = 0f
-                        lastFocusY = 0f
-                    }
-                }
-            }
+        if (handleMultiTouchGesture(event)) {
             return true
         }
 
         val x = event.x
         val y = event.y
 
-        if (currentTool == ToolType.DRAW) {
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> isDrawing = true
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> isDrawing = false
-            }
-            
-            val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
-            screenSpaceAction?.let { action ->
-                mergeDrawingStrokeIntoBitmap(action)
-                // State is now saved automatically in mergeDrawingStrokeIntoBitmap
-                // No need for complex bitmap change tracking
-            }
+        return when (currentTool) {
+            ToolType.DRAW -> handleDrawTouchEvent(event)
+            ToolType.CROP -> handleCropTouchEvent(event, x, y)
+            else -> false
+        }
+    }
+
+    private fun handleMultiTouchGesture(event: MotionEvent): Boolean {
+        if (!isZooming && event.pointerCount <= 1) {
+            return false
+        }
+
+        // Cancel drawing during multi-touch
+        if (isDrawing && currentTool == ToolType.DRAW) {
+            currentDrawingTool.onTouchEvent(
+                MotionEvent.obtain(event.downTime, event.eventTime, MotionEvent.ACTION_CANCEL, event.x, event.y, 0),
+                paint
+            )
+            isDrawing = false
             invalidate()
+        }
+
+        // Cancel crop operations during multi-touch
+        if (currentTool == ToolType.CROP && (isMovingCropRect || isResizingCropRect)) {
+            isMovingCropRect = false
+            isResizingCropRect = false
+            resizeHandle = 0
+            invalidate()
+        }
+
+        // Handle panning during zoom
+        if (scaleFactor > 1.0f) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_MOVE -> {
+                    if (event.pointerCount > 1) {
+                        handlePanning(event)
+                    }
+                }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    lastFocusX = 0f
+                    lastFocusY = 0f
+                }
+            }
+        }
+        return true
+    }
+
+    private fun handlePanning(event: MotionEvent) {
+        val focusX = (event.getX(0) + event.getX(1)) / 2
+        val focusY = (event.getY(0) + event.getY(1)) / 2
+        if (lastFocusX != 0f || lastFocusY != 0f) {
+            translationX += focusX - lastFocusX
+            translationY += focusY - lastFocusY
+        }
+        lastFocusX = focusX
+        lastFocusY = focusY
+        updateImageMatrix()
+        invalidate()
+    }
+
+    private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> isDrawing = true
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> isDrawing = false
+        }
+        
+        val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
+        screenSpaceAction?.let { action ->
+            mergeDrawingStrokeIntoBitmap(action)
+        }
+        invalidate()
+        return true
+    }
+
+    private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
+        return when (event.action) {
+            MotionEvent.ACTION_DOWN -> handleCropTouchDown(x, y)
+            MotionEvent.ACTION_MOVE -> handleCropTouchMove(x, y)
+            MotionEvent.ACTION_UP -> handleCropTouchUp(x, y)
+            else -> false
+        }
+    }
+
+    private fun handleCropTouchDown(x: Float, y: Float): Boolean {
+        lastTouchX = x
+        lastTouchY = y
+        
+        // Check for resize handle first
+        if (!cropRect.isEmpty) {
+            resizeHandle = getResizeHandle(x, y)
+            if (resizeHandle > 0) {
+                isResizingCropRect = true
+                cropStartLeft = cropRect.left
+                cropStartTop = cropRect.top
+                cropStartRight = cropRect.right
+                cropStartBottom = cropRect.bottom
+                return true
+            }
+        }
+
+        // Check if touching inside crop rect
+        if (cropRect.contains(x, y)) {
+            validateAndCorrectCropRect()
+            isMovingCropRect = true
+            cropStartX = x
+            cropStartY = y
+            cropStartLeft = cropRect.left
+            cropStartTop = cropRect.top
+            cropStartRight = cropRect.right
+            cropStartBottom = cropRect.bottom
             return true
         }
 
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                lastTouchX = x
-                lastTouchY = y
-                if (currentTool == ToolType.CROP) {
-                    if (!cropRect.isEmpty) {
-                        resizeHandle = getResizeHandle(x, y)
-                        if (resizeHandle > 0) {
-                            isResizingCropRect = true
-                            cropStartLeft = cropRect.left; cropStartTop = cropRect.top
-                            cropStartRight = cropRect.right; cropStartBottom = cropRect.bottom
-                            return true
-                        }
-                    }
-                    if (cropRect.contains(x, y)) {
-                        validateAndCorrectCropRect() // Correct the rect before moving
-                        isMovingCropRect = true
-                        cropStartX = x; cropStartY = y
-                        cropStartLeft = cropRect.left; cropStartTop = cropRect.top
-                        cropStartRight = cropRect.right; cropStartBottom = cropRect.bottom
-                        return true
-                    }
-                    if (cropRect.isEmpty && isCropModeActive) {
-                        isCropping = true
-                        cropRect.set(x, y, x, y)
-                        return true
-                    }
-                }
-                return true
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (currentTool == ToolType.CROP) {
-                    if (isResizingCropRect) {
-                        resizeCropRect(x, y)
-                        clampCropRectToBounds()
-                        invalidate()
-                    } else if (isMovingCropRect) {
-                        var dx = x - cropStartX
-                        var dy = y - cropStartY
-                        val visibleBounds = getVisibleImageBounds()
-                        if (cropStartLeft + dx < visibleBounds.left) dx = visibleBounds.left - cropStartLeft
-                        if (cropStartTop + dy < visibleBounds.top) dy = visibleBounds.top - cropStartTop
-                        if (cropStartRight + dx > visibleBounds.right) dx = visibleBounds.right - cropStartRight
-                        if (cropStartBottom + dy > visibleBounds.bottom) dy = visibleBounds.bottom - cropStartBottom
-                        cropRect.set(cropStartLeft + dx, cropStartTop + dy, cropStartRight + dx, cropStartBottom + dy)
-                        clampCropRectToBounds()
-                        invalidate()
-                    } else if (isCropping) {
-                        updateCropRect(x, y)
-                        clampCropRectToBounds()
-                        invalidate()
-                    }
-                }
-                return true
-            }
-            MotionEvent.ACTION_UP -> {
-                if (currentTool == ToolType.CROP) {
-                    if(isCropping) enforceAspectRatio()
-                    if(isCropping) updateCropRect(x, y) // Final update to enforce aspect ratio
-                    isCropping = false
-                    isMovingCropRect = false
-                    isResizingCropRect = false
-                    resizeHandle = 0
-                }
-                return true
-            }
+        // Start new crop if in crop mode
+        if (cropRect.isEmpty && isCropModeActive) {
+            isCropping = true
+            cropRect.set(x, y, x, y)
+            return true
         }
-        return false
+        
+        return true
+    }
+
+    private fun handleCropTouchMove(x: Float, y: Float): Boolean {
+        if (isResizingCropRect) {
+            resizeCropRect(x, y)
+            clampCropRectToBounds()
+            invalidate()
+        } else if (isMovingCropRect) {
+            moveCropRect(x, y)
+        } else if (isCropping) {
+            updateCropRect(x, y)
+            clampCropRectToBounds()
+            invalidate()
+        }
+        return true
+    }
+
+    private fun handleCropTouchUp(x: Float, y: Float): Boolean {
+        if (isCropping) {
+            enforceAspectRatio()
+            updateCropRect(x, y)
+        }
+        isCropping = false
+        isMovingCropRect = false
+        isResizingCropRect = false
+        resizeHandle = 0
+        return true
+    }
+
+    private fun moveCropRect(x: Float, y: Float) {
+        var dx = x - cropStartX
+        var dy = y - cropStartY
+        val visibleBounds = getVisibleImageBounds()
+        
+        // Constrain movement within visible bounds
+        if (cropStartLeft + dx < visibleBounds.left) dx = visibleBounds.left - cropStartLeft
+        if (cropStartTop + dy < visibleBounds.top) dy = visibleBounds.top - cropStartTop
+        if (cropStartRight + dx > visibleBounds.right) dx = visibleBounds.right - cropStartRight
+        if (cropStartBottom + dy > visibleBounds.bottom) dy = visibleBounds.bottom - cropStartBottom
+        
+        cropRect.set(cropStartLeft + dx, cropStartTop + dy, cropStartRight + dx, cropStartBottom + dy)
+        clampCropRectToBounds()
+        invalidate()
     }
 
     private fun enforceAspectRatio() {
@@ -762,92 +804,123 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun resizeCropRect(x: Float, y: Float) {
-        val minCropSize = 50f
+        val aspectRatio = getAspectRatio()
+        
+        if (aspectRatio != null) {
+            resizeCropRectWithAspectRatio(x, y, aspectRatio)
+        } else {
+            resizeCropRectFreeform(x, y)
+        }
+    }
 
-        // Determine the aspect ratio, or null for freeform
-        val aspectRatio: Float? = when (currentCropMode) {
+    private fun getAspectRatio(): Float? {
+        return when (currentCropMode) {
             CropMode.SQUARE -> 1f
             CropMode.PORTRAIT -> 9f / 16f
             CropMode.LANDSCAPE -> 16f / 9f
             else -> null
         }
+    }
 
-        if (aspectRatio != null) {
-            // --- ASPECT RATIO LOGIC ---
-            // Determine the fixed corner based on the active handle
-            val (fixedX, fixedY) = when (resizeHandle) {
-                1 -> Pair(cropRect.right, cropRect.bottom)
-                2 -> Pair(cropRect.left, cropRect.bottom)
-                3 -> Pair(cropRect.right, cropRect.top)
-                4 -> Pair(cropRect.left, cropRect.top)
-                else -> return // Should not happen
-            }
+    private fun resizeCropRectWithAspectRatio(x: Float, y: Float, aspectRatio: Float) {
+        val (fixedX, fixedY) = getFixedCorner()
+        val (newWidth, newHeight) = calculateAspectRatioSize(x, y, fixedX, fixedY, aspectRatio)
+        val constrainedSize = applySizeConstraints(newWidth, newHeight, fixedX, fixedY, aspectRatio)
+        
+        applyCropRectResize(constrainedSize.first, constrainedSize.second, fixedX, fixedY)
+    }
 
-            // Calculate potential new width and height based on drag
-            // We use the raw x/y here and handle minimum size later.
-            // THIS IS THE FIX: We determine the sign of the width/height based on the handle being dragged.
-            // This prevents the rectangle from re-expanding when the drag goes past the fixed corner.
-            val signX = if (resizeHandle == 1 || resizeHandle == 3) -1 else 1
-            val signY = if (resizeHandle == 1 || resizeHandle == 2) -1 else 1
+    private fun getFixedCorner(): Pair<Float, Float> {
+        return when (resizeHandle) {
+            1 -> Pair(cropRect.right, cropRect.bottom)
+            2 -> Pair(cropRect.left, cropRect.bottom)
+            3 -> Pair(cropRect.right, cropRect.top)
+            4 -> Pair(cropRect.left, cropRect.top)
+            else -> Pair(cropRect.left, cropRect.top) // Should not happen
+        }
+    }
 
-            var newWidth = (x - fixedX) * signX
-            var newHeight = (y - fixedY) * signY
+    private fun calculateAspectRatioSize(x: Float, y: Float, fixedX: Float, fixedY: Float, aspectRatio: Float): Pair<Float, Float> {
+        val signX = if (resizeHandle == 1 || resizeHandle == 3) -1 else 1
+        val signY = if (resizeHandle == 1 || resizeHandle == 2) -1 else 1
 
-            // Ensure width/height don't become negative, effectively stopping the drag at size 0.
-            newWidth = newWidth.coerceAtLeast(0f)
-            newHeight = newHeight.coerceAtLeast(0f)
+        var newWidth = (x - fixedX) * signX
+        var newHeight = (y - fixedY) * signY
 
-            // Adjust dimensions to fit aspect ratio based on the dominant drag direction
-            if (newWidth / newHeight > aspectRatio) { // Dragged wider than ratio allows
-                newWidth = newHeight * aspectRatio
-            } else { // Dragged taller than ratio allows
-                newHeight = newWidth / aspectRatio
-            }
+        // Prevent negative sizes
+        newWidth = newWidth.coerceAtLeast(0f)
+        newHeight = newHeight.coerceAtLeast(0f)
 
-            // --- MINIMUM SIZE CHECK (Prevents inversion/collision) ---
-            // If the calculated size is smaller than our minimum, lock it to the minimum.
-            // This is the correct way to stop the handles from colliding.
-            val minHeight = if (aspectRatio > 1) minCropSize else minCropSize / aspectRatio
-            val minWidth = if (aspectRatio < 1) minCropSize else minCropSize * aspectRatio
-            if (newWidth < minWidth || newHeight < minHeight) {
-                newWidth = minWidth
-                newHeight = minHeight
-            }
-
-            // 2. Check against visible image bounds
-            val visibleBounds = getVisibleImageBounds()
-            val maxAllowedWidth = when (resizeHandle) {
-                1, 3 -> fixedX - visibleBounds.left // Dragging left
-                else -> visibleBounds.right - fixedX // Dragging right
-            }
-            val maxAllowedHeight = when (resizeHandle) {
-                1, 2 -> fixedY - visibleBounds.top // Dragging up
-                else -> visibleBounds.bottom - fixedY // Dragging down
-            }
-
-            if (newWidth > maxAllowedWidth || newHeight > maxAllowedHeight) {
-                // If the new size exceeds bounds, scale it down using the smaller scaling factor
-                val widthScale = maxAllowedWidth / newWidth
-                val heightScale = maxAllowedHeight / newHeight
-                val scale = kotlin.math.min(widthScale, heightScale)
-                newWidth *= scale
-                newHeight *= scale
-            }
-
-            // --- APPLY THE FINAL, CONSTRAINED SIZE ---
-            when (resizeHandle) {
-                1 -> cropRect.set(fixedX - newWidth, fixedY - newHeight, fixedX, fixedY)
-                2 -> cropRect.set(fixedX, fixedY - newHeight, fixedX + newWidth, fixedY)
-                3 -> cropRect.set(fixedX - newWidth, fixedY, fixedX, fixedY + newHeight)
-                4 -> cropRect.set(fixedX, fixedY, fixedX + newWidth, fixedY + newHeight)
-            }
+        // Apply aspect ratio constraint
+        if (newWidth / newHeight > aspectRatio) {
+            newWidth = newHeight * aspectRatio
         } else {
-            // --- FREEFORM LOGIC (existing logic with min size) ---
-            when (resizeHandle) {
-                1 -> { cropRect.left = x.coerceAtMost(cropRect.right - minCropSize); cropRect.top = y.coerceAtMost(cropRect.bottom - minCropSize) }
-                2 -> { cropRect.right = x.coerceAtLeast(cropRect.left + minCropSize); cropRect.top = y.coerceAtMost(cropRect.bottom - minCropSize) }
-                3 -> { cropRect.left = x.coerceAtMost(cropRect.right - minCropSize); cropRect.bottom = y.coerceAtLeast(cropRect.top + minCropSize) }
-                4 -> { cropRect.right = x.coerceAtLeast(cropRect.left + minCropSize); cropRect.bottom = y.coerceAtLeast(cropRect.top + minCropSize) }
+            newHeight = newWidth / aspectRatio
+        }
+
+        return Pair(newWidth, newHeight)
+    }
+
+    private fun applySizeConstraints(newWidth: Float, newHeight: Float, fixedX: Float, fixedY: Float, aspectRatio: Float): Pair<Float, Float> {
+        val minCropSize = 50f
+        
+        // Apply minimum size constraints
+        val minHeight = if (aspectRatio > 1) minCropSize else minCropSize / aspectRatio
+        val minWidth = if (aspectRatio < 1) minCropSize else minCropSize * aspectRatio
+        
+        var constrainedWidth = newWidth.coerceAtLeast(minWidth)
+        var constrainedHeight = newHeight.coerceAtLeast(minHeight)
+
+        // Apply boundary constraints
+        val visibleBounds = getVisibleImageBounds()
+        val maxAllowedWidth = when (resizeHandle) {
+            1, 3 -> fixedX - visibleBounds.left
+            else -> visibleBounds.right - fixedX
+        }
+        val maxAllowedHeight = when (resizeHandle) {
+            1, 2 -> fixedY - visibleBounds.top
+            else -> visibleBounds.bottom - fixedY
+        }
+
+        if (constrainedWidth > maxAllowedWidth || constrainedHeight > maxAllowedHeight) {
+            val widthScale = maxAllowedWidth / constrainedWidth
+            val heightScale = maxAllowedHeight / constrainedHeight
+            val scale = kotlin.math.min(widthScale, heightScale)
+            constrainedWidth *= scale
+            constrainedHeight *= scale
+        }
+
+        return Pair(constrainedWidth, constrainedHeight)
+    }
+
+    private fun applyCropRectResize(width: Float, height: Float, fixedX: Float, fixedY: Float) {
+        when (resizeHandle) {
+            1 -> cropRect.set(fixedX - width, fixedY - height, fixedX, fixedY)
+            2 -> cropRect.set(fixedX, fixedY - height, fixedX + width, fixedY)
+            3 -> cropRect.set(fixedX - width, fixedY, fixedX, fixedY + height)
+            4 -> cropRect.set(fixedX, fixedY, fixedX + width, fixedY + height)
+        }
+    }
+
+    private fun resizeCropRectFreeform(x: Float, y: Float) {
+        val minCropSize = 50f
+        
+        when (resizeHandle) {
+            1 -> {
+                cropRect.left = x.coerceAtMost(cropRect.right - minCropSize)
+                cropRect.top = y.coerceAtMost(cropRect.bottom - minCropSize)
+            }
+            2 -> {
+                cropRect.right = x.coerceAtLeast(cropRect.left + minCropSize)
+                cropRect.top = y.coerceAtMost(cropRect.bottom - minCropSize)
+            }
+            3 -> {
+                cropRect.left = x.coerceAtMost(cropRect.right - minCropSize)
+                cropRect.bottom = y.coerceAtLeast(cropRect.top + minCropSize)
+            }
+            4 -> {
+                cropRect.right = x.coerceAtLeast(cropRect.left + minCropSize)
+                cropRect.bottom = y.coerceAtLeast(cropRect.top + minCropSize)
             }
         }
     }
