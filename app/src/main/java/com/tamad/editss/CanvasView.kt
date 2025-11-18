@@ -122,7 +122,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     var onCropCanceled: (() -> Unit)? = null
     var onUndoAction: (() -> Unit)? = null // Simple callback for undo operations
     var onRedoAction: (() -> Unit)? = null // Simple callback for redo operations
-    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null // Keep for compatibility
 
     init {
         paint.isAntiAlias = true
@@ -368,13 +367,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         // Save state for simple undo/redo
         saveCurrentState()
         
-        // Notify ViewModel about the crop operation
-        val cropAction = CropAction(previousBitmap, RectF(cropRect), currentCropMode)
-        baseBitmap?.let { newBitmap ->
-            val editAction = EditAction.BitmapChange(previousBitmap, newBitmap.copy(Bitmap.Config.ARGB_8888, true), cropAction = cropAction)
-            onBitmapChanged?.invoke(editAction)
-        }
-        
         cropRect.setEmpty()
         scaleFactor = 1.0f
         translationX = 0f
@@ -463,13 +455,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         
         // Save state after each drawing stroke
         saveCurrentState()
-        
-        // Notify ViewModel about the bitmap change
-        baseBitmap?.let { newBitmap ->
-            val editAction = EditAction.BitmapChange(previousBitmap, newBitmap.copy(Bitmap.Config.ARGB_8888, true), associatedStroke = action)
-            onBitmapChanged?.invoke(editAction)
-        }
-        
         invalidate()
     }
 
@@ -599,8 +584,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
             screenSpaceAction?.let { action ->
                 mergeDrawingStrokeIntoBitmap(action)
-                // State is now saved automatically in mergeDrawingStrokeIntoBitmap
-                // No need for complex bitmap change tracking
             }
             invalidate()
             return true
