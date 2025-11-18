@@ -1406,7 +1406,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val nameWithoutExt = originalDisplayName.substringBeforeLast('.')
-        val copyPattern = Pattern.compile("\s-\sCopy(\s\(\d+\))?$")
+        val copyPattern = Pattern.compile("""\s-\sCopy(\s\(\d+\))?$""")
         val matcher = copyPattern.matcher(nameWithoutExt)
         val baseName = if (matcher.find()) {
             nameWithoutExt.substring(0, matcher.start())
