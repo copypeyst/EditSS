@@ -141,6 +141,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var saturationOverlay: SliderValueOverlay
     // --- END: ADDED FOR OVERWRITE FIX ---
 
+    // Buttons and Tools promoted to class properties
+    private lateinit var buttonUndo: ImageView
+    private lateinit var buttonRedo: ImageView
+    private lateinit var buttonSave: ImageView
+    private lateinit var buttonImport: ImageView
+    private lateinit var buttonCamera: ImageView
+    private lateinit var buttonShare: ImageView
+    private lateinit var toolDraw: ImageView
+    private lateinit var toolCrop: ImageView
+    private lateinit var toolAdjust: ImageView
+
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             result.data?.data?.let { uri ->
@@ -218,15 +229,15 @@ class MainActivity : AppCompatActivity() {
 
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
-        val buttonUndo: ImageView = findViewById(R.id.button_undo)
-        val buttonRedo: ImageView = findViewById(R.id.button_redo)
-        val buttonSave: ImageView = findViewById(R.id.button_save)
-        val buttonImport: ImageView = findViewById(R.id.button_import)
-        val buttonCamera: ImageView = findViewById(R.id.button_camera)
-        val buttonShare: ImageView = findViewById(R.id.button_share)
-        val toolDraw: ImageView = findViewById(R.id.tool_draw)
-        val toolCrop: ImageView = findViewById(R.id.tool_crop)
-        val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
+        buttonUndo = findViewById(R.id.button_undo)
+        buttonRedo = findViewById(R.id.button_redo)
+        buttonSave = findViewById(R.id.button_save)
+        buttonImport = findViewById(R.id.button_import)
+        buttonCamera = findViewById(R.id.button_camera)
+        buttonShare = findViewById(R.id.button_share)
+        toolDraw = findViewById(R.id.tool_draw)
+        toolCrop = findViewById(R.id.tool_crop)
+        toolAdjust = findViewById(R.id.tool_adjust)
 
         // Initialize loading overlay elements
         overlayContainer = findViewById(R.id.overlay_container)
@@ -341,9 +352,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupActionButtons() {
-        val buttonImport: ImageView = findViewById(R.id.button_import)
-        val buttonCamera: ImageView = findViewById(R.id.button_camera)
-        val buttonShare: ImageView = findViewById(R.id.button_share)
 
         // Import Button Logic
         buttonImport.setOnClickListener {
@@ -516,7 +524,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUndoRedo() {
-        // ... (undo/redo listener logic from onCreate)
+        // Connect simple undo/redo to CanvasView - MS Paint style
+        drawingView.onUndoAction = {
+            val undoneBitmap = drawingView.undo()
+            if (undoneBitmap != null) {
+                // Clear ViewModel history since we're using CanvasView history now
+                editViewModel.clearAllActions()
+            }
+        }
+
+        drawingView.onRedoAction = {
+            val redoneBitmap = drawingView.redo()
+            if (redoneBitmap != null) {
+                // Clear ViewModel history since we're using CanvasView history now
+                editViewModel.clearAllActions()
+            }
+        }
     }
 
     private fun setupViewModelObservers() {
@@ -800,28 +823,6 @@ class MainActivity : AppCompatActivity() {
         // Set default selections
         updateDrawModeSelection(drawModePen)
 
-        // Connect simple undo/redo to CanvasView - MS Paint style
-        drawingView.onUndoAction = {
-            val undoneBitmap = drawingView.undo()
-            if (undoneBitmap != null) {
-                // Clear ViewModel history since we're using CanvasView history now
-                editViewModel.clearAllActions()
-            }
-        }
-
-        drawingView.onRedoAction = {
-            val redoneBitmap = drawingView.redo()
-            if (redoneBitmap != null) {
-                // Clear ViewModel history since we're using CanvasView history now
-                editViewModel.clearAllActions()
-            }
-        }
-
-        // Connect bitmap changes (drawing and crop operations) to ViewModel
-        drawingView.onBitmapChanged = { editAction ->
-            editViewModel.pushBitmapChangeAction(editAction)
-        }
-
         lifecycleScope.launch {
             editViewModel.drawingState.collect {
                 drawingView.setDrawingState(it)
@@ -865,13 +866,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         buttonUndo.setOnClickListener {
-            drawingView.undo()
+            drawingView.onUndoAction?.invoke()
             // Update ViewModel to reflect the new state
             editViewModel.clearAllActions()
         }
 
         buttonRedo.setOnClickListener {
-            drawingView.redo()
+            drawingView.onRedoAction?.invoke()
             // Update ViewModel to reflect the new state
             editViewModel.clearAllActions()
         }
