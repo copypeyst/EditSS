@@ -22,6 +22,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val cropPaint = Paint()
     private val cropCornerPaint = Paint()
 
+    private val overlayPaint = Paint().apply {
+        color = Color.BLACK
+        alpha = 128
+    }
+    private val overlayPath = Path()
+
     private val imagePaint = Paint().apply {
         isAntiAlias = true
         isFilterBitmap = true
@@ -144,8 +150,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
-                } finally {
-                    bitmapToSave.recycle()
                 }
             }
         } catch (e: OutOfMemoryError) {
@@ -236,7 +240,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val loadedBitmap = BitmapFactory.decodeFile(path, options)
 
         if (loadedBitmap != null) {
-            baseBitmap?.recycle()
             baseBitmap = loadedBitmap
             updateImageMatrix()
             invalidate()
@@ -267,7 +270,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun setBitmap(bitmap: Bitmap?) {
         clearHistoryCache()
         
-        baseBitmap?.recycle()
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
 
         if (baseBitmap != null) {
@@ -287,7 +289,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun updateBitmapWithHistory(bitmap: Bitmap?) {
-        baseBitmap?.recycle()
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
         
         saveCurrentState()
@@ -298,7 +299,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun canUndo(): Boolean = currentHistoryIndex > 0
     fun canRedo(): Boolean = currentHistoryIndex < historyPaths.size - 1
 
-    // Drawing & rendering
+    // Drawing
 
     fun setDrawingState(drawingState: DrawingState) {
         paint.color = drawingState.color
@@ -376,7 +377,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
 
-    // Gesture & Touch Handling
+    // Gestures
 
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -695,9 +696,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 (bottom - top).toInt()
             )
 
-            baseBitmap?.recycle()
             baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
-            croppedBitmap.recycle()
+            // croppedBitmap recycled by GC
 
             saveCurrentState()
 
@@ -1015,7 +1015,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
 
-        baseBitmap?.recycle()
         baseBitmap = adjustedBitmap
         saveCurrentState()
         invalidate()
@@ -1027,7 +1026,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         setAdjustments(0f, 1f, 1f)
     }
 
-    // Bitmap Export Helpers
+    // Helpers
 
     fun getDrawing(): Bitmap? {
         return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
@@ -1102,11 +1101,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun drawCropOverlay(canvas: Canvas) {
-        val overlayPaint = Paint().apply {
-            color = Color.BLACK
-            alpha = 128
-        }
-        val overlayPath = Path()
+        overlayPath.reset()
         overlayPath.addRect(0f, 0f, width.toFloat(), height.toFloat(), Path.Direction.CW)
         overlayPath.addRect(cropRect, Path.Direction.CCW)
         canvas.drawPath(overlayPath, overlayPaint)
