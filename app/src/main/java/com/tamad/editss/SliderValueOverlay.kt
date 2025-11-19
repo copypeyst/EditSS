@@ -12,10 +12,6 @@ import androidx.core.content.ContextCompat
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * A floating overlay that displays slider values as the user moves the slider thumb.
- * This view is non-interactive and purely visual - it doesn't interfere with layout.
- */
 class SliderValueOverlay @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -25,12 +21,12 @@ class SliderValueOverlay @JvmOverloads constructor(
     private var currentValue: String = ""
     private var thumbX: Float = 0f
     private var thumbY: Float = 0f
-    private var currentAlpha: Int = 255 // For fade animation
+    private var currentAlpha: Int = 255 
     private var isVisible: Boolean = false
     private var hideRunnable: Runnable? = null
     private var isBeingDragged: Boolean = false
 
-    // Helper functions to convert DP/SP to Pixels
+    // Helper functions
     private fun dpToPx(dp: Float): Float {
         return dp * resources.displayMetrics.density
     }
@@ -41,54 +37,58 @@ class SliderValueOverlay @JvmOverloads constructor(
 
     // Paint for the background bubble
     private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF212121.toInt() // Dark background
+        color = 0xFF212121.toInt() 
     }
 
-    // Paint for the text
+    // Paint for the text (Reduced to 10sp for compact look)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFFFFFFFF.toInt() // White text
-        textSize = spToPx(14f) // SCALED: Uses SP instead of raw pixels
+        color = 0xFFFFFFFF.toInt()
+        textSize = spToPx(10f) 
         textAlign = Paint.Align.CENTER
     }
 
-    // Paint for the border/stroke - uses teal accent color
+    // Paint for the border/stroke (Reduced stroke width)
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF03DAC5.toInt() // Teal accent (teal_200)
-        strokeWidth = dpToPx(2f) // SCALED: Uses DP
+        color = 0xFF03DAC5.toInt() 
+        strokeWidth = dpToPx(1f) 
         style = Paint.Style.STROKE
     }
 
-    // SCALED dimensions
-    private val bubbleRadius = dpToPx(28f)
-    private val padding = dpToPx(12f)
-    private val cornerRadius = dpToPx(8f)
+    // Drastically reduced dimensions
+    private val bubbleRadius = dpToPx(14f) // Smaller bubble
+    private val padding = dpToPx(8f)     // Less horizontal padding
+    private val cornerRadius = dpToPx(4f) // Tighter corners
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
         if (isVisible && currentValue.isNotEmpty()) {
-            // Update paint alpha for fade effect
             bubblePaint.alpha = currentAlpha
             strokePaint.alpha = currentAlpha
             textPaint.alpha = currentAlpha
 
-            // Draw background bubble with rounded corners
-            // Center the bubble horizontally on the thumb (fixed alignment)
-            val bubbleLeft = thumbX - bubbleRadius - padding
-            val bubbleTop = thumbY - bubbleRadius * 2.2f
-            val bubbleRight = thumbX + bubbleRadius + padding
-            val bubbleBottom = thumbY - bubbleRadius * 0.8f
+            // Position Calculation:
+            // We draw the bubble ABOVE the thumb.
+            // thumbY is the center of the slider track.
+            
+            // Distance above the thumb center (Gap)
+            val gapAboveThumb = dpToPx(20f) 
+
+            val bubbleHeight = bubbleRadius * 2 // roughly 28dp height
+            
+            val bubbleBottom = thumbY - gapAboveThumb
+            val bubbleTop = bubbleBottom - bubbleHeight
+            
+            // Horizontal centering
+            val bubbleLeft = thumbX - bubbleRadius - (padding / 2)
+            val bubbleRight = thumbX + bubbleRadius + (padding / 2)
 
             val bubbleRect = RectF(bubbleLeft, bubbleTop, bubbleRight, bubbleBottom)
             
-            // SCALED: Use converted corner radius
             canvas.drawRoundRect(bubbleRect, cornerRadius, cornerRadius, bubblePaint)
-
-            // Draw border
             canvas.drawRoundRect(bubbleRect, cornerRadius, cornerRadius, strokePaint)
 
-            // Draw value text - center it properly
-            // Adjust text vertically to center it visually
+            // Center Text
             val textHeight = textPaint.descent() - textPaint.ascent()
             val textOffset = (textHeight / 2) - textPaint.descent()
             val bubbleCenterY = (bubbleTop + bubbleBottom) / 2
@@ -97,87 +97,51 @@ class SliderValueOverlay @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Call this when the user touches/starts dragging the slider
-     * Shows the overlay immediately with the current value
-     */
     fun onSliderTouched(seekBar: SeekBar, currentProgress: Int, displayValue: String) {
         currentValue = displayValue
-        currentAlpha = 220 // Full opacity
+        currentAlpha = 220 
         isBeingDragged = true
-        
-        // Update position for touch event
         updateThumbPosition(seekBar)
-        
         isVisible = true
         invalidate()
-        
-        // Cancel any pending hide
         removeCallbacks(hideRunnable)
     }
 
-    /**
-     * Update the overlay position and value based on the slider.
-     * This is called during slider movement.
-     */
     fun updateFromSlider(seekBar: SeekBar, value: Int, displayValue: String) {
         currentValue = displayValue
-        currentAlpha = 220 // Keep full opacity while dragging
-        
+        currentAlpha = 220 
         updateThumbPosition(seekBar)
-        
         isVisible = true
         isBeingDragged = true
         invalidate()
-        
-        // Cancel any pending hide
         removeCallbacks(hideRunnable)
     }
 
-    /**
-     * Helper function to calculate thumb position from SeekBar
-     */
     private fun updateThumbPosition(seekBar: SeekBar) {
-        // Get slider dimensions
         val sliderWidth = seekBar.width - seekBar.paddingLeft - seekBar.paddingRight
         val progress = seekBar.progress
         val max = seekBar.max
         
-        // Calculate thumb position relative to slider start
         val thumbPosInSlider = (progress.toFloat() / max) * sliderWidth
         
-        // Convert slider coordinates to overlay view coordinates
         val sliderLocation = IntArray(2)
         seekBar.getLocationOnScreen(sliderLocation)
         
         val overlayLocation = IntArray(2)
         this.getLocationOnScreen(overlayLocation)
         
-        // Calculate absolute X position of thumb center
         thumbX = (sliderLocation[0] + seekBar.paddingLeft + thumbPosInSlider - overlayLocation[0]).toFloat()
-        
-        // Position Y above the slider
         thumbY = (sliderLocation[1] - overlayLocation[1]).toFloat()
     }
 
-    /**
-     * Call this when the user releases the slider
-     * Overlay will fade out after 1 second
-     */
     fun onSliderReleased() {
         isBeingDragged = false
-        
-        // Fade out after 1 second
         removeCallbacks(hideRunnable)
         hideRunnable = Runnable { startFadeOut() }
         postDelayed(hideRunnable!!, 1000)
     }
 
-    /**
-     * Start fade-out animation
-     */
     private fun startFadeOut() {
-        // Animate alpha from 220 to 0 over 300ms
         val startAlpha = 220
         val endAlpha = 0
         val duration = 300L
@@ -192,21 +156,17 @@ class SliderValueOverlay @JvmOverloads constructor(
                 invalidate()
                 
                 if (progress < 1f) {
-                    postDelayed(this, 16) // ~60fps
+                    postDelayed(this, 16) 
                 } else {
                     isVisible = false
-                    currentAlpha = 220 // Reset for next use
+                    currentAlpha = 220 
                     invalidate()
                 }
             }
         }
-        
         post(fadeRunnable)
     }
 
-    /**
-     * Immediately hide the overlay
-     */
     fun hide() {
         isVisible = false
         isBeingDragged = false
@@ -216,7 +176,6 @@ class SliderValueOverlay @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        // This view is non-interactive, pass all events through
         return false
     }
 }

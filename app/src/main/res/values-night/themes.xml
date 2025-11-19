@@ -1,31 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- 1. FIX: Define the Splash Screen Theme properly so it doesn't crash -->
+    
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-        <!-- Set the splash screen background to black -->
         <item name="windowSplashScreenBackground">@android:color/black</item>
-        <!-- Use your app icon -->
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
-        <!-- Keep the splash screen visible for as long as needed -->
+        
+        <!-- FIX: Point to your EXISTING file -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        
         <item name="windowSplashScreenAnimationDuration">200</item>
-        <!-- After splash, switch to your main App Theme -->
         <item name="postSplashScreenTheme">@style/Theme.EditSS</item>
     </style>
 
     <!-- Base application theme -->
     <style name="Theme.EditSS" parent="Theme.AppCompat.NoActionBar">
-        <!-- Primary brand color -->
         <item name="android:colorPrimary">@color/purple_500</item>
         <item name="android:colorPrimaryDark">@color/purple_700</item>
         <item name="android:colorAccent">@color/teal_200</item>
-        
-        <!-- Status bar color -->
         <item name="android:statusBarColor">@android:color/black</item>
-        
-        <!-- 2. FIX: Force the window background to be Black (fixes Gray Bars) -->
         <item name="android:windowBackground">@android:color/black</item>
-        
-        <!-- Hide action bar -->
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
     </style>
