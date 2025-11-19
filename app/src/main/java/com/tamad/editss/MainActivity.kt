@@ -46,6 +46,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
+import androidx.activity.OnBackPressedCallback // Added for back button handling
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 enum class ImageOrigin {
@@ -59,10 +60,8 @@ data class ImageInfo(
     val uri: Uri,
     val origin: ImageOrigin,
     var canOverwrite: Boolean,
-    val originalMimeType: String // Added to track original format
+    val originalMimeType: String 
 )
-
-// Coil handles all caching, memory management, and bitmap processing automatically
 
 class MainActivity : AppCompatActivity() {
 
@@ -159,7 +158,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
     // Coil image loader for efficient image handling
     private val imageLoader by lazy {
         ImageLoader.Builder(this)
@@ -182,6 +180,9 @@ class MainActivity : AppCompatActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // 1. CLEANUP: Remove old undo files from previous sessions to prevent storage bloat
+        cleanupOldCacheFiles()
 
         // Initialize the Mobile Ads SDK
         MobileAds.initialize(this) {}
@@ -221,14 +222,41 @@ class MainActivity : AppCompatActivity() {
         // Initialize slider overlays
         drawSizeOverlay = findViewById(R.id.draw_size_overlay)
         drawOpacityOverlay = findViewById(R.id.draw_opacity_overlay)
+        brightnessOverlay = findViewById(R.id.brightness_overlay)
+        contrastOverlay = findViewById(R.id.contrast_overlay)
+        saturationOverlay = findViewById(R.id.saturation_overlay)
         
         drawOptionsLayout = findViewById(R.id.draw_options)
         cropOptionsLayout = findViewById(R.id.crop_options)
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         
-        // Initialize DrawingView and connect to ViewModel
+        // Initialize DrawingView
         drawingView = findViewById(R.id.drawing_view)
 
+        // 2. SAFETY: Handle Back Button to prevent data loss
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (savePanel.visibility == View.VISIBLE) {
+                    // If save panel is open, just close it
+                    savePanel.visibility = View.GONE
+                    scrim.visibility = View.GONE
+                } else if (drawingView.hasUnsavedChanges()) {
+                    // If user has unsaved changes, warn them
+                    AlertDialog.Builder(this@MainActivity, R.style.AlertDialog_EditSS)
+                        .setTitle(getString(R.string.discard_changes_title))
+                        .setMessage(getString(R.string.discard_changes_message))
+                        .setPositiveButton(getString(R.string.confirm)) { _, _ ->
+                            finish()
+                        }
+                        .setNegativeButton(getString(R.string.cancel), null)
+                        .show()
+                } else {
+                    // Default behavior (close app)
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
 
         // Initialize sliders with a max of 99 for 100 steps (0-99)
         val defaultSize = 24
@@ -436,7 +464,6 @@ class MainActivity : AppCompatActivity() {
         val radioPNG: RadioButton = findViewById(R.id.radio_png)
         val radioWEBP: RadioButton = findViewById(R.id.radio_webp)
         
-        // MODIFIED: Added call to updateSaveButtonsState() in each listener
         radioJPG.setOnClickListener {
             selectedSaveFormat = "image/jpeg"
             updateTransparencyWarning()
@@ -560,7 +587,6 @@ class MainActivity : AppCompatActivity() {
                 currentCropMode = null
                 drawingView.setCropModeInactive()
                 showCustomToast(getString(R.string.crop_applied))
-            } else {
             }
         }
 
@@ -589,11 +615,6 @@ class MainActivity : AppCompatActivity() {
         val buttonAdjustApply: Button = findViewById(R.id.button_adjust_apply)
         val buttonAdjustCancel: Button = findViewById(R.id.button_adjust_cancel)
         
-        // Initialize adjust overlays
-        brightnessOverlay = findViewById(R.id.brightness_overlay)
-        contrastOverlay = findViewById(R.id.contrast_overlay)
-        saturationOverlay = findViewById(R.id.saturation_overlay)
-
         // Set slider max to 200 for 201 steps (0-200) to allow -100 to +100
         brightnessSlider.max = 200
         contrastSlider.max = 200
@@ -732,7 +753,6 @@ class MainActivity : AppCompatActivity() {
         drawingView.onUndoAction = {
             val undoneBitmap = drawingView.undo()
             if (undoneBitmap != null) {
-                // Clear ViewModel history since we're using CanvasView history now
                 editViewModel.clearAllActions()
             }
         }
@@ -740,7 +760,6 @@ class MainActivity : AppCompatActivity() {
         drawingView.onRedoAction = {
             val redoneBitmap = drawingView.redo()
             if (redoneBitmap != null) {
-                // Clear ViewModel history since we're using CanvasView history now
                 editViewModel.clearAllActions()
             }
         }
@@ -775,38 +794,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Handle undone actions
-        lifecycleScope.launch {
-            editViewModel.lastUndoneAction.collect { action ->
-                action?.let {
-                    drawingView.onUndoAction?.invoke()
-                    // Clear the action to prevent duplicate processing
-                    editViewModel.clearLastUndoneAction()
-                }
-            }
-        }
-
-        // Handle redone actions
-        lifecycleScope.launch {
-            editViewModel.lastRedoneAction.collect { action ->
-                action?.let {
-                    drawingView.onRedoAction?.invoke()
-                    // Clear the action to prevent duplicate processing
-                    editViewModel.clearLastRedoneAction()
-                }
-            }
-        }
-
+        // 3. FIX: Removed redundant ViewModel clearing calls.
+        // Since we are using CanvasView's history, we just call undo/redo directly.
         buttonUndo.setOnClickListener {
             drawingView.undo()
-            // Update ViewModel to reflect the new state
-            editViewModel.clearAllActions()
         }
 
         buttonRedo.setOnClickListener {
             drawingView.redo()
-            // Update ViewModel to reflect the new state
-            editViewModel.clearAllActions()
         }
 
         cropModeFreeform.isSelected = true
@@ -868,9 +863,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Helper to clean up old cache files on startup
+    private fun cleanupOldCacheFiles() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val cacheFiles = cacheDir.listFiles()
+                val undoFiles = cacheFiles?.filter { 
+                    it.name.startsWith("undo_") && it.name.endsWith(".png") 
+                }
+                
+                undoFiles?.forEach { file ->
+                    // Delete if it's older than 24 hours or just indiscriminately clear all on startup
+                    // Since this is onCreate, these are likely from a previous session/crash
+                    file.delete()
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to cleanup cache: ${e.message}")
+            }
+        }
+    }
+
     // Implement sharing functionality
-    // Item 1: Content URI sharing for saved images
-    // Item 2: Cache-based sharing for unsaved edits
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: return
 
@@ -1083,8 +1096,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // All bitmap loading, caching, downsampling, and memory management is now handled automatically by Coil
-    
     // Helper method to clean up private camera files
     private fun cleanupCameraFile(uri: Uri) {
         try {
@@ -1097,8 +1108,6 @@ class MainActivity : AppCompatActivity() {
                     file.delete()
                 }
             } else {
-                // For FileProvider URIs, we can't directly access the file path
-                // Just release the URI permission
                 try {
                     contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 } catch (e: Exception) {
@@ -1112,24 +1121,19 @@ class MainActivity : AppCompatActivity() {
     
     // Helper method to determine image origin
     private fun determineImageOrigin(uri: Uri): ImageOrigin {
-        // Check if we have persisted write permission for this URI
         val isPersistedWritable = contentResolver.persistedUriPermissions.any {
             it.uri == uri && it.isWritePermission
         }
 
         return when {
             isPersistedWritable -> ImageOrigin.IMPORTED_WRITABLE
-            // Check if this is a camera temp file (temporary cache file)
             uri.path?.contains("camera_temp_") == true -> ImageOrigin.CAMERA_CAPTURED
-            // Check if this is a FileProvider URI from our app (but not camera temp)
             uri.authority == "${packageName}.fileprovider" -> ImageOrigin.EDITED_INTERNAL
             uri.toString().contains("media") -> {
-                // Imported via MediaStore, may or may not be writable depending on permission
-                // For MediaStore URIs, we assume writability if we have general image permissions
                 if (hasImagePermission()) ImageOrigin.IMPORTED_WRITABLE else ImageOrigin.IMPORTED_READONLY
             }
             uri.toString().contains("camera") -> ImageOrigin.CAMERA_CAPTURED // Legacy support
-            else -> ImageOrigin.IMPORTED_READONLY // Default to readonly for unknown sources
+            else -> ImageOrigin.IMPORTED_READONLY
         }
     }
     
@@ -1145,15 +1149,11 @@ class MainActivity : AppCompatActivity() {
     // Loading overlay functions
     private fun showLoadingSpinner() {
         overlayContainer.visibility = View.VISIBLE
-        
-        // Disable all interactive elements while loading
         disableAllInteractiveElements(true)
     }
 
     private fun hideLoadingSpinner() {
         overlayContainer.visibility = View.GONE
-        
-        // Re-enable all interactive elements
         disableAllInteractiveElements(false)
     }
 
@@ -1204,9 +1204,6 @@ class MainActivity : AppCompatActivity() {
     // Photo picker logic - Modern implementation using Photo Picker
     private fun openImagePicker() {
         try {
-            // Use ACTION_OPEN_DOCUMENT as specified in the old notes. This intent is part of the
-            // Storage Access Framework and is designed to provide persistent access to documents,
-            // which is crucial for the overwrite functionality.
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "image/*"
@@ -1232,22 +1229,17 @@ class MainActivity : AppCompatActivity() {
     private fun checkPermissionRevocation() {
         val wasOverwriteAvailable = currentImageInfo?.canOverwrite ?: false
         
-        // For Android 13+, check if READ_MEDIA_IMAGES was revoked
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (!hasImagePermission()) {
-                // Update canOverwrite flag if permission was revoked
                 currentImageInfo?.canOverwrite = false
             }
         }
-        // For Android 10-12, check URI permissions
         else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
-            // Check if permission status changed for imported images
             if (currentImageInfo?.origin == ImageOrigin.IMPORTED_WRITABLE && !hasImagePermission()) {
                 currentImageInfo?.canOverwrite = false
             }
         }
         
-        // Update UI if canOverwrite flag changed
         if (wasOverwriteAvailable && (currentImageInfo?.canOverwrite == false)) {
             updateSavePanelUI()
         }
@@ -1255,8 +1247,8 @@ class MainActivity : AppCompatActivity() {
 
     // Update save panel UI based on image origin and canOverwrite flag
     private fun updateSavePanelUI() {
-        updateSaveButtonsState() // Consolidate logic into one function
-        updateSaveButtonText() // Update button text based on image origin
+        updateSaveButtonsState() 
+        updateSaveButtonText()
     }
 
     private fun updateDrawModeSelection(selectedMode: ImageView) {
@@ -1271,37 +1263,28 @@ class MainActivity : AppCompatActivity() {
         
         val info = currentImageInfo
         if (info == null) {
-            // Default to "Save Copy" when no image loaded
             buttonSaveCopy.text = getString(R.string.save_copy)
             return
         }
 
-        // For camera images, change button text to "Save" instead of "Save Copy"
         if (info.origin == ImageOrigin.CAMERA_CAPTURED) {
             buttonSaveCopy.text = getString(R.string.save)
         } else {
-            // For imported images, keep the original "Save Copy" text
             buttonSaveCopy.text = getString(R.string.save_copy)
         }
     }
     
-    // MODIFIED: Central function to control visibility of Overwrite button and warning icon.
     private fun updateSaveButtonsState() {
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
         val warningIcon: ImageView = findViewById(R.id.warning_icon)
 
         val info = currentImageInfo
         if (info == null) {
-            // Default state: no image loaded, hide both.
             buttonOverwrite.visibility = View.GONE
             warningIcon.visibility = View.GONE
             return
         }
 
-        // Show overwrite ONLY if:
-        // 1. It's not a camera-captured image (camera images are temporary cache files)
-        // 2. It's allowed (canOverwrite)
-        // 3. The save format matches the original format
         val shouldShowOverwrite = info.origin != ImageOrigin.CAMERA_CAPTURED &&
                                   info.canOverwrite &&
                                   selectedSaveFormat == info.originalMimeType
@@ -1314,7 +1297,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Refactored to be safer and more readable
     private fun saveImageAsCopy() {
         if (currentImageInfo == null) return
 
@@ -1339,7 +1321,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Suspended function for creating the bitmap on a background thread
     private suspend fun createBitmapToSave(): Bitmap = withContext(Dispatchers.IO) {
         val bitmap = if (isSketchMode) {
             when (selectedSaveFormat) {
@@ -1359,7 +1340,6 @@ class MainActivity : AppCompatActivity() {
         bitmap ?: throw Exception("No image to save")
     }
 
-    // Suspended function for saving the bitmap to MediaStore on a background thread
     private suspend fun saveBitmapToMediaStore(bitmap: Bitmap): Uri = withContext(Dispatchers.IO) {
         val imageInfo = currentImageInfo ?: throw Exception("Image info is missing")
         
@@ -1394,7 +1374,6 @@ class MainActivity : AppCompatActivity() {
         uri
     }
     
-    // FINAL, CORRECTED VERSION - This one avoids deletion and uses MediaStore update instead.
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: return
         if (!imageInfo.canOverwrite || selectedSaveFormat != imageInfo.originalMimeType) {
@@ -1443,7 +1422,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
     
-    // NEW: Robust function to generate Windows-style copy names using ContentResolver.
     private fun generateUniqueCopyName(originalDisplayName: String): String {
         val newExtension = when (selectedSaveFormat) {
             "image/jpeg" -> "jpg"
@@ -1461,13 +1439,11 @@ class MainActivity : AppCompatActivity() {
             nameWithoutExt
         }
 
-        // Check for "baseName - Copy.ext"
         var newName = "$baseName - Copy.$newExtension"
         if (!fileNameExistsInEditSS(newName)) {
             return newName
         }
 
-        // If it exists, start incrementing with "baseName - Copy (n).ext"
         var counter = 2
         while (true) {
             newName = "$baseName - Copy ($counter).$newExtension"
@@ -1478,7 +1454,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // NEW: Helper to check for file existence in the Pictures/EditSS directory using MediaStore.
     private fun fileNameExistsInEditSS(fileName: String): Boolean {
         val projection = arrayOf(MediaStore.Images.Media._ID)
         val selection = "${MediaStore.Images.Media.DISPLAY_NAME} = ? AND ${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?"
@@ -1496,7 +1471,6 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    // NEW: Generate a unique filename using a timestamp, for camera captures.
     private fun generateTimestampFileName(): String {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val extension = when (selectedSaveFormat) {
@@ -1508,31 +1482,25 @@ class MainActivity : AppCompatActivity() {
         return "IMG_${timestamp}.$extension"
     }
     
-    // Update transparency warning based on actual image content
     private fun updateTransparencyWarning() {
         if (currentImageHasTransparency) {
             when {
                 selectedSaveFormat == "image/jpeg" -> {
-                    // JPEG doesn't support transparency
                     transparencyWarningText.text = getString(R.string.jpg_does_not_support_transparency)
                     transparencyWarningText.visibility = View.VISIBLE
                 }
                 selectedSaveFormat == "image/webp" && currentImageHasTransparency -> {
-                    // Lossless WEBP supports transparency, so hide warning
                     transparencyWarningText.visibility = View.GONE
                 }
                 else -> {
-                    // PNG and lossless WEBP support transparency, hide warning
                     transparencyWarningText.visibility = View.GONE
                 }
             }
         } else {
-            // No transparency detected, hide warning
             transparencyWarningText.visibility = View.GONE
         }
     }
             
-    // Helper method to update format selection UI
     private fun updateFormatSelectionUI() {
         val radioJPG: RadioButton = findViewById(R.id.radio_jpg)
         val radioPNG: RadioButton = findViewById(R.id.radio_png)
@@ -1543,51 +1511,37 @@ class MainActivity : AppCompatActivity() {
             "image/png" -> radioPNG.isChecked = true
             "image/webp" -> radioWEBP.isChecked = true
         }
-        updateSaveButtonsState() // Also update the button visibility
+        updateSaveButtonsState()
     }
     
-    // Auto-detect image format and preselect it
     private fun detectAndSetImageFormat(uri: Uri) {
         try {
-            // Try to get MIME type from MediaStore first
             val mimeType = contentResolver.getType(uri)
             
             val detectedFormat = when {
                 mimeType == "image/jpeg" -> "image/jpeg"
                 mimeType == "image/png" -> "image/png"
                 mimeType == "image/webp" -> "image/webp"
-                // Fallback: detect from file extension in display name
                 else -> {
                     val displayName = getDisplayNameFromUri(uri) ?: ""
                     when {
                         displayName.lowercase().endsWith(".jpg") || displayName.lowercase().endsWith(".jpeg") -> "image/jpeg"
                         displayName.lowercase().endsWith(".png") -> "image/png"
                         displayName.lowercase().endsWith(".webp") -> "image/webp"
-                        else -> "image/jpeg" // Default fallback
+                        else -> "image/jpeg"
                     }
                 }
             }
             
-            // Update selected format and UI
             selectedSaveFormat = detectedFormat
             updateFormatSelectionUI()
             
-            // Show a subtle hint about the detected format
-            val formatName = when (detectedFormat) {
-                "image/jpeg" -> "JPEG"
-                "image/png" -> "PNG"
-                "image/webp" -> "WEBP"
-                else -> "Unknown"
-            }
-            
         } catch (e: Exception) {
-            // If detection fails, keep current default
             selectedSaveFormat = "image/jpeg"
             updateFormatSelectionUI()
         }
     }
     
-    // Helper to compress bitmap to output stream in selected format
     private fun compressBitmapToStream(bitmap: Bitmap, outputStream: OutputStream, mimeType: String) {
         try {
             val compressFormat = when (mimeType) {
@@ -1598,8 +1552,8 @@ class MainActivity : AppCompatActivity() {
             }
             
             val quality = when (mimeType) {
-                "image/jpeg", "image/webp" -> 100 // Maximum quality for zero quality loss
-                else -> 100 // Lossless for PNG
+                "image/jpeg", "image/webp" -> 100
+                else -> 100
             }
             
             bitmap.compress(compressFormat, quality, outputStream)
@@ -1608,7 +1562,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Helper to get display name from URI
     private fun getDisplayNameFromUri(uri: Uri): String? {
         return try {
             val projection = arrayOf(android.provider.MediaStore.Images.Media.DISPLAY_NAME)
@@ -1623,7 +1576,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Helper to show custom toast without app icon
     private fun showCustomToast(message: String, duration: Int = Toast.LENGTH_LONG) {
         val layout = layoutInflater.inflate(R.layout.custom_toast, null)
         val textView = layout.findViewById<TextView>(R.id.toast_message)
@@ -1633,21 +1585,17 @@ class MainActivity : AppCompatActivity() {
         toast.view = layout
         toast.duration = duration
         
-        // Position toast at bottom of canvas (just above tool_options panel)
         toolOptionsLayout?.let { toolPanel ->
             val location = IntArray(2)
             toolPanel.getLocationOnScreen(location)
-            // Position 35dp above the tool panel (converted to pixels)
             val offsetInPixels = (toolPanel.height + 35 * resources.displayMetrics.density).toInt()
             toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, offsetInPixels)
         } ?: run {
-            // Fallback to screen bottom if tool_options not available
             toast.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL, 0, 100)
         }
         toast.show()
     }
 
-    // Helper function to apply adjustments and show save panel (used from save button dialog)
     private fun applyAdjustmentsAndShowSavePanel() {
         val brightnessSlider: SeekBar = findViewById(R.id.adjust_brightness_slider)
         val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
@@ -1668,7 +1616,6 @@ class MainActivity : AppCompatActivity() {
         contrastSlider.progress = 100
         saturationSlider.progress = 100
         
-        // Now show the save panel
         savePanel.visibility = View.VISIBLE
         scrim.visibility = View.VISIBLE
     }

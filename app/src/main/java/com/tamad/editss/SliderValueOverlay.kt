@@ -30,6 +30,15 @@ class SliderValueOverlay @JvmOverloads constructor(
     private var hideRunnable: Runnable? = null
     private var isBeingDragged: Boolean = false
 
+    // Helper functions to convert DP/SP to Pixels
+    private fun dpToPx(dp: Float): Float {
+        return dp * resources.displayMetrics.density
+    }
+
+    private fun spToPx(sp: Float): Float {
+        return sp * resources.displayMetrics.scaledDensity
+    }
+
     // Paint for the background bubble
     private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF212121.toInt() // Dark background
@@ -38,19 +47,21 @@ class SliderValueOverlay @JvmOverloads constructor(
     // Paint for the text
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFFFFFFF.toInt() // White text
-        textSize = 32f
+        textSize = spToPx(14f) // SCALED: Uses SP instead of raw pixels
         textAlign = Paint.Align.CENTER
     }
 
     // Paint for the border/stroke - uses teal accent color
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF03DAC5.toInt() // Teal accent (teal_200)
-        strokeWidth = 2f
+        strokeWidth = dpToPx(2f) // SCALED: Uses DP
         style = Paint.Style.STROKE
     }
 
-    private val bubbleRadius = 28f
-    private val padding = 12f
+    // SCALED dimensions
+    private val bubbleRadius = dpToPx(28f)
+    private val padding = dpToPx(12f)
+    private val cornerRadius = dpToPx(8f)
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -69,14 +80,20 @@ class SliderValueOverlay @JvmOverloads constructor(
             val bubbleBottom = thumbY - bubbleRadius * 0.8f
 
             val bubbleRect = RectF(bubbleLeft, bubbleTop, bubbleRight, bubbleBottom)
-            canvas.drawRoundRect(bubbleRect, 16f, 16f, bubblePaint)
+            
+            // SCALED: Use converted corner radius
+            canvas.drawRoundRect(bubbleRect, cornerRadius, cornerRadius, bubblePaint)
 
             // Draw border
-            canvas.drawRoundRect(bubbleRect, 16f, 16f, strokePaint)
+            canvas.drawRoundRect(bubbleRect, cornerRadius, cornerRadius, strokePaint)
 
             // Draw value text - center it properly
-            val textYOffset = (bubbleTop + bubbleBottom) / 2 + 12f
-            canvas.drawText(currentValue, thumbX, textYOffset, textPaint)
+            // Adjust text vertically to center it visually
+            val textHeight = textPaint.descent() - textPaint.ascent()
+            val textOffset = (textHeight / 2) - textPaint.descent()
+            val bubbleCenterY = (bubbleTop + bubbleBottom) / 2
+            
+            canvas.drawText(currentValue, thumbX, bubbleCenterY + textOffset, textPaint)
         }
     }
 
@@ -185,15 +202,6 @@ class SliderValueOverlay @JvmOverloads constructor(
         }
         
         post(fadeRunnable)
-    }
-
-    /**
-     * Hide the overlay
-     */
-    private fun hideOverlay() {
-        isVisible = false
-        currentAlpha = 220
-        invalidate()
     }
 
     /**

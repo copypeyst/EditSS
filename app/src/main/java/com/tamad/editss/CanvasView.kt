@@ -6,13 +6,9 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
-import android.graphics.RectF
-import com.tamad.editss.DrawMode
-import com.tamad.editss.DrawingState
-import com.tamad.editss.CropMode
-import com.tamad.editss.CropAction
-import com.tamad.editss.EditAction
-import com.tamad.editss.DrawingAction
+import java.io.File
+import java.io.FileOutputStream
+import java.util.UUID
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -27,93 +23,39 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         isDither = true
     }
 
+    // 1. PERFORMANCE FIX: Instantiate once, reuse in onDraw
+    private val checkerDrawable = CheckerDrawable()
+
     private var baseBitmap: Bitmap? = null
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
     
-    private val bitmapHistory = mutableListOf<Bitmap>()
+    // 2. CRASH FIX: Store file paths (String) instead of Bitmaps (RAM)
+    private val historyPaths = mutableListOf<String>()
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
 
     private var scaleFactor = 1.0f
-    private var lastFocusX = 0f // For multi-touch panning
-    private var lastFocusY = 0f // For multi-touch panning
+    private var lastFocusX = 0f
+    private var lastFocusY = 0f
     private var translationX = 0f
     private var translationY = 0f
     private var isZooming = false
     private var isDrawing = false
-    private var lastPointerCount = 1 // Track pointer count for scale detection
+    private var lastPointerCount = 1
 
-    fun markAsSaved() {
-        savedHistoryIndex = currentHistoryIndex
-    }
-
-    fun hasUnsavedChanges(): Boolean {
-        return savedHistoryIndex != currentHistoryIndex
-    }
-
-    private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-
-        override fun onScale(detector: ScaleGestureDetector): Boolean {
-            if (this@CanvasView.lastPointerCount < 2) {
-                return false
-            }
-            
-            scaleFactor *= detector.scaleFactor
-            scaleFactor = scaleFactor.coerceIn(1.0f, 5.0f) // Limit zoom out to 1.0x and zoom in to 5.0x
-
-            val inverseMatrix = Matrix()
-            imageMatrix.invert(inverseMatrix)
-            val focusPoint = floatArrayOf(detector.focusX, detector.focusY)
-            val imagePoint = floatArrayOf(0f, 0f)
-            inverseMatrix.mapPoints(imagePoint, focusPoint)
-
-            updateImageMatrix()
-
-            val screenPoint = floatArrayOf(0f, 0f)
-            imageMatrix.mapPoints(screenPoint, imagePoint)
-
-            translationX += detector.focusX - screenPoint[0]
-            translationY += detector.focusY - screenPoint[1]
-
-            updateImageMatrix()
-            invalidate()
-            return true
-        }
-
-        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            if (this@CanvasView.lastPointerCount < 2) {
-                return false
-            }
-            isZooming = true
-            return true
-        }
-
-        override fun onScaleEnd(detector: ScaleGestureDetector) {
-            isZooming = false
-            if (scaleFactor <= 1.0f) {
-                scaleFactor = 1.0f
-                translationX = 0f
-                translationY = 0f
-                updateImageMatrix()
-                invalidate()
-            }
-        }
-    })
-
-
+    // Tool/Mode properties
     private var currentTool: ToolType = ToolType.DRAW
     private var currentCropMode: CropMode = CropMode.FREEFORM
-
-    private var isCropModeActive = false // Track if crop mode is actually selected
+    private var isCropModeActive = false
     private var isCropping = false
     private var cropRect = RectF()
     private var isMovingCropRect = false
     private var isResizingCropRect = false
-    private var resizeHandle: Int = 0 // 0=none, 1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right
-    
-    private var isSketchMode = false // Track if we're in sketch mode (no imported/captured image)
+    private var resizeHandle: Int = 0 
+    private var isSketchMode = false
 
+    // Touch/State properties
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var cropStartX = 0f
@@ -126,11 +68,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var contrast = 1f
     private var saturation = 1f
 
+    // Callbacks
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
-    var onUndoAction: (() -> Unit)? = null // Simple callback for undo operations
-    var onRedoAction: (() -> Unit)? = null // Simple callback for redo operations
-    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null // Keep for compatibility
+    var onUndoAction: (() -> Unit)? = null
+    var onRedoAction: (() -> Unit)? = null
+    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null
 
     init {
         paint.isAntiAlias = true
@@ -146,7 +89,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.isAntiAlias = true
         cropCornerPaint.style = Paint.Style.FILL
         cropCornerPaint.color = Color.WHITE
-        cropCornerPaint.alpha = 192 // 75% opacity
+        cropCornerPaint.alpha = 192
     }
 
     enum class ToolType {
@@ -155,26 +98,125 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         ADJUST
     }
 
-    fun setDrawingState(drawingState: DrawingState) {
-        paint.color = drawingState.color
-        paint.strokeWidth = drawingState.size
-        paint.alpha = drawingState.opacity
-        currentDrawingTool = when (drawingState.drawMode) {
-            DrawMode.PEN -> PenTool()
-            DrawMode.CIRCLE -> CircleTool()
-            DrawMode.SQUARE -> SquareTool()
+    // --- State Management (Disk-Based) ---
+
+    fun markAsSaved() {
+        savedHistoryIndex = currentHistoryIndex
+    }
+
+    fun hasUnsavedChanges(): Boolean {
+        return savedHistoryIndex != currentHistoryIndex
+    }
+
+    /**
+     * Saves the current bitmap to a temporary file in the cache directory.
+     * This prevents OutOfMemory errors by using disk space instead of RAM.
+     */
+    private fun saveCurrentState() {
+        val bitmapToSave = baseBitmap ?: return
+
+        try {
+            // 1. Generate a unique filename
+            val fileName = "undo_${System.currentTimeMillis()}_${UUID.randomUUID()}.png"
+            val file = File(context.cacheDir, fileName)
+            
+            // 2. Save bitmap to disk
+            FileOutputStream(file).use { out ->
+                bitmapToSave.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            
+            val newPath = file.absolutePath
+
+            // 3. Manage History List
+            // Remove any "redo" steps if we are branching off
+            if (currentHistoryIndex < historyPaths.size - 1) {
+                // Clean up the actual files we are abandoning
+                val subList = historyPaths.subList(currentHistoryIndex + 1, historyPaths.size)
+                for (path in subList) {
+                    File(path).delete()
+                }
+                subList.clear()
+            }
+
+            // Add new path
+            historyPaths.add(newPath)
+            currentHistoryIndex = historyPaths.size - 1
+            
+            // 4. Limit History Size (e.g., keep last 20 steps)
+            if (historyPaths.size > 20) {
+                val oldPath = historyPaths.removeAt(0)
+                File(oldPath).delete() // Delete the old file to save space
+                currentHistoryIndex = historyPaths.size - 1
+                
+                // Adjust saved index if we shifted past it
+                if (savedHistoryIndex >= 0) savedHistoryIndex--
+            }
+
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
-    fun setBitmap(bitmap: Bitmap?) {
-        baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
-        // Reset history when new bitmap is loaded
-        bitmapHistory.clear()
-        currentHistoryIndex = -1
-        if (baseBitmap != null) {
-            saveCurrentState() // Save initial state
+    fun undo(): Bitmap? {
+        if (currentHistoryIndex > 0) {
+            currentHistoryIndex--
+            loadBitmapFromHistory()
+            return baseBitmap
         }
-        savedHistoryIndex = currentHistoryIndex // Mark the initial state as saved
+        return null
+    }
+    
+    fun redo(): Bitmap? {
+        if (currentHistoryIndex < historyPaths.size - 1) {
+            currentHistoryIndex++
+            loadBitmapFromHistory()
+            return baseBitmap
+        }
+        return null
+    }
+    
+    private fun loadBitmapFromHistory() {
+        val path = historyPaths[currentHistoryIndex]
+        val options = BitmapFactory.Options().apply {
+            inMutable = true // Important: Must be mutable to draw on it
+        }
+        val loadedBitmap = BitmapFactory.decodeFile(path, options)
+        
+        if (loadedBitmap != null) {
+            baseBitmap = loadedBitmap
+            updateImageMatrix()
+            invalidate()
+        }
+    }
+
+    /**
+     * Cleans up all temporary files created by this session.
+     */
+    fun clearHistoryCache() {
+        for (path in historyPaths) {
+            try {
+                File(path).delete()
+            } catch (e: Exception) {
+                // Ignore delete errors
+            }
+        }
+        historyPaths.clear()
+        currentHistoryIndex = -1
+        savedHistoryIndex = -1
+    }
+
+    // --- Bitmap Handling ---
+
+    fun setBitmap(bitmap: Bitmap?) {
+        // Clear old history files when loading a completely new image
+        clearHistoryCache()
+        
+        baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        
+        if (baseBitmap != null) {
+            saveCurrentState() // Save initial state to disk
+        }
+        savedHistoryIndex = currentHistoryIndex 
 
         background = resources.getDrawable(R.drawable.outer_bounds, null)
 
@@ -193,46 +235,52 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         updateImageMatrix()
         invalidate()
     }
-    
-    private fun saveCurrentState() {
-        baseBitmap?.let { bitmap ->
-            if (currentHistoryIndex < bitmapHistory.size - 1) {
-                bitmapHistory.subList(currentHistoryIndex + 1, bitmapHistory.size).clear()
-            }
-            bitmapHistory.add(bitmap.copy(Bitmap.Config.ARGB_8888, true))
-            currentHistoryIndex = bitmapHistory.size - 1
-            
-            if (bitmapHistory.size > 50) {
-                bitmapHistory.removeAt(0)
-                currentHistoryIndex = bitmapHistory.size - 1
-            }
-        }
-    }
-    
-    fun undo(): Bitmap? {
-        if (currentHistoryIndex > 0) {
-            currentHistoryIndex--
-            baseBitmap = bitmapHistory[currentHistoryIndex].copy(Bitmap.Config.ARGB_8888, true)
-            updateImageMatrix()
-            invalidate()
-            return baseBitmap
-        }
-        return null
-    }
-    
-    fun redo(): Bitmap? {
-        if (currentHistoryIndex < bitmapHistory.size - 1) {
-            currentHistoryIndex++
-            baseBitmap = bitmapHistory[currentHistoryIndex].copy(Bitmap.Config.ARGB_8888, true)
-            updateImageMatrix()
-            invalidate()
-            return baseBitmap
-        }
-        return null
-    }
-    
+
     fun canUndo(): Boolean = currentHistoryIndex > 0
-    fun canRedo(): Boolean = currentHistoryIndex < bitmapHistory.size - 1
+    fun canRedo(): Boolean = currentHistoryIndex < historyPaths.size - 1
+
+    // --- Drawing & rendering ---
+
+    fun setDrawingState(drawingState: DrawingState) {
+        paint.color = drawingState.color
+        paint.strokeWidth = drawingState.size
+        paint.alpha = drawingState.opacity
+        currentDrawingTool = when (drawingState.drawMode) {
+            DrawMode.PEN -> PenTool()
+            DrawMode.CIRCLE -> CircleTool()
+            DrawMode.SQUARE -> SquareTool()
+        }
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+
+        baseBitmap?.let {
+            canvas.save()
+            canvas.clipRect(imageBounds)
+
+            if (isSketchMode) {
+                canvas.drawColor(Color.WHITE)
+            }
+
+            if (it.hasAlpha() && !isSketchMode) {
+                // PERFORMANCE FIX: Reuse the pre-allocated drawable
+                imageBounds.roundOut(checkerDrawable.bounds)
+                checkerDrawable.draw(canvas)
+            }
+            
+            canvas.drawBitmap(it, imageMatrix, imagePaint)
+            canvas.restore()
+        }
+
+        currentDrawingTool.onDraw(canvas, paint)
+
+        if (currentTool == ToolType.CROP && !cropRect.isEmpty) {
+            drawCropOverlay(canvas)
+        }
+    }
+
+    // --- Tool Logic ---
 
     fun setSketchMode(isSketch: Boolean) {
         this.isSketchMode = isSketch
@@ -269,6 +317,211 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             cropRect.setEmpty()
         }
         invalidate()
+    }
+
+    // --- Gesture & Touch Handling ---
+
+    private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            if (this@CanvasView.lastPointerCount < 2) return false
+            
+            scaleFactor *= detector.scaleFactor
+            scaleFactor = scaleFactor.coerceIn(1.0f, 5.0f)
+
+            val inverseMatrix = Matrix()
+            imageMatrix.invert(inverseMatrix)
+            val focusPoint = floatArrayOf(detector.focusX, detector.focusY)
+            val imagePoint = floatArrayOf(0f, 0f)
+            inverseMatrix.mapPoints(imagePoint, focusPoint)
+
+            updateImageMatrix()
+
+            val screenPoint = floatArrayOf(0f, 0f)
+            imageMatrix.mapPoints(screenPoint, imagePoint)
+
+            translationX += detector.focusX - screenPoint[0]
+            translationY += detector.focusY - screenPoint[1]
+
+            updateImageMatrix()
+            invalidate()
+            return true
+        }
+
+        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            if (this@CanvasView.lastPointerCount < 2) return false
+            isZooming = true
+            return true
+        }
+
+        override fun onScaleEnd(detector: ScaleGestureDetector) {
+            isZooming = false
+            if (scaleFactor <= 1.0f) {
+                scaleFactor = 1.0f
+                translationX = 0f
+                translationY = 0f
+                updateImageMatrix()
+                invalidate()
+            }
+        }
+    })
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        lastPointerCount = event.pointerCount
+        scaleGestureDetector.onTouchEvent(event)
+
+        if (handleMultiTouchGesture(event)) {
+            return true
+        }
+
+        val x = event.x
+        val y = event.y
+
+        return when (currentTool) {
+            ToolType.DRAW -> handleDrawTouchEvent(event)
+            ToolType.CROP -> handleCropTouchEvent(event, x, y)
+            else -> false
+        }
+    }
+
+    private fun handleMultiTouchGesture(event: MotionEvent): Boolean {
+        if (!isZooming && event.pointerCount <= 1) return false
+
+        if (isDrawing && currentTool == ToolType.DRAW) {
+            currentDrawingTool.onTouchEvent(
+                MotionEvent.obtain(event.downTime, event.eventTime, MotionEvent.ACTION_CANCEL, event.x, event.y, 0),
+                paint
+            )
+            isDrawing = false
+            invalidate()
+        }
+
+        if (currentTool == ToolType.CROP && (isMovingCropRect || isResizingCropRect)) {
+            isMovingCropRect = false
+            isResizingCropRect = false
+            resizeHandle = 0
+            invalidate()
+        }
+
+        if (scaleFactor > 1.0f) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_MOVE -> {
+                    if (event.pointerCount > 1) {
+                        handlePanning(event)
+                    }
+                }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    lastFocusX = 0f
+                    lastFocusY = 0f
+                }
+            }
+        }
+        return true
+    }
+
+    private fun handlePanning(event: MotionEvent) {
+        val focusX = (event.getX(0) + event.getX(1)) / 2
+        val focusY = (event.getY(0) + event.getY(1)) / 2
+        if (lastFocusX != 0f || lastFocusY != 0f) {
+            translationX += focusX - lastFocusX
+            translationY += focusY - lastFocusY
+        }
+        lastFocusX = focusX
+        lastFocusY = focusY
+        updateImageMatrix()
+        invalidate()
+    }
+
+    private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
+        val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
+
+        screenSpaceAction?.let { action ->
+            mergeDrawingStrokeIntoBitmap(action)
+        }
+
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> isDrawing = true
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isDrawing = false
+                saveCurrentState() // Save result to disk
+            }
+        }
+
+        invalidate()
+        return true
+    }
+
+    // --- Crop Logic ---
+
+    private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
+        return when (event.action) {
+            MotionEvent.ACTION_DOWN -> handleCropTouchDown(x, y)
+            MotionEvent.ACTION_MOVE -> handleCropTouchMove(x, y)
+            MotionEvent.ACTION_UP -> handleCropTouchUp(x, y)
+            else -> false
+        }
+    }
+
+    private fun handleCropTouchDown(x: Float, y: Float): Boolean {
+        lastTouchX = x
+        lastTouchY = y
+        
+        if (!cropRect.isEmpty) {
+            resizeHandle = getResizeHandle(x, y)
+            if (resizeHandle > 0) {
+                isResizingCropRect = true
+                cropStartLeft = cropRect.left
+                cropStartTop = cropRect.top
+                cropStartRight = cropRect.right
+                cropStartBottom = cropRect.bottom
+                return true
+            }
+        }
+
+        if (cropRect.contains(x, y)) {
+            validateAndCorrectCropRect()
+            isMovingCropRect = true
+            cropStartX = x
+            cropStartY = y
+            cropStartLeft = cropRect.left
+            cropStartTop = cropRect.top
+            cropStartRight = cropRect.right
+            cropStartBottom = cropRect.bottom
+            return true
+        }
+
+        if (cropRect.isEmpty && isCropModeActive) {
+            isCropping = true
+            cropRect.set(x, y, x, y)
+            return true
+        }
+        return true
+    }
+
+    private fun handleCropTouchMove(x: Float, y: Float): Boolean {
+        if (isResizingCropRect) {
+            resizeCropRect(x, y)
+            clampCropRectToBounds()
+            invalidate()
+        } else if (isMovingCropRect) {
+            moveCropRect(x, y)
+        } else if (isCropping) {
+            updateCropRect(x, y)
+            clampCropRectToBounds()
+            invalidate()
+        }
+        return true
+    }
+
+    private fun handleCropTouchUp(x: Float, y: Float): Boolean {
+        if (isCropping) {
+            enforceAspectRatio()
+            updateCropRect(x, y)
+        }
+        isCropping = false
+        isMovingCropRect = false
+        isResizingCropRect = false
+        resizeHandle = 0
+        return true
     }
 
     private fun initializeDefaultCropRect() {
@@ -362,7 +615,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         
-        saveCurrentState()
+        saveCurrentState() // Save cropped state to disk
         
         cropRect.setEmpty()
         scaleFactor = 1.0f
@@ -375,325 +628,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return baseBitmap
     }
 
-    fun getDrawing(): Bitmap? {
-        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-    }
-
-    fun getDrawingOnTransparent(): Bitmap? {
-        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-    }
-    
-    fun getTransparentDrawing(): Bitmap? {
-        return getDrawingOnTransparent()
-    }
-    
-    fun getSketchDrawingOnWhite(): Bitmap? {
-        // First, get the drawing with any adjustments.
-        val drawingBitmap = getFinalBitmap() ?: return null
-
-        // Create a new bitmap with a white background.
-        val whiteBitmap = Bitmap.createBitmap(drawingBitmap.width, drawingBitmap.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(whiteBitmap)
-        canvas.drawColor(Color.WHITE)
-
-        // Draw the sketch on top of the white background.
-        canvas.drawBitmap(drawingBitmap, 0f, 0f, null)
-        
-        return whiteBitmap
-    }
-
-    fun getFinalBitmap(): Bitmap? {
-        if (baseBitmap == null) {
-            return null
-        }
-
-        // Only apply adjustments if they're not default values
-        val hasAdjustments = brightness != 0f || contrast != 1f || saturation != 1f
-        if (!hasAdjustments) {
-            return baseBitmap
-        }
-
-        // Create a new bitmap with the adjustments baked in
-        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(adjustedBitmap)
-        
-        // Apply the same color filter used for display
-        val paint = Paint().apply {
-            colorFilter = imagePaint.colorFilter
-            isAntiAlias = true
-            isFilterBitmap = true
-            isDither = true
-        }
-        
-        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
-        return adjustedBitmap
-    }
-    
-    fun convertTransparentToWhite(bitmap: Bitmap): Bitmap {
-        val whiteBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(whiteBitmap)
-        canvas.drawColor(Color.WHITE)
-        canvas.drawBitmap(bitmap, 0f, 0f, null)
-        return whiteBitmap
-    }
-
-    fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
-        if (baseBitmap == null) return
-        
-        val canvas = Canvas(baseBitmap!!)
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        canvas.concat(inverseMatrix)
-        canvas.drawPath(action.path, action.paint)
-        
-        invalidate()
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        updateImageMatrix()
-    }
-    
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-
-        baseBitmap?.let {
-            canvas.save()
-            canvas.clipRect(imageBounds)
-
-            if (isSketchMode) {
-                canvas.drawColor(Color.WHITE)
-            }
-
-            if (it.hasAlpha() && !isSketchMode) {
-                val checker = CheckerDrawable()
-                imageBounds.roundOut(checker.bounds)
-                checker.draw(canvas)
-            }
-            
-            canvas.drawBitmap(it, imageMatrix, imagePaint)
-            canvas.restore()
-        }
-
-        currentDrawingTool.onDraw(canvas, paint)
-
-        if (currentTool == ToolType.CROP && !cropRect.isEmpty) {
-            drawCropOverlay(canvas)
-        }
-    }
-
-    private fun drawCropOverlay(canvas: Canvas) {
-        val overlayPaint = Paint().apply {
-            color = Color.BLACK
-            alpha = 128
-        }
-        val overlayPath = Path()
-        overlayPath.addRect(0f, 0f, width.toFloat(), height.toFloat(), Path.Direction.CW)
-        overlayPath.addRect(cropRect, Path.Direction.CCW)
-        canvas.drawPath(overlayPath, overlayPaint)
-        canvas.drawRect(cropRect, cropPaint)
-        val cornerSize = 30f
-        canvas.drawRect(cropRect.left, cropRect.top, cropRect.left + cornerSize, cropRect.top + cornerSize, cropCornerPaint)
-        canvas.drawRect(cropRect.right - cornerSize, cropRect.top, cropRect.right, cropRect.top + cornerSize, cropCornerPaint)
-        canvas.drawRect(cropRect.left, cropRect.bottom - cornerSize, cropRect.left + cornerSize, cropRect.bottom, cropCornerPaint)
-        canvas.drawRect(cropRect.right - cornerSize, cropRect.bottom - cornerSize, cropRect.right, cropRect.bottom, cropCornerPaint)
-    }
-
-    private fun updateImageMatrix() {
-        baseBitmap?.let {
-            val viewWidth = width.toFloat()
-            val viewHeight = height.toFloat()
-            val bitmapWidth = it.width.toFloat()
-            val bitmapHeight = it.height.toFloat()
-            val baseScale = if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
-                viewWidth / bitmapWidth
-            } else {
-                viewHeight / bitmapHeight
-            }
-            val baseDx = (viewWidth - bitmapWidth * baseScale) / 2f
-            val baseDy = (viewHeight - bitmapHeight * baseScale) / 2f
-            imageMatrix.setScale(baseScale * scaleFactor, baseScale * scaleFactor)
-            imageMatrix.postTranslate(baseDx + translationX, baseDy + translationY)
-            imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
-            imageMatrix.mapRect(imageBounds)
-        }
-    }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        lastPointerCount = event.pointerCount
-        scaleGestureDetector.onTouchEvent(event)
-
-        if (handleMultiTouchGesture(event)) {
-            return true
-        }
-
-        val x = event.x
-        val y = event.y
-
-        return when (currentTool) {
-            ToolType.DRAW -> handleDrawTouchEvent(event)
-            ToolType.CROP -> handleCropTouchEvent(event, x, y)
-            else -> false
-        }
-    }
-
-    private fun handleMultiTouchGesture(event: MotionEvent): Boolean {
-        if (!isZooming && event.pointerCount <= 1) {
-            return false
-        }
-
-        if (isDrawing && currentTool == ToolType.DRAW) {
-            currentDrawingTool.onTouchEvent(
-                MotionEvent.obtain(event.downTime, event.eventTime, MotionEvent.ACTION_CANCEL, event.x, event.y, 0),
-                paint
-            )
-            isDrawing = false
-            invalidate()
-        }
-
-        if (currentTool == ToolType.CROP && (isMovingCropRect || isResizingCropRect)) {
-            isMovingCropRect = false
-            isResizingCropRect = false
-            resizeHandle = 0
-            invalidate()
-        }
-
-        if (scaleFactor > 1.0f) {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_MOVE -> {
-                    if (event.pointerCount > 1) {
-                        handlePanning(event)
-                    }
-                }
-                MotionEvent.ACTION_POINTER_UP -> {
-                    lastFocusX = 0f
-                    lastFocusY = 0f
-                }
-            }
-        }
-        return true
-    }
-
-    private fun handlePanning(event: MotionEvent) {
-        val focusX = (event.getX(0) + event.getX(1)) / 2
-        val focusY = (event.getY(0) + event.getY(1)) / 2
-        if (lastFocusX != 0f || lastFocusY != 0f) {
-            translationX += focusX - lastFocusX
-            translationY += focusY - lastFocusY
-        }
-        lastFocusX = focusX
-        lastFocusY = focusY
-        updateImageMatrix()
-        invalidate()
-    }
-
-    private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
-        // Let the tool handle the event and return a potential drawing action
-        val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
-
-        // If an action is returned (e.g., a path was updated), merge it into the bitmap
-        screenSpaceAction?.let { action ->
-            mergeDrawingStrokeIntoBitmap(action)
-        }
-
-        // Handle state changes based on the event type
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                isDrawing = true
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                isDrawing = false
-                // The final state of the bitmap is now ready, save it to history.
-                saveCurrentState()
-            }
-        }
-
-        invalidate()
-        return true
-    }
-
-    private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
-        return when (event.action) {
-            MotionEvent.ACTION_DOWN -> handleCropTouchDown(x, y)
-            MotionEvent.ACTION_MOVE -> handleCropTouchMove(x, y)
-            MotionEvent.ACTION_UP -> handleCropTouchUp(x, y)
-            else -> false
-        }
-    }
-
-    private fun handleCropTouchDown(x: Float, y: Float): Boolean {
-        lastTouchX = x
-        lastTouchY = y
-        
-        // Check for resize handle first
-        if (!cropRect.isEmpty) {
-            resizeHandle = getResizeHandle(x, y)
-            if (resizeHandle > 0) {
-                isResizingCropRect = true
-                cropStartLeft = cropRect.left
-                cropStartTop = cropRect.top
-                cropStartRight = cropRect.right
-                cropStartBottom = cropRect.bottom
-                return true
-            }
-        }
-
-        // Check if touching inside crop rect
-        if (cropRect.contains(x, y)) {
-            validateAndCorrectCropRect()
-            isMovingCropRect = true
-            cropStartX = x
-            cropStartY = y
-            cropStartLeft = cropRect.left
-            cropStartTop = cropRect.top
-            cropStartRight = cropRect.right
-            cropStartBottom = cropRect.bottom
-            return true
-        }
-
-        // Start new crop if in crop mode
-        if (cropRect.isEmpty && isCropModeActive) {
-            isCropping = true
-            cropRect.set(x, y, x, y)
-            return true
-        }
-        
-        return true
-    }
-
-    private fun handleCropTouchMove(x: Float, y: Float): Boolean {
-        if (isResizingCropRect) {
-            resizeCropRect(x, y)
-            clampCropRectToBounds()
-            invalidate()
-        } else if (isMovingCropRect) {
-            moveCropRect(x, y)
-        } else if (isCropping) {
-            updateCropRect(x, y)
-            clampCropRectToBounds()
-            invalidate()
-        }
-        return true
-    }
-
-    private fun handleCropTouchUp(x: Float, y: Float): Boolean {
-        if (isCropping) {
-            enforceAspectRatio()
-            updateCropRect(x, y)
-        }
-        isCropping = false
-        isMovingCropRect = false
-        isResizingCropRect = false
-        resizeHandle = 0
-        return true
-    }
-
+    // --- Crop resizing helpers ---
     private fun moveCropRect(x: Float, y: Float) {
         var dx = x - cropStartX
         var dy = y - cropStartY
         val visibleBounds = getVisibleImageBounds()
         
-        // Constrain movement within visible bounds
         if (cropStartLeft + dx < visibleBounds.left) dx = visibleBounds.left - cropStartLeft
         if (cropStartTop + dy < visibleBounds.top) dy = visibleBounds.top - cropStartTop
         if (cropStartRight + dx > visibleBounds.right) dx = visibleBounds.right - cropStartRight
@@ -715,25 +655,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
 
         val visibleBounds = getVisibleImageBounds()
-        
         val width = cropRect.width()
         var height = width / targetAspectRatio
         
         if (cropRect.top + height > visibleBounds.bottom) {
             height = visibleBounds.bottom - cropRect.top
         }
-        if (cropRect.left + (height*targetAspectRatio) > visibleBounds.right) {
-            // Recalculate based on width if constrained by right edge
-        }
-        
         cropRect.bottom = cropRect.top + height
         invalidate()
     }
 
-    /**
-     * Validates the crop rectangle on touch, ensuring it respects aspect ratio and bounds.
-     * This prevents issues where zooming/panning can leave the marquee out of bounds.
-     */
     private fun validateAndCorrectCropRect() {
         if (cropRect.isEmpty) return
 
@@ -747,14 +678,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val visibleBounds = getVisibleImageBounds()
         if (visibleBounds.width() <= 0 || visibleBounds.height() <= 0) return
 
-        // 1. Clamp the center of the crop rectangle to be within the visible bounds.
         val centerX = cropRect.centerX().coerceIn(visibleBounds.left, visibleBounds.right)
         val centerY = cropRect.centerY().coerceIn(visibleBounds.top, visibleBounds.bottom)
 
         var width = cropRect.width()
         var height = cropRect.height()
 
-        // 2. If an aspect ratio is set, enforce it.
         targetAspectRatio?.let { ratio ->
             if (width / height > ratio) {
                 width = height * ratio
@@ -763,7 +692,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
 
-        // 3. Scale down the size if it exceeds the maximum possible size from the clamped center.
         val maxAllowedWidth = 2 * kotlin.math.min(centerX - visibleBounds.left, visibleBounds.right - centerX)
         val maxAllowedHeight = 2 * kotlin.math.min(centerY - visibleBounds.top, visibleBounds.bottom - centerY)
 
@@ -775,7 +703,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             height *= scale
         }
 
-        // 4. Set the final, corrected rectangle and invalidate the view.
         cropRect.set(centerX - width / 2, centerY - height / 2, centerX + width / 2, centerY + height / 2)
         invalidate()
     }
@@ -791,7 +718,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun resizeCropRect(x: Float, y: Float) {
         val aspectRatio = getAspectRatio()
-        
         if (aspectRatio != null) {
             resizeCropRectWithAspectRatio(x, y, aspectRatio)
         } else {
@@ -822,7 +748,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             2 -> Pair(cropRect.left, cropRect.bottom)
             3 -> Pair(cropRect.right, cropRect.top)
             4 -> Pair(cropRect.left, cropRect.top)
-            else -> Pair(cropRect.left, cropRect.top) // Should not happen
+            else -> Pair(cropRect.left, cropRect.top)
         }
     }
 
@@ -833,11 +759,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         var newWidth = (x - fixedX) * signX
         var newHeight = (y - fixedY) * signY
 
-        // Prevent negative sizes
         newWidth = newWidth.coerceAtLeast(0f)
         newHeight = newHeight.coerceAtLeast(0f)
 
-        // Apply aspect ratio constraint
         if (newWidth / newHeight > aspectRatio) {
             newWidth = newHeight * aspectRatio
         } else {
@@ -849,15 +773,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun applySizeConstraints(newWidth: Float, newHeight: Float, fixedX: Float, fixedY: Float, aspectRatio: Float): Pair<Float, Float> {
         val minCropSize = 50f
-        
-        // Apply minimum size constraints
         val minHeight = if (aspectRatio > 1) minCropSize else minCropSize / aspectRatio
         val minWidth = if (aspectRatio < 1) minCropSize else minCropSize * aspectRatio
         
         var constrainedWidth = newWidth.coerceAtLeast(minWidth)
         var constrainedHeight = newHeight.coerceAtLeast(minHeight)
 
-        // Apply boundary constraints
         val visibleBounds = getVisibleImageBounds()
         val maxAllowedWidth = when (resizeHandle) {
             1, 3 -> fixedX - visibleBounds.left
@@ -890,7 +811,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun resizeCropRectFreeform(x: Float, y: Float) {
         val minCropSize = 50f
-        
         when (resizeHandle) {
             1 -> {
                 cropRect.left = x.coerceAtMost(cropRect.right - minCropSize)
@@ -935,11 +855,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
             cropRect.right = startX + newWidth
             cropRect.bottom = startY + newHeight
-        } else { // Freeform
+        } else {
             cropRect.right = x
             cropRect.bottom = y
         }
     }
+
+    // --- Adjustments ---
 
     fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
         this.brightness = brightness
@@ -964,10 +886,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             contrast, 0f, 0f, 0f, translation,
             0f, contrast, 0f, 0f, translation,
             0f, 0f, contrast, 0f, translation,
-            0f, 0f, 0f, 1f, 0f  // Preserve alpha channel completely
+            0f, 0f, 0f, 1f, 0f
         ))
 
-        // Apply saturation while preserving alpha
         val saturationMatrix = ColorMatrix().apply { setSaturation(saturation) }
         colorMatrix.postConcat(saturationMatrix)
         imagePaint.colorFilter = ColorMatrixColorFilter(colorMatrix)
@@ -983,7 +904,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
         
         baseBitmap = adjustedBitmap
-        saveCurrentState()
+        saveCurrentState() // Save adjusted state to disk
         invalidate()
         
         return baseBitmap
@@ -993,7 +914,116 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         setAdjustments(0f, 1f, 1f)
     }
 
+    // --- Bitmap Export Helpers ---
+
+    fun getDrawing(): Bitmap? {
+        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+    }
+
+    fun getDrawingOnTransparent(): Bitmap? {
+        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+    }
+    
+    fun getTransparentDrawing(): Bitmap? {
+        return getDrawingOnTransparent()
+    }
+    
+    fun getSketchDrawingOnWhite(): Bitmap? {
+        val drawingBitmap = getFinalBitmap() ?: return null
+        val whiteBitmap = Bitmap.createBitmap(drawingBitmap.width, drawingBitmap.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(whiteBitmap)
+        canvas.drawColor(Color.WHITE)
+        canvas.drawBitmap(drawingBitmap, 0f, 0f, null)
+        return whiteBitmap
+    }
+
+    fun getFinalBitmap(): Bitmap? {
+        if (baseBitmap == null) return null
+
+        val hasAdjustments = brightness != 0f || contrast != 1f || saturation != 1f
+        if (!hasAdjustments) {
+            return baseBitmap
+        }
+
+        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(adjustedBitmap)
+        
+        val paint = Paint().apply {
+            colorFilter = imagePaint.colorFilter
+            isAntiAlias = true
+            isFilterBitmap = true
+            isDither = true
+        }
+        
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
+        return adjustedBitmap
+    }
+    
+    fun convertTransparentToWhite(bitmap: Bitmap): Bitmap {
+        val whiteBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(whiteBitmap)
+        canvas.drawColor(Color.WHITE)
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
+        return whiteBitmap
+    }
+
+    fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
+        if (baseBitmap == null) return
+        
+        val canvas = Canvas(baseBitmap!!)
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        canvas.concat(inverseMatrix)
+        canvas.drawPath(action.path, action.paint)
+        
+        invalidate()
+    }
+
     fun getTransparentDrawingWithAdjustments(): Bitmap? {
         return getFinalBitmap()
+    }
+
+    // --- Internal View Logic ---
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        updateImageMatrix()
+    }
+
+    private fun drawCropOverlay(canvas: Canvas) {
+        val overlayPaint = Paint().apply {
+            color = Color.BLACK
+            alpha = 128
+        }
+        val overlayPath = Path()
+        overlayPath.addRect(0f, 0f, width.toFloat(), height.toFloat(), Path.Direction.CW)
+        overlayPath.addRect(cropRect, Path.Direction.CCW)
+        canvas.drawPath(overlayPath, overlayPaint)
+        canvas.drawRect(cropRect, cropPaint)
+        val cornerSize = 30f
+        canvas.drawRect(cropRect.left, cropRect.top, cropRect.left + cornerSize, cropRect.top + cornerSize, cropCornerPaint)
+        canvas.drawRect(cropRect.right - cornerSize, cropRect.top, cropRect.right, cropRect.top + cornerSize, cropCornerPaint)
+        canvas.drawRect(cropRect.left, cropRect.bottom - cornerSize, cropRect.left + cornerSize, cropRect.bottom, cropCornerPaint)
+        canvas.drawRect(cropRect.right - cornerSize, cropRect.bottom - cornerSize, cropRect.right, cropRect.bottom, cropCornerPaint)
+    }
+
+    private fun updateImageMatrix() {
+        baseBitmap?.let {
+            val viewWidth = width.toFloat()
+            val viewHeight = height.toFloat()
+            val bitmapWidth = it.width.toFloat()
+            val bitmapHeight = it.height.toFloat()
+            val baseScale = if (bitmapWidth / viewWidth > bitmapHeight / viewHeight) {
+                viewWidth / bitmapWidth
+            } else {
+                viewHeight / bitmapHeight
+            }
+            val baseDx = (viewWidth - bitmapWidth * baseScale) / 2f
+            val baseDy = (viewHeight - bitmapHeight * baseScale) / 2f
+            imageMatrix.setScale(baseScale * scaleFactor, baseScale * scaleFactor)
+            imageMatrix.postTranslate(baseDx + translationX, baseDy + translationY)
+            imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
+            imageMatrix.mapRect(imageBounds)
+        }
     }
 }
