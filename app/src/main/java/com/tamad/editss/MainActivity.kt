@@ -692,21 +692,6 @@ class MainActivity : AppCompatActivity() {
 
         updateDrawModeSelection(drawModePen)
 
-        // Canvas View Callbacks
-        drawingView.onUndoAction = {
-            val undoneBitmap = drawingView.undo()
-            if (undoneBitmap != null) editViewModel.clearAllActions()
-        }
-
-        drawingView.onRedoAction = {
-            val redoneBitmap = drawingView.redo()
-            if (redoneBitmap != null) editViewModel.clearAllActions()
-        }
-
-        drawingView.onBitmapChanged = { editAction ->
-            editViewModel.pushBitmapChangeAction(editAction)
-        }
-
         // ViewModel Observation
         lifecycleScope.launch {
             editViewModel.drawingState.collect { state ->
@@ -719,7 +704,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            editViewModel.undoStack.collect { actions ->
+            editViewModel.actions.collect {
+                buttonUndo.isEnabled = drawingView.canUndo()
+                buttonRedo.isEnabled = drawingView.canRedo()
             }
         }
 
@@ -731,17 +718,11 @@ class MainActivity : AppCompatActivity() {
 
         // Undo/Redo Buttons
         buttonUndo.setOnClickListener {
-            val undoneBitmap = drawingView.undo()
-            if (undoneBitmap != null) {
-                editViewModel.clearAllActions()
-            }
+            drawingView.undo()
         }
 
         buttonRedo.setOnClickListener {
-            val redoneBitmap = drawingView.redo()
-            if (redoneBitmap != null) {
-                editViewModel.clearAllActions()
-            }
+            drawingView.redo()
         }
 
         cropModeFreeform.isSelected = true
@@ -1507,15 +1488,8 @@ class MainActivity : AppCompatActivity() {
         val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
         val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
         
-        val previousBitmap = drawingView.getBaseBitmap()
-        val newBitmap = drawingView.applyAdjustmentsToBitmap()
-
-        if (previousBitmap != null && newBitmap != null) {
-            val action = AdjustAction(previousBitmap, newBitmap)
-            editViewModel.pushAdjustAction(action)
-            drawingView.setBitmap(newBitmap)
-            showCustomToast(getString(R.string.adjustment_applied))
-        }
+        drawingView.applyAdjustmentsToBitmap()
+        showCustomToast(getString(R.string.adjustment_applied))
 
         editViewModel.resetAdjustments()
         brightnessSlider.progress = 100
