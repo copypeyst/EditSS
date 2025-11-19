@@ -221,6 +221,7 @@ class MainActivity : AppCompatActivity() {
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         
         drawingView = findViewById(R.id.drawing_view)
+        drawingView.setViewModel(editViewModel)
 
         // Back Button Handling
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {

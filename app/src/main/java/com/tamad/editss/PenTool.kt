@@ -19,7 +19,7 @@ class PenTool : BaseDrawingTool() {
         currentPath.lineTo(x, y)
     }
 
-    override fun onTouchUp(path: Path, paint: Paint): DrawingAction {
-        return DrawingAction(path, paint)
+    override fun onTouchUp(path: Path, paint: Paint): DrawAction {
+        return DrawAction(path, paint)
     }
 }
