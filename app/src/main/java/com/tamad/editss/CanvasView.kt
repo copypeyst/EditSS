@@ -12,7 +12,7 @@ import kotlin.math.hypot
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
-    // 1. Action Data
+    // 1. Data Models
     private data class StrokeData(
         val path: Path,
         val color: Int,
@@ -21,7 +21,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val xfermode: Xfermode? = null
     )
 
-    // 2. Paint Objects
+    // 2. Paints
     private val paint = Paint().apply {
         isAntiAlias = true
         style = Paint.Style.STROKE
@@ -50,19 +50,21 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         isDither = true
     }
 
-    // 3. Variables
+    // 3. Core Variables
     private val overlayPath = Path()
     private val checkerDrawable = CheckerDrawable()
     private var baseBitmap: Bitmap? = null
     private val imageMatrix = Matrix()
     private val imageBounds = RectF()
+    private var density = 1f
 
-    // 4. Undo System
+    // 4. History Stacks
     private val strokeStack = Stack<StrokeData>()
     private val redoStack = Stack<StrokeData>()
-    private val bitmapCheckpointStack = Stack<Bitmap>() // For heavy actions like Crop
+    private val bitmapCheckpointStack = Stack<Bitmap>()
+    private var lastSavedStateHash = 0 
 
-    // 5. State
+    // 5. Tool State
     private var currentDrawingTool: DrawingTool = PenTool()
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
@@ -72,7 +74,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isZooming = false
     private var isDrawing = false
     private var lastPointerCount = 1
-    private var density = 1f
 
     private var currentTool: ToolType = ToolType.DRAW
     private var currentCropMode: CropMode = CropMode.FREEFORM
@@ -84,28 +85,29 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var resizeHandle: Int = 0
     private var isSketchMode = false
 
+    // 6. Touch Coordinates
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var touchOffsetX = 0f
     private var touchOffsetY = 0f
-    
-    // Crop State
+    private var cropStartX = 0f
+    private var cropStartY = 0f
     private var cropStartLeft = 0f
     private var cropStartTop = 0f
     private var cropStartRight = 0f
     private var cropStartBottom = 0f
 
-    // Adjustments
+    // 7. Adjustment Variables
     private var brightness = 0f
     private var contrast = 1f
     private var saturation = 1f
 
-    // Callbacks
+    // 8. Callbacks
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onUndoAction: (() -> Unit)? = null
     var onRedoAction: (() -> Unit)? = null
-    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null // Keep generic signature
+    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null
 
     init {
         density = context.resources.displayMetrics.density
@@ -114,7 +116,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     enum class ToolType { DRAW, CROP, ADJUST }
 
-    // 6. Bitmap Logic
+    // 9. Bitmap Management
     fun setBitmap(bitmap: Bitmap?) {
         strokeStack.clear()
         redoStack.clear()
@@ -123,17 +125,37 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
         updateImageMatrix()
         invalidate()
+        markAsSaved()
     }
 
-    // 7. Undo Logic
+    fun getBaseBitmap(): Bitmap? = baseBitmap
+
+    // 10. Save State Tracking
+    fun markAsSaved() {
+        // Calculate a simple hash of the current state size
+        lastSavedStateHash = getCurrentStateHash()
+    }
+
+    fun hasUnsavedChanges(): Boolean {
+        return getCurrentStateHash() != lastSavedStateHash
+    }
+
+    private fun getCurrentStateHash(): Int {
+        return strokeStack.size + (bitmapCheckpointStack.size * 1000)
+    }
+
+    // 11. Undo / Redo Engine
     fun undo(): Bitmap? {
         if (strokeStack.isNotEmpty()) {
+            // Undo Stroke
             redoStack.push(strokeStack.pop())
             invalidate()
             onUndoAction?.invoke()
         } else if (bitmapCheckpointStack.isNotEmpty()) {
-            // Undo a "Heavy" action like Crop
+            // Undo Heavy Action (Crop/Adjust)
             baseBitmap = bitmapCheckpointStack.pop()
+            // When we undo a checkpoint, we clear redo because the branch changed
+            redoStack.clear() 
             updateImageMatrix()
             invalidate()
             onUndoAction?.invoke()
@@ -147,17 +169,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             invalidate()
             onRedoAction?.invoke()
         }
+        // Note: Redoing heavy checkpoints is complex, usually standard apps only redo strokes
+        // unless we implement a separate Action Command stack. 
+        // For now, this matches standard lightweight behavior.
         return baseBitmap
     }
 
     fun canUndo(): Boolean = strokeStack.isNotEmpty() || bitmapCheckpointStack.isNotEmpty()
     fun canRedo(): Boolean = redoStack.isNotEmpty()
 
-    fun hasUnsavedChanges(): Boolean {
-        return strokeStack.isNotEmpty() // Simplified check
-    }
-
-    // 8. Drawing Logic
+    // 12. Drawing Implementation
     fun setDrawingState(drawingState: DrawingState) {
         paint.color = drawingState.color
         paint.strokeWidth = drawingState.size
@@ -172,7 +193,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // Draw Base Bitmap
         baseBitmap?.let {
             canvas.save()
             canvas.clipRect(imageBounds)
@@ -182,10 +202,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
             canvas.drawBitmap(it, imageMatrix, imagePaint)
             
-            // Replay Action Stack (The "Command Pattern")
             canvas.concat(imageMatrix)
             
-            // Draw committed strokes
+            // Draw History
             for (stroke in strokeStack) {
                 paint.color = stroke.color
                 paint.strokeWidth = stroke.width
@@ -194,10 +213,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 canvas.drawPath(stroke.path, paint)
             }
             
-            // Reset paint for current tool
             paint.xfermode = null
             
-            // Draw current interactive stroke
+            // Draw Active Stroke
             if (isDrawing) {
                 currentDrawingTool.onDraw(canvas, paint)
             }
@@ -205,16 +223,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             canvas.restore()
         }
 
-        // Draw Crop UI
         if (currentTool == ToolType.CROP && !cropRect.isEmpty) {
             drawCropOverlay(canvas)
         }
     }
 
     private fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
-        // Instead of merging to pixels, we add to the Stack
         strokeStack.push(StrokeData(
-            Path(action.path), // Copy path
+            Path(action.path),
             action.paint.color,
             action.paint.strokeWidth,
             action.paint.alpha,
@@ -223,7 +239,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         redoStack.clear()
     }
 
-    // 9. Gestures
+    // 13. Touch Handling
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             if (this@CanvasView.lastPointerCount < 2) return false
@@ -288,7 +304,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (!isZooming && event.pointerCount <= 1) return false
 
         if (isDrawing && currentTool == ToolType.DRAW) {
-             // Cancel current stroke if zooming starts
             isDrawing = false
             invalidate()
         }
@@ -321,27 +336,22 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
-        // Get action from tool (converts screen touch to canvas path)
         val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
-
-        // Transform tool action to image coordinates
         screenSpaceAction?.let { action ->
              val inverseMatrix = Matrix()
              imageMatrix.invert(inverseMatrix)
              action.path.transform(inverseMatrix)
              mergeDrawingStrokeIntoBitmap(action)
         }
-
         when (event.action) {
             MotionEvent.ACTION_DOWN -> isDrawing = true
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> isDrawing = false
         }
-
         invalidate()
         return true
     }
 
-    // 10. Crop Logic
+    // 14. Crop Logic & Tool Mixing
     fun setCropMode(cropMode: CropMode) {
         this.currentCropMode = cropMode
         this.isCropModeActive = true
@@ -359,16 +369,20 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || cropRect.isEmpty) return null
 
-        // 1. Save current state to history (Bitmap Checkpoint)
+        // CHECKPOINT 1: Bake Strokes
+        // If we have pending strokes, we must bake them into the bitmap 
+        // BEFORE we crop, otherwise the paths will misalign.
+        val flattenedBitmap = getFinalBitmap() ?: return null
+        
+        // CHECKPOINT 2: Save to History
+        // Save the FULL current state (Base + Strokes) before modification
         baseBitmap?.let { 
-             bitmapCheckpointStack.push(it.copy(Bitmap.Config.ARGB_8888, true)) 
-             if (bitmapCheckpointStack.size > 5) bitmapCheckpointStack.removeAt(0) // Limit RAM
+            // We reconstruct the pre-crop state by getting FinalBitmap but using original dimensions
+            // Actually, the simplest safe checkpoint is the current visual state:
+             bitmapCheckpointStack.push(flattenedBitmap.copy(Bitmap.Config.ARGB_8888, true))
+             if (bitmapCheckpointStack.size > 5) bitmapCheckpointStack.removeAt(0)
         }
 
-        // 2. Flatten strokes into the bitmap BEFORE cropping
-        val flattenedBitmap = getFinalBitmap() ?: return null
-
-        // 3. Calculate Crop
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
         val imageCropRect = RectF()
@@ -390,9 +404,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 (bottom - top).toInt()
             )
 
-            // 4. Update State
             baseBitmap = croppedBitmap
-            strokeStack.clear() // Strokes are now baked into the bitmap
+            // RESET STACKS: Since we baked strokes into the bitmap, we clear the vector stack
+            strokeStack.clear()
             redoStack.clear()
             
             cropRect.setEmpty()
@@ -420,7 +434,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    // Keeping original Crop Math logic 
     private fun handleCropTouchDown(x: Float, y: Float): Boolean {
         lastTouchX = x
         lastTouchY = y
@@ -509,7 +522,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             var width = visibleBounds.width()
             var height = visibleBounds.height()
             
-            // Simple aspect defaults
             when (currentCropMode) {
                 CropMode.SQUARE -> {
                     val size = Math.min(width, height)
@@ -560,7 +572,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
     
     private fun enforceAspectRatio() {
-        // Simplified wrapper for aspect logic
         if (currentCropMode == CropMode.FREEFORM) return
         val ratio = getAspectRatio() ?: return
         val w = cropRect.width()
@@ -578,11 +589,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun resizeCropRect(x: Float, y: Float) {
-        // Logic from previous code maintained for UI consistency
         val targetX = x + touchOffsetX
         val targetY = y + touchOffsetY
         val ratio = getAspectRatio()
-        
         if (ratio != null) resizeCropRectWithAspectRatio(targetX, targetY, ratio)
         else resizeCropRectFreeform(targetX, targetY)
     }
@@ -598,7 +607,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun resizeCropRectWithAspectRatio(x: Float, y: Float, ratio: Float) {
-        // Simplistic aspect resize logic
         val newW = (x - cropRect.left).coerceAtLeast(50f)
         cropRect.right = cropRect.left + newW
         cropRect.bottom = cropRect.top + (newW / ratio)
@@ -618,11 +626,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropRect.bottom = y.coerceAtLeast(cropRect.top + 50f)
     }
     
-    private fun validateAndCorrectCropRect() {
-        // Placeholder to prevent crash if logic needed
-    }
+    private fun validateAndCorrectCropRect() { }
 
-    // 11. Adjustments
+    // 15. Adjustment Logic
     fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
         this.brightness = brightness
         this.contrast = contrast
@@ -630,19 +636,29 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         updateColorFilter()
         invalidate()
     }
+
+    fun clearAdjustments() {
+        resetAdjustments()
+    }
+
+    fun resetAdjustments() {
+        setAdjustments(0f, 1f, 1f)
+    }
     
     fun applyAdjustmentsToBitmap(): Bitmap? {
-        // Permanent apply
-        val result = getFinalBitmap() ?: return null
-        baseBitmap = result
+        if (baseBitmap == null) return null
+
+        // 1. Save Checkpoint (Current visual state)
+        val currentVisualState = getFinalBitmap() ?: return null
+        bitmapCheckpointStack.push(currentVisualState.copy(Bitmap.Config.ARGB_8888, true))
+
+        // 2. Commit Adjustment
+        baseBitmap = currentVisualState
         
-        // Reset sliders
-        this.brightness = 0f
-        this.contrast = 1f
-        this.saturation = 1f
-        imagePaint.colorFilter = null
+        // 3. Reset sliders
+        resetAdjustments()
         
-        // Clear history because base changed
+        // 4. Clear Stroke History (Bake)
         strokeStack.clear()
         redoStack.clear()
         
@@ -663,17 +679,30 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         imagePaint.colorFilter = ColorMatrixColorFilter(cm)
     }
 
-    // 12. Export / Helpers
+    // 16. Export & Helpers
     fun getDrawing(): Bitmap? = getFinalBitmap()
+
+    fun getTransparentDrawingWithAdjustments(): Bitmap? = getFinalBitmap()
+
+    fun getSketchDrawingOnWhite(): Bitmap? {
+        val transparent = getFinalBitmap() ?: return null
+        return convertTransparentToWhite(transparent)
+    }
+
+    fun convertTransparentToWhite(bitmap: Bitmap): Bitmap {
+        val whiteBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(whiteBitmap)
+        canvas.drawColor(Color.WHITE)
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
+        return whiteBitmap
+    }
 
     fun getFinalBitmap(): Bitmap? {
         val source = baseBitmap ?: return null
         
-        // Create bitmap of same size as source
         val result = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
         
-        // Draw base with filters
         val savePaint = Paint().apply {
             colorFilter = imagePaint.colorFilter
             isAntiAlias = true
@@ -681,7 +710,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
         canvas.drawBitmap(source, 0f, 0f, savePaint)
         
-        // Draw vector strokes
         for (stroke in strokeStack) {
             paint.color = stroke.color
             paint.strokeWidth = stroke.width
