@@ -35,12 +35,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
-    // History Management
     private val historyPaths = mutableListOf<String>()
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
 
-    // Threading & Concurrency
     private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val saveScope = CoroutineScope(saveDispatcher + Job())
     private val pendingSaves = AtomicInteger(0)
@@ -123,18 +121,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun saveCurrentState() {
         val originalBitmap = baseBitmap ?: return
 
-        // 1. Prune Redo Stack (Main Thread)
         if (currentHistoryIndex < historyPaths.size - 1) {
             val subList = historyPaths.subList(currentHistoryIndex + 1, historyPaths.size)
             val pathsToDelete = ArrayList(subList)
             subList.clear()
-            // Queue deletion
             saveScope.launch {
                 pathsToDelete.forEach { try { File(it).delete() } catch(_: Exception){} }
             }
         }
 
-        // 2. Generate Path & Update Index (Main Thread)
         val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Bitmap.CompressFormat.WEBP_LOSSLESS
         } else {
@@ -150,7 +145,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         cleanupHistoryStorage()
 
-        // 3. Create Copy & Queue Save (Background)
         try {
             val bitmapToSave = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
             pendingSaves.incrementAndGet()
@@ -177,18 +171,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val maxCount = 20
         val maxSizeBytes = 500 * 1024 * 1024
 
-        // Calculate cleanup logic on Main Thread to keep list sync
         val pathsToRemove = mutableListOf<String>()
         
         while (historyPaths.size > maxCount) {
             pathsToRemove.add(historyPaths.removeAt(0))
-            currentHistoryIndex-- // Shift index since we removed from head
+            currentHistoryIndex-- 
         }
-
-        // Note: Size calculation is heavy, better to approximate or do async, 
-        // but for index safety we keep list mutations here. 
-        // We will skip the complex size check on main thread for performance 
-        // or move just the deletion to background.
 
         if (pathsToRemove.isNotEmpty()) {
             if (savedHistoryIndex >= 0) {
@@ -223,7 +211,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun loadBitmapFromHistoryAsync() {
         val path = historyPaths[currentHistoryIndex]
         
-        // Queue load behind any pending saves
         saveScope.launch {
             val options = BitmapFactory.Options().apply { inMutable = true }
             val loadedBitmap = BitmapFactory.decodeFile(path, options)
@@ -234,8 +221,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     baseBitmap = loadedBitmap
                     updateImageMatrix()
                     invalidate()
-                    // Notify listener if needed
-                    onBitmapChanged?.invoke(EditAction.BitmapChange(loadedBitmap))
                 }
             }
         }
@@ -421,7 +406,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     })
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Rate Limiter Check
         if (event.action == MotionEvent.ACTION_DOWN && pendingSaves.get() >= MAX_PENDING_SAVES) {
             return false
         }
