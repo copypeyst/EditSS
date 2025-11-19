@@ -42,7 +42,7 @@ class SliderValueOverlay @JvmOverloads constructor(
     // Paint for the text
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFFFFFFF.toInt()
-        textSize = spToPx(10f) 
+        textSize = spToPx(12f) 
         textAlign = Paint.Align.CENTER
     }
 
