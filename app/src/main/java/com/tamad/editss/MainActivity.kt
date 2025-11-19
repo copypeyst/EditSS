@@ -140,8 +140,6 @@ class MainActivity : AppCompatActivity() {
                     showCustomToast(getString(R.string.error_loading_camera_image, e.message ?: "Unknown error"))
                     cleanupCameraFile(cameraUri)
                 }
-                // Change: Do NOT null out currentCameraUri immediately here, 
-                // keep it until a new image is loaded or cleared
             }
         } else {
             val cameraUri = currentCameraUri
@@ -789,11 +787,9 @@ class MainActivity : AppCompatActivity() {
                     }
                     currentImageInfo = currentImageInfo?.copy(uri = it)
                     pendingOverwriteUri = null
-                    // Change: User can now click Overwrite again to succeed
                 }
             } else {
                 pendingOverwriteUri?.let {
-                    // Optional: Don't update URI if failed, keep trying next time
                     pendingOverwriteUri = null
                 }
             }
@@ -802,7 +798,6 @@ class MainActivity : AppCompatActivity() {
 
     // --- Helper Methods ---
 
-    // Change: Save camera URI
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         currentCameraUri?.let { uri ->
@@ -810,7 +805,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Change: Restore camera URI
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         super.onRestoreInstanceState(savedInstanceState)
         val restoredUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -1025,7 +1019,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Change: Better error messages for lost permissions
     private fun handleImageLoadFailure(errorMessage: String) {
         runOnUiThread {
             try {
@@ -1301,7 +1294,6 @@ class MainActivity : AppCompatActivity() {
         uri
     }
     
-    // Change: Handle SecurityException for Android 10/11
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: return
         if (!imageInfo.canOverwrite || selectedSaveFormat != imageInfo.originalMimeType) {

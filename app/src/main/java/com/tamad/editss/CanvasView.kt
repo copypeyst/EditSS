@@ -9,6 +9,7 @@ import android.view.View
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
+import java.util.concurrent.Executors
 import kotlinx.coroutines.*
 import android.os.Build
 import android.widget.Toast
@@ -36,7 +37,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
 
-    private val saveScope = CoroutineScope(Dispatchers.IO + Job())
+    private val saveScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher() + Job())
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
@@ -109,21 +110,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun saveCurrentState() {
         val originalBitmap = baseBitmap ?: return
 
-        // Create fast copy on main thread for thread safety
         val bitmapToSave = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
         saveScope.launch {
             try {
-                // Change: Use WebP for better performance and quality
                 val fileName = "undo_${System.currentTimeMillis()}_${UUID.randomUUID()}.webp"
                 val file = File(context.cacheDir, fileName)
 
                 FileOutputStream(file).use { out ->
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        // Use Lossless WebP on supported devices (API 30+)
                         bitmapToSave.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 100, out)
                     } else {
-                        // Fallback to standard WebP
                         bitmapToSave.compress(Bitmap.CompressFormat.WEBP, 100, out)
                     }
                 }
@@ -615,7 +612,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         if (right <= left || bottom <= top) return null
 
-        // Change: Wrapped in try-catch for Safe Recycling (Fix #3)
         try {
             val croppedBitmap = Bitmap.createBitmap(
                 bitmapWithDrawings,
