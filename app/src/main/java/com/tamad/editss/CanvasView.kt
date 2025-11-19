@@ -13,6 +13,7 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.*
 import android.os.Build
 import androidx.core.content.ContextCompat
+import kotlin.math.hypot
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -71,6 +72,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var contrast = 1f
     private var saturation = 1f
 
+    private var density = 1f
+    private var touchOffsetX = 0f
+    private var touchOffsetY = 0f
+
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onUndoAction: (() -> Unit)? = null
@@ -78,6 +83,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null
 
     init {
+        density = context.resources.displayMetrics.density
+
         paint.isAntiAlias = true
         paint.style = Paint.Style.STROKE
         paint.strokeJoin = Paint.Join.ROUND
@@ -152,8 +159,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val pathsToDelete = ArrayList(subList)
             subList.clear()
 
-            saveScope.launch(Dispatchers.IO) {
-                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
+            saveScope.launch {
+                withContext(NonCancellable) {
+                    pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
+                }
             }
         }
 
@@ -163,61 +172,74 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cleanupHistoryStorage()
     }
 
-    // History Storage
     private fun cleanupHistoryStorage() {
         val maxCount = 20
-        val pathsToDelete = ArrayList<String>()
+        val maxSizeBytes = 500 * 1024 * 1024
 
-        while (historyPaths.size > maxCount) {
-            pathsToDelete.add(historyPaths.removeAt(0))
-            if (currentHistoryIndex > 0) currentHistoryIndex--
-            if (savedHistoryIndex > 0) savedHistoryIndex--
-        }
+        saveScope.launch {
+            withContext(NonCancellable) {
+                var deletedAny = false
+                
+                while (historyPaths.size > maxCount) {
+                    val oldPath = historyPaths.removeAt(0)
+                    try { File(oldPath).delete() } catch (e: Exception) {}
+                    deletedAny = true
+                }
 
-        if (pathsToDelete.isNotEmpty()) {
-            saveScope.launch(Dispatchers.IO) {
-                pathsToDelete.forEach { 
-                    try { File(it).delete() } catch (e: Exception) {} 
+                var currentSize = historyPaths.sumOf { File(it).length() }
+                while (currentSize > maxSizeBytes && historyPaths.size > 1) {
+                    val oldPath = historyPaths.removeAt(0)
+                    val file = File(oldPath)
+                    val fileSize = file.length()
+                    try { file.delete() } catch (e: Exception) {}
+                    currentSize -= fileSize
+                    deletedAny = true
+                }
+
+                if (deletedAny) {
+                    post {
+                        currentHistoryIndex = historyPaths.size - 1
+                        if (savedHistoryIndex >= 0) {
+                            if (savedHistoryIndex > currentHistoryIndex) {
+                                savedHistoryIndex = -1
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
-    // History Navigation
-    fun undo() {
+    fun undo(): Bitmap? {
         if (currentHistoryIndex > 0) {
             currentHistoryIndex--
             loadBitmapFromHistory()
+            return baseBitmap
         }
+        return null
     }
 
-    fun redo() {
+    fun redo(): Bitmap? {
         if (currentHistoryIndex < historyPaths.size - 1) {
             currentHistoryIndex++
             loadBitmapFromHistory()
+            return baseBitmap
         }
+        return null
     }
 
     private fun loadBitmapFromHistory() {
         val path = historyPaths[currentHistoryIndex]
-        
-        CoroutineScope(Dispatchers.Main).launch {
-            val loadedBitmap = withContext(Dispatchers.IO) {
-                try {
-                    val options = BitmapFactory.Options().apply { inMutable = true }
-                    BitmapFactory.decodeFile(path, options)
-                } catch (e: Exception) {
-                    null
-                }
-            }
+        val options = BitmapFactory.Options().apply {
+            inMutable = true
+        }
+        val loadedBitmap = BitmapFactory.decodeFile(path, options)
 
-            if (loadedBitmap != null) {
-                baseBitmap?.recycle()
-                baseBitmap = loadedBitmap
-                updateImageMatrix()
-                invalidate()
-                onUndoAction?.invoke()
-            }
+        if (loadedBitmap != null) {
+            baseBitmap?.recycle()
+            baseBitmap = loadedBitmap
+            updateImageMatrix()
+            invalidate()
         }
     }
 
@@ -227,8 +249,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         currentHistoryIndex = -1
         savedHistoryIndex = -1
 
-        saveScope.launch(Dispatchers.IO) {
-            pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
+        saveScope.launch {
+            withContext(NonCancellable) {
+                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
+            }
         }
     }
 
@@ -502,6 +526,26 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             resizeHandle = getResizeHandle(x, y)
             if (resizeHandle > 0) {
                 isResizingCropRect = true
+
+                when (resizeHandle) {
+                    1 -> {
+                        touchOffsetX = cropRect.left - x
+                        touchOffsetY = cropRect.top - y
+                    }
+                    2 -> {
+                        touchOffsetX = cropRect.right - x
+                        touchOffsetY = cropRect.top - y
+                    }
+                    3 -> {
+                        touchOffsetX = cropRect.left - x
+                        touchOffsetY = cropRect.bottom - y
+                    }
+                    4 -> {
+                        touchOffsetX = cropRect.right - x
+                        touchOffsetY = cropRect.bottom - y
+                    }
+                }
+
                 cropStartLeft = cropRect.left
                 cropStartTop = cropRect.top
                 cropStartRight = cropRect.right
@@ -513,6 +557,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (cropRect.contains(x, y)) {
             validateAndCorrectCropRect()
             isMovingCropRect = true
+            
+            touchOffsetX = cropRect.left - x
+            touchOffsetY = cropRect.top - y
+            
             cropStartX = x
             cropStartY = y
             cropStartLeft = cropRect.left
@@ -668,18 +716,37 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    // Crop resizing helpers
     private fun moveCropRect(x: Float, y: Float) {
-        var dx = x - cropStartX
-        var dy = y - cropStartY
+        val newLeft = x + touchOffsetX
+        val newTop = y + touchOffsetY
+        val width = cropRect.width()
+        val height = cropRect.height()
+
+        var left = newLeft
+        var top = newTop
+        var right = left + width
+        var bottom = top + height
+
         val visibleBounds = getVisibleImageBounds()
 
-        if (cropStartLeft + dx < visibleBounds.left) dx = visibleBounds.left - cropStartLeft
-        if (cropStartTop + dy < visibleBounds.top) dy = visibleBounds.top - cropStartTop
-        if (cropStartRight + dx > visibleBounds.right) dx = visibleBounds.right - cropStartRight
-        if (cropStartBottom + dy > visibleBounds.bottom) dy = visibleBounds.bottom - cropStartBottom
+        if (left < visibleBounds.left) {
+            left = visibleBounds.left
+            right = left + width
+        }
+        if (top < visibleBounds.top) {
+            top = visibleBounds.top
+            bottom = top + height
+        }
+        if (right > visibleBounds.right) {
+            right = visibleBounds.right
+            left = right - width
+        }
+        if (bottom > visibleBounds.bottom) {
+            bottom = visibleBounds.bottom
+            top = bottom - height
+        }
 
-        cropRect.set(cropStartLeft + dx, cropStartTop + dy, cropStartRight + dx, cropStartBottom + dy)
+        cropRect.set(left, top, right, bottom)
         clampCropRectToBounds()
         invalidate()
     }
@@ -748,20 +815,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun getResizeHandle(x: Float, y: Float): Int {
-        val cornerSize = 60f
-        if (RectF(cropRect.left - cornerSize, cropRect.top - cornerSize, cropRect.left + cornerSize, cropRect.top + cornerSize).contains(x, y)) return 1
-        if (RectF(cropRect.right - cornerSize, cropRect.top - cornerSize, cropRect.right + cornerSize, cropRect.top + cornerSize).contains(x, y)) return 2
-        if (RectF(cropRect.left - cornerSize, cropRect.bottom - cornerSize, cropRect.left + cornerSize, cropRect.bottom + cornerSize).contains(x, y)) return 3
-        if (RectF(cropRect.right - cornerSize, cropRect.bottom - cornerSize, cropRect.right + cornerSize, cropRect.bottom + cornerSize).contains(x, y)) return 4
+        val hitRadius = 48f * density 
+        
+        if (hypot(x - cropRect.left, y - cropRect.top) <= hitRadius) return 1
+        if (hypot(x - cropRect.right, y - cropRect.top) <= hitRadius) return 2
+        if (hypot(x - cropRect.left, y - cropRect.bottom) <= hitRadius) return 3
+        if (hypot(x - cropRect.right, y - cropRect.bottom) <= hitRadius) return 4
+        
         return 0
     }
 
     private fun resizeCropRect(x: Float, y: Float) {
+        val targetX = x + touchOffsetX
+        val targetY = y + touchOffsetY
+
         val aspectRatio = getAspectRatio()
         if (aspectRatio != null) {
-            resizeCropRectWithAspectRatio(x, y, aspectRatio)
+            resizeCropRectWithAspectRatio(targetX, targetY, aspectRatio)
         } else {
-            resizeCropRectFreeform(x, y)
+            resizeCropRectFreeform(targetX, targetY)
         }
     }
 
