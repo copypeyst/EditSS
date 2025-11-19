@@ -118,7 +118,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var contrastOverlay: SliderValueOverlay
     private lateinit var saturationOverlay: SliderValueOverlay
 
-    // --- Launchers ---
+    // Launchers
 
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -798,7 +798,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- Helper Methods ---
+    // Helper Methods
 
     private fun cleanupOldCacheFiles() {
         lifecycleScope.launch(Dispatchers.IO) {

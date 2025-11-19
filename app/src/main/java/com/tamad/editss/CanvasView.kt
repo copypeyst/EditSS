@@ -152,10 +152,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val pathsToDelete = ArrayList(subList)
             subList.clear()
 
-            saveScope.launch {
-                withContext(NonCancellable) {
-                    pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
-                }
+            saveScope.launch(Dispatchers.IO) {
+                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
             }
         }
 
@@ -165,74 +163,61 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cleanupHistoryStorage()
     }
 
+    // History Storage
     private fun cleanupHistoryStorage() {
         val maxCount = 20
-        val maxSizeBytes = 500 * 1024 * 1024
+        val pathsToDelete = ArrayList<String>()
 
-        saveScope.launch {
-            withContext(NonCancellable) {
-                var deletedAny = false
-                
-                while (historyPaths.size > maxCount) {
-                    val oldPath = historyPaths.removeAt(0)
-                    try { File(oldPath).delete() } catch (e: Exception) {}
-                    deletedAny = true
-                }
+        while (historyPaths.size > maxCount) {
+            pathsToDelete.add(historyPaths.removeAt(0))
+            if (currentHistoryIndex > 0) currentHistoryIndex--
+            if (savedHistoryIndex > 0) savedHistoryIndex--
+        }
 
-                var currentSize = historyPaths.sumOf { File(it).length() }
-                while (currentSize > maxSizeBytes && historyPaths.size > 1) {
-                    val oldPath = historyPaths.removeAt(0)
-                    val file = File(oldPath)
-                    val fileSize = file.length()
-                    try { file.delete() } catch (e: Exception) {}
-                    currentSize -= fileSize
-                    deletedAny = true
-                }
-
-                if (deletedAny) {
-                    post {
-                        currentHistoryIndex = historyPaths.size - 1
-                        if (savedHistoryIndex >= 0) {
-                            if (savedHistoryIndex > currentHistoryIndex) {
-                                savedHistoryIndex = -1
-                            }
-                        }
-                    }
+        if (pathsToDelete.isNotEmpty()) {
+            saveScope.launch(Dispatchers.IO) {
+                pathsToDelete.forEach { 
+                    try { File(it).delete() } catch (e: Exception) {} 
                 }
             }
         }
     }
 
-    fun undo(): Bitmap? {
+    // History Navigation
+    fun undo() {
         if (currentHistoryIndex > 0) {
             currentHistoryIndex--
             loadBitmapFromHistory()
-            return baseBitmap
         }
-        return null
     }
 
-    fun redo(): Bitmap? {
+    fun redo() {
         if (currentHistoryIndex < historyPaths.size - 1) {
             currentHistoryIndex++
             loadBitmapFromHistory()
-            return baseBitmap
         }
-        return null
     }
 
     private fun loadBitmapFromHistory() {
         val path = historyPaths[currentHistoryIndex]
-        val options = BitmapFactory.Options().apply {
-            inMutable = true
-        }
-        val loadedBitmap = BitmapFactory.decodeFile(path, options)
+        
+        CoroutineScope(Dispatchers.Main).launch {
+            val loadedBitmap = withContext(Dispatchers.IO) {
+                try {
+                    val options = BitmapFactory.Options().apply { inMutable = true }
+                    BitmapFactory.decodeFile(path, options)
+                } catch (e: Exception) {
+                    null
+                }
+            }
 
-        if (loadedBitmap != null) {
-            baseBitmap?.recycle()
-            baseBitmap = loadedBitmap
-            updateImageMatrix()
-            invalidate()
+            if (loadedBitmap != null) {
+                baseBitmap?.recycle()
+                baseBitmap = loadedBitmap
+                updateImageMatrix()
+                invalidate()
+                onUndoAction?.invoke()
+            }
         }
     }
 
@@ -242,10 +227,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         currentHistoryIndex = -1
         savedHistoryIndex = -1
 
-        saveScope.launch {
-            withContext(NonCancellable) {
-                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
-            }
+        saveScope.launch(Dispatchers.IO) {
+            pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
         }
     }
 
@@ -255,7 +238,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         saveDispatcher.close()
     }
 
-    // --- Bitmap Handling ---
+    // Bitmap Handling
 
     fun setBitmap(bitmap: Bitmap?) {
         clearHistoryCache()
@@ -291,7 +274,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun canUndo(): Boolean = currentHistoryIndex > 0
     fun canRedo(): Boolean = currentHistoryIndex < historyPaths.size - 1
 
-    // --- Drawing & rendering ---
+    // Drawing & rendering
 
     fun setDrawingState(drawingState: DrawingState) {
         paint.color = drawingState.color
@@ -330,7 +313,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    // --- Tool Logic ---
+    // Tool Logic
 
     fun setSketchMode(isSketch: Boolean) {
         this.isSketchMode = isSketch
@@ -369,7 +352,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
 
-    // --- Gesture & Touch Handling ---
+    // Gesture & Touch Handling
 
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -500,7 +483,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return true
     }
 
-    // --- Crop Logic ---
+    // Crop Logic
 
     private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
         return when (event.action) {
@@ -685,7 +668,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    // --- Crop resizing helpers ---
+    // Crop resizing helpers
     private fun moveCropRect(x: Float, y: Float) {
         var dx = x - cropStartX
         var dy = y - cropStartY
@@ -918,7 +901,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    // --- Adjustments ---
+    // Adjustments
 
     fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
         this.brightness = brightness
@@ -972,7 +955,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         setAdjustments(0f, 1f, 1f)
     }
 
-    // --- Bitmap Export Helpers ---
+    // Bitmap Export Helpers
 
     fun getDrawing(): Bitmap? {
         return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
