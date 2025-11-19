@@ -48,7 +48,7 @@ import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
 import androidx.activity.OnBackPressedCallback 
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.activity.viewModels // FIX: Required for correct ViewModel lifecycle
+import androidx.activity.viewModels
 
 enum class ImageOrigin {
     IMPORTED_READONLY,
@@ -70,8 +70,8 @@ class MainActivity : AppCompatActivity() {
         private const val PERMISSION_REQUEST_CODE = 100
     }
 
+    // UI Variables
     private lateinit var rootLayout: FrameLayout
-
     private lateinit var savePanel: View
     private lateinit var toolOptionsLayout: LinearLayout
     private lateinit var drawOptionsLayout: LinearLayout
@@ -79,21 +79,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adjustOptionsLayout: LinearLayout
     private lateinit var scrim: View
     private lateinit var transparencyWarningText: TextView
-
-    // Loading overlay elements
     private lateinit var overlayContainer: FrameLayout
 
+    // Tool State
     private var currentActiveTool: ImageView? = null
-
     private var currentCropMode: View? = null
     private var currentDrawMode: ImageView? = null
     
-    // Crop mode option buttons
     private lateinit var cropModeFreeform: View
     private lateinit var cropModeSquare: View
     private lateinit var cropModePortrait: View
     private lateinit var cropModeLandscape: View
     
+    // Image State
     private var currentImageInfo: ImageInfo? = null
     private var selectedSaveFormat: String = "image/jpeg"
     private var currentImageHasTransparency = false
@@ -104,25 +102,26 @@ class MainActivity : AppCompatActivity() {
     private lateinit var deleteRequestLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.IntentSenderRequest>
     private var pendingOverwriteUri: Uri? = null
 
-    // FIX: Initialize ViewModel safely using 'by viewModels()' delegate so it survives rotation
+    // ViewModel
     private val editViewModel: EditViewModel by viewModels()
     
-    // Drawing-related UI elements
+    // Drawing View & Controls
     private lateinit var drawingView: CanvasView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
     
-    // Slider overlays for value display
+    // Overlays
     private lateinit var drawSizeOverlay: SliderValueOverlay
     private lateinit var drawOpacityOverlay: SliderValueOverlay
     private lateinit var brightnessOverlay: SliderValueOverlay
     private lateinit var contrastOverlay: SliderValueOverlay
     private lateinit var saturationOverlay: SliderValueOverlay
 
+    // --- Launchers ---
+
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             result.data?.data?.let { uri ->
-                // Persist URI permissions for long-term access, crucial for overwriting.
                 val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 contentResolver.takePersistableUriPermission(uri, takeFlags)
                 loadImageFromUri(uri, false)
@@ -159,7 +158,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Coil image loader for efficient image handling
     private val imageLoader by lazy {
         ImageLoader.Builder(this)
             .memoryCache {
@@ -170,7 +168,7 @@ class MainActivity : AppCompatActivity() {
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir)
-                    .maxSizeBytes(50 * 1024 * 1024) // 50MB
+                    .maxSizeBytes(50 * 1024 * 1024)
                     .build()
             }
             .respectCacheHeaders(false)
@@ -182,20 +180,15 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 1. CLEANUP: Remove old undo files from previous sessions
         cleanupOldCacheFiles()
 
-        // Initialize the Mobile Ads SDK
+        // Ads Setup
         MobileAds.initialize(this) {}
-
-        // Load Ad Banner
         val adView = findViewById<AdView>(R.id.ad_banner)
         val adRequest = AdRequest.Builder().build()
         adView.loadAd(adRequest)
 
-        // FIX: Removed manual initialization of editViewModel here, handled by 'by viewModels()'
-
-        // Find UI elements
+        // Bind UI
         rootLayout = findViewById(R.id.root_layout)
         val buttonUndo: ImageView = findViewById(R.id.button_undo)
         val buttonRedo: ImageView = findViewById(R.id.button_redo)
@@ -207,19 +200,15 @@ class MainActivity : AppCompatActivity() {
         val toolCrop: ImageView = findViewById(R.id.tool_crop)
         val toolAdjust: ImageView = findViewById(R.id.tool_adjust)
 
-        // Initialize loading overlay elements
         overlayContainer = findViewById(R.id.overlay_container)
-
         savePanel = findViewById(R.id.save_panel)
         toolOptionsLayout = findViewById(R.id.tool_options)
         scrim = findViewById(R.id.scrim)
         transparencyWarningText = findViewById(R.id.transparency_warning_text)
 
-        // Initialize drawing controls
         drawSizeSlider = findViewById(R.id.draw_size_slider)
         drawOpacitySlider = findViewById(R.id.draw_opacity_slider)
         
-        // Initialize slider overlays
         drawSizeOverlay = findViewById(R.id.draw_size_overlay)
         drawOpacityOverlay = findViewById(R.id.draw_opacity_overlay)
         brightnessOverlay = findViewById(R.id.brightness_overlay)
@@ -230,16 +219,15 @@ class MainActivity : AppCompatActivity() {
         cropOptionsLayout = findViewById(R.id.crop_options)
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         
-        // Initialize DrawingView
         drawingView = findViewById(R.id.drawing_view)
 
-        // 2. SAFETY: Handle Back Button to prevent data loss
+        // Back Button Handling
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (savePanel.visibility == View.VISIBLE) {
                     savePanel.visibility = View.GONE
                     scrim.visibility = View.GONE
-                } else if (drawingView.hasUnsavedChanges()) { // Fixed typo here
+                } else if (drawingView.hasUnsavedChanges()) {
                     AlertDialog.Builder(this@MainActivity, R.style.AlertDialog_EditSS)
                         .setTitle(getString(R.string.discard_changes_title))
                         .setMessage(getString(R.string.discard_changes_message))
@@ -255,7 +243,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // Initialize sliders
+        // Initialize Sliders
         val defaultSize = 24
         val defaultOpacity = 99
         drawSizeSlider.max = 99
@@ -263,13 +251,12 @@ class MainActivity : AppCompatActivity() {
         drawSizeSlider.progress = defaultSize
         drawOpacitySlider.progress = defaultOpacity
 
-        // Save Panel Logic
+        // Save Button Logic
         buttonSave.setOnClickListener {
             if (savePanel.visibility == View.VISIBLE) {
                 savePanel.visibility = View.GONE
                 scrim.visibility = View.GONE
             } else {
-                // Check if there are unapplied adjustments
                 val currentAdjustState = editViewModel.adjustState.value
                 val hasUnappliedAdjustments = currentAdjustState.brightness != 0f ||
                                                currentAdjustState.contrast != 1f ||
@@ -301,7 +288,7 @@ class MainActivity : AppCompatActivity() {
             scrim.visibility = View.GONE
         }
 
-        // Import Button Logic
+        // Import/Camera Buttons
         buttonImport.setOnClickListener {
             if (drawingView.hasUnsavedChanges()) {
                 AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
@@ -329,7 +316,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Camera Button Logic
         buttonCamera.setOnClickListener {
             if (drawingView.hasUnsavedChanges()) {
                 AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
@@ -349,12 +335,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        //Share Button Logic
         buttonShare.setOnClickListener {
             shareCurrentImage()
         }
 
-        // Tool Buttons Logic
+        // Tool Switching Logic
         toolDraw.setOnClickListener {
             drawOptionsLayout.visibility = View.VISIBLE
             cropOptionsLayout.visibility = View.GONE
@@ -421,7 +406,7 @@ class MainActivity : AppCompatActivity() {
             drawingView.setAdjustments(currentAdjustState.brightness, currentAdjustState.contrast, currentAdjustState.saturation)
         }
 
-        // Save Panel buttons
+        // Save Panel Actions
         val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
         
@@ -439,7 +424,7 @@ class MainActivity : AppCompatActivity() {
         buttonSaveCopy.setOnTouchListener(touchListener)
         buttonOverwrite.setOnTouchListener(touchListener)
         
-        // Format selection
+        // Format Selection
         val radioJPG: RadioButton = findViewById(R.id.radio_jpg)
         val radioPNG: RadioButton = findViewById(R.id.radio_png)
         val radioWEBP: RadioButton = findViewById(R.id.radio_webp)
@@ -460,7 +445,7 @@ class MainActivity : AppCompatActivity() {
             updateSaveButtonsState()
         }
 
-        // Draw Options
+        // Draw Mode Options
         val drawModePen: ImageView = findViewById(R.id.draw_mode_pen)
         val drawModeCircle: ImageView = findViewById(R.id.draw_mode_circle)
         val drawModeSquare: ImageView = findViewById(R.id.draw_mode_square)
@@ -478,7 +463,6 @@ class MainActivity : AppCompatActivity() {
             updateDrawModeSelection(drawModeSquare)
         }
         
-        // Sliders
         drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
@@ -516,7 +500,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // Crop Options
+        // Crop Mode Options
         cropModeFreeform = findViewById(R.id.crop_mode_freeform)
         cropModeSquare = findViewById(R.id.crop_mode_square)
         cropModePortrait = findViewById(R.id.crop_mode_portrait)
@@ -579,7 +563,7 @@ class MainActivity : AppCompatActivity() {
             currentCropMode = null
         }
 
-        // Adjust Options
+        // Adjustment Controls
         val brightnessSlider: SeekBar = findViewById(R.id.adjust_brightness_slider)
         val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
         val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
@@ -706,26 +690,22 @@ class MainActivity : AppCompatActivity() {
 
         updateDrawModeSelection(drawModePen)
 
-        // CanvasView callbacks
+        // Canvas View Callbacks
         drawingView.onUndoAction = {
-            lifecycleScope.launch {
-                val undoneBitmap = drawingView.undo()
-                if (undoneBitmap != null) editViewModel.clearAllActions()
-            }
+            val undoneBitmap = drawingView.undo()
+            if (undoneBitmap != null) editViewModel.clearAllActions()
         }
 
         drawingView.onRedoAction = {
-            lifecycleScope.launch {
-                val redoneBitmap = drawingView.redo()
-                if (redoneBitmap != null) editViewModel.clearAllActions()
-            }
+            val redoneBitmap = drawingView.redo()
+            if (redoneBitmap != null) editViewModel.clearAllActions()
         }
 
         drawingView.onBitmapChanged = { editAction ->
             editViewModel.pushBitmapChangeAction(editAction)
         }
 
-        // ViewModel Observations
+        // ViewModel Observation
         lifecycleScope.launch {
             editViewModel.drawingState.collect { state ->
                 drawingView.setDrawingState(state)
@@ -747,26 +727,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // FIX: Updated Undo/Redo to use coroutines (fixes lag)
+        // Undo/Redo Buttons
         buttonUndo.setOnClickListener {
-            lifecycleScope.launch {
-                showLoadingSpinner()
-                val undoneBitmap = drawingView.undo()
-                if (undoneBitmap != null) {
-                    editViewModel.clearAllActions()
-                }
-                hideLoadingSpinner()
+            val undoneBitmap = drawingView.undo()
+            if (undoneBitmap != null) {
+                editViewModel.clearAllActions()
             }
         }
 
         buttonRedo.setOnClickListener {
-            lifecycleScope.launch {
-                showLoadingSpinner()
-                val redoneBitmap = drawingView.redo()
-                if (redoneBitmap != null) {
-                    editViewModel.clearAllActions()
-                }
-                hideLoadingSpinner()
+            val redoneBitmap = drawingView.redo()
+            if (redoneBitmap != null) {
+                editViewModel.clearAllActions()
             }
         }
 
@@ -779,6 +751,7 @@ class MainActivity : AppCompatActivity() {
         
         handleIntent(intent)
 
+        // Setup Initial Sketch Mode
         drawingView.doOnLayout { view ->
             if (currentImageInfo == null) {
                 isSketchMode = true
@@ -805,6 +778,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Overwrite Request Launcher
         deleteRequestLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
                 pendingOverwriteUri?.let {
@@ -823,7 +797,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Helper to clean up old cache files on startup
+    // --- Helper Methods ---
+
     private fun cleanupOldCacheFiles() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -860,7 +835,7 @@ class MainActivity : AppCompatActivity() {
                             }
 
                             lifecycleScope.launch {
-                                delay(300_000) // 5 minutes
+                                delay(300_000)
                                 tempFile.delete()
                             }
 

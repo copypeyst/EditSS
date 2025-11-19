@@ -9,7 +9,7 @@ import android.view.View
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
-import kotlinx.coroutines.* // Required for background saving
+import kotlinx.coroutines.*
 import android.os.Build
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
@@ -35,7 +35,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
 
-    // Scope for background saving tasks
     private val saveScope = CoroutineScope(Dispatchers.IO + Job())
 
     private var scaleFactor = 1.0f
@@ -106,49 +105,38 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return savedHistoryIndex != currentHistoryIndex
     }
 
-    // Save to disk on a BACKGROUND thread
     private fun saveCurrentState() {
         val originalBitmap = baseBitmap ?: return
 
-        // 1. Fast Copy on Main Thread (prevents drawing race conditions)
+        // Create fast copy on main thread
         val bitmapToSave = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
-        // 2. Compress and Write to Disk in Background
         saveScope.launch {
             try {
                 val fileName = "undo_${System.currentTimeMillis()}_${UUID.randomUUID()}.tmp"
                 val file = File(context.cacheDir, fileName)
 
                 FileOutputStream(file).use { out ->
-                    val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        Bitmap.CompressFormat.WEBP_LOSSY
-                    } else {
-                        Bitmap.CompressFormat.WEBP
-                    }
-                    // 90% quality is enough for undo history and much faster
-                    bitmapToSave.compress(format, 90, out)
+                    // Use PNG for lossless quality
+                    bitmapToSave.compress(Bitmap.CompressFormat.PNG, 100, out)
                 }
 
                 val newPath = file.absolutePath
 
-                // 3. Update List (Needs to be synchronized or on Main Thread)
                 post {
                     updateHistoryList(newPath)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
-                // Recycle the copy we made
                 bitmapToSave.recycle()
             }
         }
     }
 
     private fun updateHistoryList(newPath: String) {
-        // Remove any "redo" steps if we are branching off
         if (currentHistoryIndex < historyPaths.size - 1) {
             val subList = historyPaths.subList(currentHistoryIndex + 1, historyPaths.size)
-            // We launch a separate cleanup to not block UI with file deletes
             val pathsToDelete = ArrayList(subList)
             subList.clear()
 
@@ -160,10 +148,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         historyPaths.add(newPath)
         currentHistoryIndex = historyPaths.size - 1
 
-        // Limit History Size to 20
+        // Limit history size
         if (historyPaths.size > 20) {
             val oldPath = historyPaths.removeAt(0)
-            // Background delete
             saveScope.launch { try { File(oldPath).delete() } catch(e: Exception){} }
 
             currentHistoryIndex = historyPaths.size - 1
@@ -171,54 +158,37 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    // FIX: Made suspend to run on background thread (fixes Lag)
-    suspend fun undo(): Bitmap? = withContext(Dispatchers.IO) {
+    fun undo(): Bitmap? {
         if (currentHistoryIndex > 0) {
             currentHistoryIndex--
-            val path = historyPaths[currentHistoryIndex]
-            
-            // Decode file on IO thread
-            val options = BitmapFactory.Options().apply { inMutable = true }
-            val loadedBitmap = BitmapFactory.decodeFile(path, options)
-
-            // Update UI on Main thread
-            withContext(Dispatchers.Main) {
-                if (loadedBitmap != null) {
-                    // FIX: Recycle old bitmap (fixes Crash)
-                    baseBitmap?.recycle()
-                    baseBitmap = loadedBitmap
-                    updateImageMatrix()
-                    invalidate()
-                }
-            }
-            return@withContext baseBitmap
+            loadBitmapFromHistory()
+            return baseBitmap
         }
-        return@withContext null
+        return null
     }
 
-    // FIX: Made suspend to run on background thread (fixes Lag)
-    suspend fun redo(): Bitmap? = withContext(Dispatchers.IO) {
+    fun redo(): Bitmap? {
         if (currentHistoryIndex < historyPaths.size - 1) {
             currentHistoryIndex++
-            val path = historyPaths[currentHistoryIndex]
-            
-            // Decode file on IO thread
-            val options = BitmapFactory.Options().apply { inMutable = true }
-            val loadedBitmap = BitmapFactory.decodeFile(path, options)
-
-            // Update UI on Main thread
-            withContext(Dispatchers.Main) {
-                if (loadedBitmap != null) {
-                    // FIX: Recycle old bitmap (fixes Crash)
-                    baseBitmap?.recycle()
-                    baseBitmap = loadedBitmap
-                    updateImageMatrix()
-                    invalidate()
-                }
-            }
-            return@withContext baseBitmap
+            loadBitmapFromHistory()
+            return baseBitmap
         }
-        return@withContext null
+        return null
+    }
+
+    private fun loadBitmapFromHistory() {
+        val path = historyPaths[currentHistoryIndex]
+        val options = BitmapFactory.Options().apply {
+            inMutable = true
+        }
+        val loadedBitmap = BitmapFactory.decodeFile(path, options)
+
+        if (loadedBitmap != null) {
+            baseBitmap?.recycle()
+            baseBitmap = loadedBitmap
+            updateImageMatrix()
+            invalidate()
+        }
     }
 
     fun clearHistoryCache() {
@@ -234,7 +204,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        // Cancel background jobs when view is destroyed
         saveScope.cancel()
     }
 
@@ -243,16 +212,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun setBitmap(bitmap: Bitmap?) {
         clearHistoryCache()
         
-        // FIX: Recycle old bitmap before creating new one (fixes Crash)
         baseBitmap?.recycle()
-        
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
 
         if (baseBitmap != null) {
-            // We manually save the first state (initial image)
             saveCurrentState()
         }
-        savedHistoryIndex = 0 // Reset logic
+        savedHistoryIndex = 0
 
         background = resources.getDrawable(R.drawable.outer_bounds, null)
 
@@ -266,10 +232,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun updateBitmapWithHistory(bitmap: Bitmap?) {
-        // FIX: Recycle old bitmap
         baseBitmap?.recycle()
-        
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        
         saveCurrentState()
         updateImageMatrix()
         invalidate()
@@ -480,7 +445,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             MotionEvent.ACTION_DOWN -> isDrawing = true
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 isDrawing = false
-                saveCurrentState() // Save result to disk (background)
+                saveCurrentState()
             }
         }
 
@@ -651,11 +616,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             (bottom - top).toInt()
         )
 
-        // FIX: Recycle old bitmap (Fixes Crash)
         baseBitmap?.recycle()
         baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
-
-        // FIX: Recycle intermediate bitmap (Fixes Crash)
         croppedBitmap.recycle()
 
         saveCurrentState()
@@ -946,9 +908,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
         canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
 
-        // FIX: Recycle old bitmap
         baseBitmap?.recycle()
-        
         baseBitmap = adjustedBitmap
         saveCurrentState()
         invalidate()
