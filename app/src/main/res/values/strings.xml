@@ -82,5 +82,8 @@
     <string name="apply_adjustments_message">You have unapplied color adjustments. Apply them before saving?</string>
     <string name="ignore">Ignore</string>
     <string name="apply_adjustments">Apply</string>
+    <string name="error_restore_image">Could not restore the camera image.</string>
+    <string name="out_of_memory_error">Not enough memory to perform this action.</string>
+    <string name="overwrite_permission_rationale">Please allow access to save changes to this file.</string>
 
 </resources>

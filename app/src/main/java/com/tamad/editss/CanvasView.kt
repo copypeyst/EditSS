@@ -11,6 +11,7 @@ import java.io.FileOutputStream
 import java.util.UUID
 import kotlinx.coroutines.*
 import android.os.Build
+import android.widget.Toast
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -108,17 +109,23 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun saveCurrentState() {
         val originalBitmap = baseBitmap ?: return
 
-        // Create fast copy on main thread
+        // Create fast copy on main thread for thread safety
         val bitmapToSave = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
         saveScope.launch {
             try {
-                val fileName = "undo_${System.currentTimeMillis()}_${UUID.randomUUID()}.tmp"
+                // Change: Use WebP for better performance and quality
+                val fileName = "undo_${System.currentTimeMillis()}_${UUID.randomUUID()}.webp"
                 val file = File(context.cacheDir, fileName)
 
                 FileOutputStream(file).use { out ->
-                    // Use PNG for lossless quality
-                    bitmapToSave.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        // Use Lossless WebP on supported devices (API 30+)
+                        bitmapToSave.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 100, out)
+                    } else {
+                        // Fallback to standard WebP
+                        bitmapToSave.compress(Bitmap.CompressFormat.WEBP, 100, out)
+                    }
                 }
 
                 val newPath = file.absolutePath
@@ -608,29 +615,35 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         if (right <= left || bottom <= top) return null
 
-        val croppedBitmap = Bitmap.createBitmap(
-            bitmapWithDrawings,
-            left.toInt(),
-            top.toInt(),
-            (right - left).toInt(),
-            (bottom - top).toInt()
-        )
+        // Change: Wrapped in try-catch for Safe Recycling (Fix #3)
+        try {
+            val croppedBitmap = Bitmap.createBitmap(
+                bitmapWithDrawings,
+                left.toInt(),
+                top.toInt(),
+                (right - left).toInt(),
+                (bottom - top).toInt()
+            )
 
-        baseBitmap?.recycle()
-        baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        croppedBitmap.recycle()
+            baseBitmap?.recycle()
+            baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+            croppedBitmap.recycle()
 
-        saveCurrentState()
+            saveCurrentState()
 
-        cropRect.setEmpty()
-        scaleFactor = 1.0f
-        translationX = 0f
-        translationY = 0f
-        updateImageMatrix()
-        invalidate()
-        onCropApplied?.invoke(baseBitmap!!)
+            cropRect.setEmpty()
+            scaleFactor = 1.0f
+            translationX = 0f
+            translationY = 0f
+            updateImageMatrix()
+            invalidate()
+            onCropApplied?.invoke(baseBitmap!!)
 
-        return baseBitmap
+            return baseBitmap
+        } catch (e: OutOfMemoryError) {
+            Toast.makeText(context, R.string.out_of_memory_error, Toast.LENGTH_SHORT).show()
+            return null
+        }
     }
 
     // --- Crop resizing helpers ---

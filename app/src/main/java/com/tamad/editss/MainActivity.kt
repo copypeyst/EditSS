@@ -49,6 +49,7 @@ import com.tamad.editss.EditAction
 import androidx.activity.OnBackPressedCallback 
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.viewModels
+import android.app.RecoverableSecurityException
 
 enum class ImageOrigin {
     IMPORTED_READONLY,
@@ -139,7 +140,8 @@ class MainActivity : AppCompatActivity() {
                     showCustomToast(getString(R.string.error_loading_camera_image, e.message ?: "Unknown error"))
                     cleanupCameraFile(cameraUri)
                 }
-                currentCameraUri = null
+                // Change: Do NOT null out currentCameraUri immediately here, 
+                // keep it until a new image is loaded or cleared
             }
         } else {
             val cameraUri = currentCameraUri
@@ -787,10 +789,11 @@ class MainActivity : AppCompatActivity() {
                     }
                     currentImageInfo = currentImageInfo?.copy(uri = it)
                     pendingOverwriteUri = null
+                    // Change: User can now click Overwrite again to succeed
                 }
             } else {
                 pendingOverwriteUri?.let {
-                    currentImageInfo = currentImageInfo?.copy(uri = it)
+                    // Optional: Don't update URI if failed, keep trying next time
                     pendingOverwriteUri = null
                 }
             }
@@ -799,12 +802,36 @@ class MainActivity : AppCompatActivity() {
 
     // --- Helper Methods ---
 
+    // Change: Save camera URI
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        currentCameraUri?.let { uri ->
+            outState.putParcelable("saved_camera_uri", uri)
+        }
+    }
+
+    // Change: Restore camera URI
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
+        val restoredUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            savedInstanceState.getParcelable("saved_camera_uri", Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            savedInstanceState.getParcelable("saved_camera_uri")
+        }
+
+        if (restoredUri != null) {
+            currentCameraUri = restoredUri
+            loadImageFromUri(restoredUri, false)
+        }
+    }
+
     private fun cleanupOldCacheFiles() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val cacheFiles = cacheDir.listFiles()
                 val undoFiles = cacheFiles?.filter { 
-                    it.name.startsWith("undo_") && it.name.endsWith(".png") 
+                    (it.name.startsWith("undo_") && (it.name.endsWith(".png") || it.name.endsWith(".webp")))
                 }
                 undoFiles?.forEach { file ->
                     file.delete()
@@ -998,12 +1025,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    // Change: Better error messages for lost permissions
     private fun handleImageLoadFailure(errorMessage: String) {
         runOnUiThread {
             try {
                 drawingView.setBitmap(null)
                 drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                showCustomToast(getString(R.string.could_not_load_image, errorMessage))
+                
+                if (errorMessage.contains("SecurityException") || errorMessage.contains("Permission denied")) {
+                    showCustomToast(getString(R.string.error_restore_image))
+                } else {
+                    showCustomToast(getString(R.string.could_not_load_image, errorMessage))
+                }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message ?: "Unknown error"}")
             }
@@ -1268,6 +1301,7 @@ class MainActivity : AppCompatActivity() {
         uri
     }
     
+    // Change: Handle SecurityException for Android 10/11
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: return
         if (!imageInfo.canOverwrite || selectedSaveFormat != imageInfo.originalMimeType) {
@@ -1302,6 +1336,19 @@ class MainActivity : AppCompatActivity() {
                         imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
                         imageLoader.diskCache?.remove(imageInfo.uri.toString())
 
+                    } catch (securityException: SecurityException) {
+                        val recoverableSecurityException = securityException as? RecoverableSecurityException
+                        if (recoverableSecurityException != null) {
+                            pendingOverwriteUri = imageInfo.uri
+                            showCustomToast(getString(R.string.overwrite_permission_rationale))
+                            deleteRequestLauncher.launch(
+                                androidx.activity.result.IntentSenderRequest.Builder(
+                                    recoverableSecurityException.userAction.actionIntent.intentSender
+                                ).build()
+                            )
+                        } else {
+                            showCustomToast(getString(R.string.overwrite_failed, securityException.message))
+                        }
                     } catch (e: Exception) {
                         showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
                     } finally {
