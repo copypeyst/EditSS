@@ -1,16 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+    <!-- 1. FIX: Define the Splash Screen Theme properly so it doesn't crash -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <!-- Set the splash screen background to black -->
+        <item name="windowSplashScreenBackground">@android:color/black</item>
+        <!-- Use your app icon -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <!-- Keep the splash screen visible for as long as needed -->
+        <item name="windowSplashScreenAnimationDuration">200</item>
+        <!-- After splash, switch to your main App Theme -->
+        <item name="postSplashScreenTheme">@style/Theme.EditSS</item>
+    </style>
+
+    <!-- Base application theme -->
     <style name="Theme.EditSS" parent="Theme.AppCompat.NoActionBar">
-        <!-- Primary brand color. -->
-        <item name="android:colorPrimary">@color/purple_200</item>
+        <!-- Primary brand color -->
+        <item name="android:colorPrimary">@color/purple_500</item>
         <item name="android:colorPrimaryDark">@color/purple_700</item>
-        <!-- Secondary brand color. -->
         <item name="android:colorAccent">@color/teal_200</item>
-        <!-- Status bar color. -->
+        
+        <!-- Status bar color -->
         <item name="android:statusBarColor">@android:color/black</item>
+        
+        <!-- 2. FIX: Force the window background to be Black (fixes Gray Bars) -->
+        <item name="android:windowBackground">@android:color/black</item>
+        
         <!-- Hide action bar -->
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <!-- Customize your theme here. -->
+    </style>
+
+    <style name="AlertDialog.EditSS" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/rounded_dialog_background</item>
+        <item name="buttonBarPositiveButtonStyle">@style/AlertDialog.EditSS.Button</item>
+        <item name="buttonBarNegativeButtonStyle">@style/AlertDialog.EditSS.Button</item>
+        <item name="android:textColorAlertDialogListItem">@color/white</item>
+        <item name="android:textColorPrimary">@color/white</item>
+    </style>
+
+    <style name="AlertDialog.EditSS.Button" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+        <item name="android:textColor">@color/teal_200</item>
     </style>
 </resources>
