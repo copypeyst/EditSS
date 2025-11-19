@@ -12,9 +12,7 @@ import kotlin.math.hypot
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
-    // ==========================================
-    // 1. Data & History Models
-    // ==========================================
+    // Data Models
     private data class StrokeData(
         val path: Path,
         val color: Int,
@@ -23,16 +21,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val xfermode: Xfermode?
     )
 
-    // We separate history into "Light" (Strokes) and "Heavy" (Bitmap States)
-    private val strokeStack = Stack<StrokeData>()
-    private val redoStrokeStack = Stack<StrokeData>()
-    
-    private val bitmapUndoStack = Stack<Bitmap>()
-    private val bitmapRedoStack = Stack<Bitmap>()
-
-    // ==========================================
-    // 2. Paints & Setup
-    // ==========================================
+    // Paints
     private val paint = Paint().apply {
         isAntiAlias = true
         style = Paint.Style.STROKE
@@ -61,16 +50,23 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         isDither = true
     }
     private val checkerDrawable = CheckerDrawable()
-    
-    // ==========================================
-    // 3. State Variables
-    // ==========================================
+
+    // Variables
+    private val overlayPath = Path() // Fixed: Added missing variable
     private var baseBitmap: Bitmap? = null
     private val imageMatrix = Matrix()
     private val imageBounds = RectF()
     private var density = 1f
 
+    // History Stacks
+    private val strokeStack = Stack<StrokeData>()
+    private val redoStrokeStack = Stack<StrokeData>()
+    private val bitmapUndoStack = Stack<Bitmap>()
+    private val bitmapRedoStack = Stack<Bitmap>()
+
+    // Tool State
     private var currentDrawingTool: DrawingTool = PenTool()
+    private var currentTool: ToolType = ToolType.DRAW
     private var scaleFactor = 1.0f
     private var translationX = 0f
     private var translationY = 0f
@@ -79,12 +75,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isZooming = false
     private var isDrawing = false
     private var lastPointerCount = 0
+    private var isSketchMode = false
+    private var lastSavedStackSize = 0
 
-    // Tool Modes
+    // Crop State
     enum class ToolType { DRAW, CROP, ADJUST }
-    private var currentTool: ToolType = ToolType.DRAW
-    
-    // Crop Variables
     private var currentCropMode: CropMode = CropMode.FREEFORM
     private var isCropModeActive = false
     private var isCropping = false
@@ -92,15 +87,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isMovingCropRect = false
     private var isResizingCropRect = false
     private var resizeHandle: Int = 0
-    
-    // Touch Variables for Crop
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var touchOffsetX = 0f
     private var touchOffsetY = 0f
     private var cropStartX = 0f
     private var cropStartY = 0f
-    // These were missing in your previous build:
     private var cropStartLeft = 0f
     private var cropStartTop = 0f
     private var cropStartRight = 0f
@@ -110,75 +102,67 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var brightness = 0f
     private var contrast = 1f
     private var saturation = 1f
-    
-    private var isSketchMode = false
-    private var lastSavedStackSize = 0
 
     // Callbacks
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
     var onUndoAction: (() -> Unit)? = null
     var onRedoAction: (() -> Unit)? = null
-    // Kept for compatibility
-    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null 
+    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null
 
     init {
         density = context.resources.displayMetrics.density
         background = ContextCompat.getDrawable(context, R.drawable.outer_bounds)
     }
 
-    // ==========================================
-    // 4. History Engine (The Fix)
-    // ==========================================
+    // Bitmap Logic
+    fun setBitmap(bitmap: Bitmap?) {
+        strokeStack.clear()
+        redoStrokeStack.clear()
+        bitmapUndoStack.clear()
+        bitmapRedoStack.clear()
+        
+        baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        updateImageMatrix()
+        invalidate()
+        markAsSaved()
+    }
 
-    /**
-     * Saves the CURRENT visual state (Bitmap + Strokes) into the undo stack.
-     * Call this BEFORE doing something destructive like Crop or Adjust.
-     */
+    fun getBaseBitmap(): Bitmap? = baseBitmap
+
+    // History Logic
     private fun pushBitmapCheckpoint() {
         val currentVisualState = getFinalBitmap() ?: return
         bitmapUndoStack.push(currentVisualState)
-        // Limit stack size to prevent OOM
         if (bitmapUndoStack.size > 5) bitmapUndoStack.removeAt(0)
-        
-        // Breaking the redo chain
         bitmapRedoStack.clear()
     }
 
     fun undo(): Bitmap? {
-        // Priority 1: Undo simple strokes
         if (strokeStack.isNotEmpty()) {
-            val s = strokeStack.pop()
-            redoStrokeStack.push(s)
+            redoStrokeStack.push(strokeStack.pop())
             invalidate()
             onUndoAction?.invoke()
             return baseBitmap
         }
         
-        // Priority 2: Undo destructive actions (Crop/Adjust)
         if (bitmapUndoStack.isNotEmpty()) {
-            // Save current state to Redo Stack
             val currentState = baseBitmap
             if (currentState != null) {
                 bitmapRedoStack.push(currentState)
             }
 
-            // Restore previous state
             baseBitmap = bitmapUndoStack.pop()
-            
-            // IMPORTANT: When going back to a checkpoint, strokes are already baked in.
             strokeStack.clear()
             
             updateImageMatrix()
             invalidate()
             onUndoAction?.invoke()
         }
-        
         return baseBitmap
     }
 
     fun redo(): Bitmap? {
-        // Priority 1: Redo simple strokes
         if (redoStrokeStack.isNotEmpty()) {
             strokeStack.push(redoStrokeStack.pop())
             invalidate()
@@ -186,11 +170,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return baseBitmap
         }
         
-        // Priority 2: Redo destructive actions
         if (bitmapRedoStack.isNotEmpty()) {
-            pushBitmapCheckpoint() // Save current "Undo" state before redoing
-            // (Actually, we popped it from Undo stack earlier, so we just swap)
-            // Simplified: Just restore the redo bitmap
+            pushBitmapCheckpoint()
             baseBitmap = bitmapRedoStack.pop()
             strokeStack.clear()
             
@@ -198,7 +179,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             invalidate()
             onRedoAction?.invoke()
         }
-        
         return baseBitmap
     }
 
@@ -213,21 +193,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return (strokeStack.size + bitmapUndoStack.size) != lastSavedStackSize
     }
 
-    // ==========================================
-    // 5. Drawing Logic
-    // ==========================================
-
-    fun setBitmap(bitmap: Bitmap?) {
-        // Reset everything
-        strokeStack.clear()
-        redoStrokeStack.clear()
-        bitmapUndoStack.clear()
-        bitmapRedoStack.clear()
-        
-        baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
-        updateImageMatrix()
-        invalidate()
-        markAsSaved()
+    // Drawing Logic
+    fun setDrawingState(drawingState: DrawingState) {
+        paint.color = drawingState.color
+        paint.strokeWidth = drawingState.size
+        paint.alpha = drawingState.opacity
+        currentDrawingTool = when (drawingState.drawMode) {
+            DrawMode.PEN -> PenTool()
+            DrawMode.CIRCLE -> CircleTool()
+            DrawMode.SQUARE -> SquareTool()
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -240,10 +215,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             if (isSketchMode) canvas.drawColor(Color.WHITE)
             if (bmp.hasAlpha() && !isSketchMode) checkerDrawable.draw(canvas)
 
-            // 1. Draw the Bitmap (Pixels)
             canvas.drawBitmap(bmp, imageMatrix, imagePaint)
 
-            // 2. Draw the Vector Strokes (Overlay)
             canvas.concat(imageMatrix)
             
             for (stroke in strokeStack) {
@@ -254,7 +227,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 canvas.drawPath(stroke.path, paint)
             }
             
-            // 3. Draw Active Stroke (Finger still down)
             paint.xfermode = null
             if (isDrawing) {
                 currentDrawingTool.onDraw(canvas, paint)
@@ -269,7 +241,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
-        // We simply add to stack. We do NOT draw to bitmap pixels yet.
         strokeStack.push(StrokeData(
             Path(action.path),
             action.paint.color,
@@ -277,204 +248,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             action.paint.alpha,
             action.paint.xfermode
         ))
-        redoStrokeStack.clear() // New action clears redo history
-    }
-
-    fun setDrawingState(drawingState: DrawingState) {
-        paint.color = drawingState.color
-        paint.strokeWidth = drawingState.size
-        paint.alpha = drawingState.opacity
-        currentDrawingTool = when (drawingState.drawMode) {
-            DrawMode.PEN -> PenTool()
-            DrawMode.CIRCLE -> CircleTool()
-            DrawMode.SQUARE -> SquareTool()
-        }
-    }
-
-    // ==========================================
-    // 6. Crop Logic
-    // ==========================================
-
-    fun setCropMode(cropMode: CropMode) {
-        this.currentCropMode = cropMode
-        this.isCropModeActive = true
-        cropRect.setEmpty()
-        if (currentTool == ToolType.CROP) initializeDefaultCropRect()
-        invalidate()
-    }
-
-    fun cancelCrop() {
-        cropRect.setEmpty()
-        invalidate()
-        onCropCanceled?.invoke()
-    }
-
-    fun applyCrop(): Bitmap? {
-        if (baseBitmap == null || cropRect.isEmpty) return null
-
-        // STEP 1: Checkpoint! 
-        // Save the full current look (Base + Strokes) so we can Undo later
-        pushBitmapCheckpoint()
-
-        // STEP 2: Get the flattened image (Pixels + Vector Strokes)
-        // This ensures strokes are baked into the crop
-        val flattened = getFinalBitmap() ?: return null
-
-        // STEP 3: Calculate Math
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        val imageCropRect = RectF()
-        inverseMatrix.mapRect(imageCropRect, cropRect)
-
-        val left = imageCropRect.left.coerceIn(0f, flattened.width.toFloat())
-        val top = imageCropRect.top.coerceIn(0f, flattened.height.toFloat())
-        val right = imageCropRect.right.coerceIn(0f, flattened.width.toFloat())
-        val bottom = imageCropRect.bottom.coerceIn(0f, flattened.height.toFloat())
-
-        if (right <= left || bottom <= top) return null
-
-        try {
-            val croppedBitmap = Bitmap.createBitmap(
-                flattened,
-                left.toInt(),
-                top.toInt(),
-                (right - left).toInt(),
-                (bottom - top).toInt()
-            )
-
-            // STEP 4: Commit
-            baseBitmap = croppedBitmap
-            
-            // Since we baked strokes into the bitmap, clear the vector stack
-            strokeStack.clear()
-            redoStrokeStack.clear()
-            
-            cropRect.setEmpty()
-            resetTransform()
-            invalidate()
-            onCropApplied?.invoke(baseBitmap!!)
-            return baseBitmap
-
-        } catch (e: OutOfMemoryError) {
-            e.printStackTrace()
-            return null
-        }
-    }
-
-    // ==========================================
-    // 7. Adjustment Logic
-    // ==========================================
-
-    fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
-        this.brightness = brightness
-        this.contrast = contrast
-        this.saturation = saturation
-        updateColorFilter()
-        invalidate()
-    }
-
-    fun clearAdjustments() {
-        resetAdjustments()
-        invalidate()
-    }
-
-    fun resetAdjustments() {
-        this.brightness = 0f
-        this.contrast = 1f
-        this.saturation = 1f
-        imagePaint.colorFilter = null
-    }
-
-    fun applyAdjustmentsToBitmap(): Bitmap? {
-        if (baseBitmap == null) return null
-
-        // STEP 1: Checkpoint!
-        pushBitmapCheckpoint()
-
-        // STEP 2: Flatten (Bake strokes + Adjustments)
-        val result = getFinalBitmap()
-        
-        // STEP 3: Commit
-        baseBitmap = result
-        
-        // STEP 4: Reset UI
-        resetAdjustments()
-        strokeStack.clear() // Strokes are baked now
         redoStrokeStack.clear()
-        
-        invalidate()
-        return baseBitmap
     }
 
-    private fun updateColorFilter() {
-        val cm = ColorMatrix()
-        val trans = brightness + (1f - contrast) * 128f
-        cm.set(floatArrayOf(
-            contrast, 0f, 0f, 0f, trans,
-            0f, contrast, 0f, 0f, trans,
-            0f, 0f, contrast, 0f, trans,
-            0f, 0f, 0f, 1f, 0f
-        ))
-        cm.postConcat(ColorMatrix().apply { setSaturation(saturation) })
-        imagePaint.colorFilter = ColorMatrixColorFilter(cm)
-    }
-
-    // ==========================================
-    // 8. Helper / Touch / Math
-    // ==========================================
-
-    fun getFinalBitmap(): Bitmap? {
-        val source = baseBitmap ?: return null
-        
-        val result = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(result)
-        
-        // Draw Bitmap with Filter
-        val savePaint = Paint().apply {
-            colorFilter = imagePaint.colorFilter
-            isAntiAlias = true
-            isFilterBitmap = true
-        }
-        canvas.drawBitmap(source, 0f, 0f, savePaint)
-        
-        // Draw Strokes
-        for (stroke in strokeStack) {
-            paint.color = stroke.color
-            paint.strokeWidth = stroke.width
-            paint.alpha = stroke.alpha
-            paint.xfermode = stroke.xfermode
-            canvas.drawPath(stroke.path, paint)
-        }
-        
-        return result
-    }
-    
-    // Helper getters for MainActivity
-    fun getBaseBitmap(): Bitmap? = baseBitmap
-    fun getDrawing(): Bitmap? = getFinalBitmap()
-    fun getTransparentDrawingWithAdjustments(): Bitmap? = getFinalBitmap()
-    
-    fun getSketchDrawingOnWhite(): Bitmap? {
-        val b = getFinalBitmap() ?: return null
-        return convertTransparentToWhite(b)
-    }
-    
-    fun convertTransparentToWhite(bitmap: Bitmap): Bitmap {
-        val white = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
-        val c = Canvas(white)
-        c.drawColor(Color.WHITE)
-        c.drawBitmap(bitmap, 0f, 0f, null)
-        return white
-    }
-
-    private fun resetTransform() {
-        scaleFactor = 1.0f
-        translationX = 0f
-        translationY = 0f
-        updateImageMatrix()
-    }
-
-    // Touch Handling
+    // Touch Logic
     override fun onTouchEvent(event: MotionEvent): Boolean {
         lastPointerCount = event.pointerCount
         scaleGestureDetector.onTouchEvent(event)
@@ -497,7 +274,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             scaleFactor *= detector.scaleFactor
             scaleFactor = scaleFactor.coerceIn(1.0f, 5.0f)
             
-            // Zoom towards focus point
             val inv = Matrix()
             imageMatrix.invert(inv)
             val focus = floatArrayOf(detector.focusX, detector.focusY)
@@ -570,8 +346,66 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
         return true
     }
+
+    // Crop Logic
+    fun setCropMode(cropMode: CropMode) {
+        this.currentCropMode = cropMode
+        this.isCropModeActive = true
+        cropRect.setEmpty()
+        if (currentTool == ToolType.CROP) initializeDefaultCropRect()
+        invalidate()
+    }
+
+    fun cancelCrop() {
+        cropRect.setEmpty()
+        invalidate()
+        onCropCanceled?.invoke()
+    }
+
+    fun applyCrop(): Bitmap? {
+        if (baseBitmap == null || cropRect.isEmpty) return null
+
+        pushBitmapCheckpoint()
+
+        val flattened = getFinalBitmap() ?: return null
+
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        val imageCropRect = RectF()
+        inverseMatrix.mapRect(imageCropRect, cropRect)
+
+        val left = imageCropRect.left.coerceIn(0f, flattened.width.toFloat())
+        val top = imageCropRect.top.coerceIn(0f, flattened.height.toFloat())
+        val right = imageCropRect.right.coerceIn(0f, flattened.width.toFloat())
+        val bottom = imageCropRect.bottom.coerceIn(0f, flattened.height.toFloat())
+
+        if (right <= left || bottom <= top) return null
+
+        try {
+            val croppedBitmap = Bitmap.createBitmap(
+                flattened,
+                left.toInt(),
+                top.toInt(),
+                (right - left).toInt(),
+                (bottom - top).toInt()
+            )
+
+            baseBitmap = croppedBitmap
+            strokeStack.clear()
+            redoStrokeStack.clear()
+            
+            cropRect.setEmpty()
+            resetTransform()
+            invalidate()
+            onCropApplied?.invoke(baseBitmap!!)
+            return baseBitmap
+
+        } catch (e: OutOfMemoryError) {
+            e.printStackTrace()
+            return null
+        }
+    }
     
-    // CROP UI LOGIC (Restored from your request)
     private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
         return when (event.action) {
             MotionEvent.ACTION_DOWN -> {
@@ -630,7 +464,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
 
-    // --- Standard Crop Math (Simplified for brevity) ---
     private fun initializeDefaultCropRect() {
         val b = getVisibleImageBounds()
         if (b.width() <= 0) return
@@ -697,6 +530,98 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
+    // Adjustment Logic
+    fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
+        this.brightness = brightness
+        this.contrast = contrast
+        this.saturation = saturation
+        updateColorFilter()
+        invalidate()
+    }
+
+    fun clearAdjustments() {
+        resetAdjustments()
+        invalidate()
+    }
+
+    fun resetAdjustments() {
+        this.brightness = 0f
+        this.contrast = 1f
+        this.saturation = 1f
+        imagePaint.colorFilter = null
+    }
+
+    fun applyAdjustmentsToBitmap(): Bitmap? {
+        if (baseBitmap == null) return null
+
+        pushBitmapCheckpoint()
+
+        val result = getFinalBitmap()
+        baseBitmap = result
+        
+        resetAdjustments()
+        strokeStack.clear()
+        redoStrokeStack.clear()
+        
+        invalidate()
+        return baseBitmap
+    }
+
+    private fun updateColorFilter() {
+        val cm = ColorMatrix()
+        val trans = brightness + (1f - contrast) * 128f
+        cm.set(floatArrayOf(
+            contrast, 0f, 0f, 0f, trans,
+            0f, contrast, 0f, 0f, trans,
+            0f, 0f, contrast, 0f, trans,
+            0f, 0f, 0f, 1f, 0f
+        ))
+        cm.postConcat(ColorMatrix().apply { setSaturation(saturation) })
+        imagePaint.colorFilter = ColorMatrixColorFilter(cm)
+    }
+
+    // Helper Methods
+    fun getDrawing(): Bitmap? = getFinalBitmap()
+
+    fun getTransparentDrawingWithAdjustments(): Bitmap? = getFinalBitmap()
+    
+    fun getSketchDrawingOnWhite(): Bitmap? {
+        val b = getFinalBitmap() ?: return null
+        return convertTransparentToWhite(b)
+    }
+    
+    fun convertTransparentToWhite(bitmap: Bitmap): Bitmap {
+        val white = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        val c = Canvas(white)
+        c.drawColor(Color.WHITE)
+        c.drawBitmap(bitmap, 0f, 0f, null)
+        return white
+    }
+
+    fun getFinalBitmap(): Bitmap? {
+        val source = baseBitmap ?: return null
+        
+        val result = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(result)
+        
+        val savePaint = Paint().apply {
+            colorFilter = imagePaint.colorFilter
+            isAntiAlias = true
+            isFilterBitmap = true
+        }
+        canvas.drawBitmap(source, 0f, 0f, savePaint)
+        
+        for (stroke in strokeStack) {
+            paint.color = stroke.color
+            paint.strokeWidth = stroke.width
+            paint.alpha = stroke.alpha
+            paint.xfermode = stroke.xfermode
+            canvas.drawPath(stroke.path, paint)
+        }
+        
+        return result
+    }
+
     fun setToolType(toolType: ToolType) {
         this.currentTool = toolType
         if (toolType == ToolType.CROP && isCropModeActive) initializeDefaultCropRect()
@@ -732,6 +657,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             imageMatrix.mapRect(imageBounds)
             imageBounds.roundOut(checkerDrawable.bounds)
         }
+    }
+
+    private fun resetTransform() {
+        scaleFactor = 1.0f
+        translationX = 0f
+        translationY = 0f
+        updateImageMatrix()
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
