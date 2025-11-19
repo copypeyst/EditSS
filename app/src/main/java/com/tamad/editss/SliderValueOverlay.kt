@@ -3,14 +3,13 @@ package com.tamad.editss
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import android.widget.SeekBar
 import androidx.core.content.ContextCompat
-import kotlin.math.max
-import kotlin.math.min
 
 class SliderValueOverlay @JvmOverloads constructor(
     context: Context,
@@ -40,24 +39,24 @@ class SliderValueOverlay @JvmOverloads constructor(
         color = 0xFF212121.toInt() 
     }
 
-    // Paint for the text (Reduced to 10sp for compact look)
+    // Paint for the text
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFFFFFFF.toInt()
         textSize = spToPx(10f) 
         textAlign = Paint.Align.CENTER
     }
 
-    // Paint for the border/stroke (Reduced stroke width)
+    // Paint for the outline
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF03DAC5.toInt() 
-        strokeWidth = dpToPx(1f) 
+        strokeWidth = dpToPx(0.5f) 
         style = Paint.Style.STROKE
     }
 
-    // Drastically reduced dimensions
-    private val bubbleRadius = dpToPx(14f) // Smaller bubble
-    private val padding = dpToPx(8f)     // Less horizontal padding
-    private val cornerRadius = dpToPx(4f) // Tighter corners
+    private val horizontalPadding = dpToPx(4f) 
+    private val verticalPadding = dpToPx(4f)
+    
+    private val cornerRadius = dpToPx(4f) 
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -67,33 +66,32 @@ class SliderValueOverlay @JvmOverloads constructor(
             strokePaint.alpha = currentAlpha
             textPaint.alpha = currentAlpha
 
-            // Position Calculation:
-            // We draw the bubble ABOVE the thumb.
-            // thumbY is the center of the slider track.
+            val textWidth = textPaint.measureText(currentValue)
             
-            // Distance above the thumb center (Gap)
-            val gapAboveThumb = dpToPx(20f) 
+            val fontMetrics = textPaint.fontMetrics
 
-            val bubbleHeight = bubbleRadius * 2 // roughly 28dp height
+            val textHeight = fontMetrics.descent - fontMetrics.ascent 
+
+            val boxWidth = textWidth + (horizontalPadding * 2)
+            val boxHeight = textHeight + (verticalPadding * 2)
+
+            val gapAboveThumb = dpToPx(8f) // Distance from finger
             
             val bubbleBottom = thumbY - gapAboveThumb
-            val bubbleTop = bubbleBottom - bubbleHeight
+            val bubbleTop = bubbleBottom - boxHeight
             
-            // Horizontal centering
-            val bubbleLeft = thumbX - bubbleRadius - (padding / 2)
-            val bubbleRight = thumbX + bubbleRadius + (padding / 2)
+            val bubbleLeft = thumbX - (boxWidth / 2)
+            val bubbleRight = thumbX + (boxWidth / 2)
 
             val bubbleRect = RectF(bubbleLeft, bubbleTop, bubbleRight, bubbleBottom)
             
             canvas.drawRoundRect(bubbleRect, cornerRadius, cornerRadius, bubblePaint)
             canvas.drawRoundRect(bubbleRect, cornerRadius, cornerRadius, strokePaint)
 
-            // Center Text
-            val textHeight = textPaint.descent() - textPaint.ascent()
-            val textOffset = (textHeight / 2) - textPaint.descent()
             val bubbleCenterY = (bubbleTop + bubbleBottom) / 2
+            val textOffset = (textPaint.descent() + textPaint.ascent()) / 2
             
-            canvas.drawText(currentValue, thumbX, bubbleCenterY + textOffset, textPaint)
+            canvas.drawText(currentValue, thumbX, bubbleCenterY - textOffset, textPaint)
         }
     }
 
