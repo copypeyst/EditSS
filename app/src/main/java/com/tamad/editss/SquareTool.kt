@@ -20,7 +20,7 @@ class SquareTool : BaseDrawingTool() {
         currentPath.addRect(startX, startY, x, y, Path.Direction.CW)
     }
 
-    override fun onTouchUp(path: Path, paint: Paint): DrawAction {
-        return DrawAction(path, paint)
+    override fun onTouchUp(path: Path, paint: Paint): DrawingAction {
+        return DrawingAction(path, paint)
     }
 }

@@ -6,7 +6,7 @@ import android.graphics.Path
 import android.view.MotionEvent
 
 interface DrawingTool {
-    fun onTouchEvent(event: MotionEvent, paint: Paint): DrawAction?
+    fun onTouchEvent(event: MotionEvent, paint: Paint): DrawingAction?
     fun onDraw(canvas: Canvas, paint: Paint)
 }
 
@@ -16,7 +16,7 @@ abstract class BaseDrawingTool : DrawingTool {
     protected var startX = 0f
     protected var startY = 0f
 
-    override fun onTouchEvent(event: MotionEvent, paint: Paint): DrawAction? {
+    override fun onTouchEvent(event: MotionEvent, paint: Paint): DrawingAction? {
         val x = event.x
         val y = event.y
 
@@ -56,5 +56,5 @@ abstract class BaseDrawingTool : DrawingTool {
 
     protected abstract fun onTouchDown(x: Float, y: Float)
     protected abstract fun onTouchMove(x: Float, y: Float)
-    protected abstract fun onTouchUp(path: Path, paint: Paint): DrawAction
+    protected abstract fun onTouchUp(path: Path, paint: Paint): DrawingAction
 }

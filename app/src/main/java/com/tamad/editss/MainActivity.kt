@@ -221,7 +221,6 @@ class MainActivity : AppCompatActivity() {
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         
         drawingView = findViewById(R.id.drawing_view)
-        drawingView.setViewModel(editViewModel)
 
         // Back Button Handling
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -692,6 +691,21 @@ class MainActivity : AppCompatActivity() {
 
         updateDrawModeSelection(drawModePen)
 
+        // Canvas View Callbacks
+        drawingView.onUndoAction = {
+            val undoneBitmap = drawingView.undo()
+            if (undoneBitmap != null) editViewModel.clearAllActions()
+        }
+
+        drawingView.onRedoAction = {
+            val redoneBitmap = drawingView.redo()
+            if (redoneBitmap != null) editViewModel.clearAllActions()
+        }
+
+        drawingView.onBitmapChanged = { editAction ->
+            editViewModel.pushBitmapChangeAction(editAction)
+        }
+
         // ViewModel Observation
         lifecycleScope.launch {
             editViewModel.drawingState.collect { state ->
@@ -704,9 +718,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            editViewModel.actions.collect {
-                buttonUndo.isEnabled = drawingView.canUndo()
-                buttonRedo.isEnabled = drawingView.canRedo()
+            editViewModel.undoStack.collect { actions ->
             }
         }
 
@@ -718,11 +730,17 @@ class MainActivity : AppCompatActivity() {
 
         // Undo/Redo Buttons
         buttonUndo.setOnClickListener {
-            drawingView.undo()
+            val undoneBitmap = drawingView.undo()
+            if (undoneBitmap != null) {
+                editViewModel.clearAllActions()
+            }
         }
 
         buttonRedo.setOnClickListener {
-            drawingView.redo()
+            val redoneBitmap = drawingView.redo()
+            if (redoneBitmap != null) {
+                editViewModel.clearAllActions()
+            }
         }
 
         cropModeFreeform.isSelected = true
@@ -1488,8 +1506,15 @@ class MainActivity : AppCompatActivity() {
         val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
         val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
         
-        drawingView.applyAdjustmentsToBitmap()
-        showCustomToast(getString(R.string.adjustment_applied))
+        val previousBitmap = drawingView.getBaseBitmap()
+        val newBitmap = drawingView.applyAdjustmentsToBitmap()
+
+        if (previousBitmap != null && newBitmap != null) {
+            val action = AdjustAction(previousBitmap, newBitmap)
+            editViewModel.pushAdjustAction(action)
+            drawingView.setBitmap(newBitmap)
+            showCustomToast(getString(R.string.adjustment_applied))
+        }
 
         editViewModel.resetAdjustments()
         brightnessSlider.progress = 100
