@@ -9,6 +9,7 @@ import android.view.View
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
+import java.util.concurrent.Executors // Import added
 import kotlinx.coroutines.*
 import android.os.Build
 
@@ -35,7 +36,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
 
-    private val saveScope = CoroutineScope(Dispatchers.IO + Job())
+    private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    private val saveScope = CoroutineScope(saveDispatcher + Job())
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
@@ -164,7 +166,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun cleanupHistoryStorage() {
         val maxCount = 20
-        val maxSizeBytes = 500 * 1024 * 1024 // 500MB
+        val maxSizeBytes = 500 * 1024 * 1024
 
         saveScope.launch {
             withContext(NonCancellable) {
@@ -249,6 +251,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         saveScope.cancel()
+        saveDispatcher.close()
     }
 
     // --- Bitmap Handling ---
