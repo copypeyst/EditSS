@@ -46,8 +46,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
-import androidx.activity.OnBackPressedCallback // Added for back button handling
+import androidx.activity.OnBackPressedCallback 
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.activity.viewModels // FIX: Required for correct ViewModel lifecycle
 
 enum class ImageOrigin {
     IMPORTED_READONLY,
@@ -103,8 +104,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var deleteRequestLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.IntentSenderRequest>
     private var pendingOverwriteUri: Uri? = null
 
-    // Drawing tools ViewModel for shared state
-    private lateinit var editViewModel: EditViewModel
+    // FIX: Initialize ViewModel safely using 'by viewModels()' delegate so it survives rotation
+    private val editViewModel: EditViewModel by viewModels()
     
     // Drawing-related UI elements
     private lateinit var drawingView: CanvasView
@@ -181,7 +182,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 1. CLEANUP: Remove old undo files from previous sessions to prevent storage bloat
+        // 1. CLEANUP: Remove old undo files from previous sessions
         cleanupOldCacheFiles()
 
         // Initialize the Mobile Ads SDK
@@ -192,8 +193,7 @@ class MainActivity : AppCompatActivity() {
         val adRequest = AdRequest.Builder().build()
         adView.loadAd(adRequest)
 
-        // Initialize ViewModel for shared drawing state
-        editViewModel = EditViewModel()
+        // FIX: Removed manual initialization of editViewModel here, handled by 'by viewModels()'
 
         // Find UI elements
         rootLayout = findViewById(R.id.root_layout)
@@ -237,11 +237,9 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (savePanel.visibility == View.VISIBLE) {
-                    // If save panel is open, just close it
                     savePanel.visibility = View.GONE
                     scrim.visibility = View.GONE
-                } else if (drawingView.hasUnsavedChanges()) {
-                    // If user has unsaved changes, warn them
+                } else if (drawingView.hasUnsaved changes()) {
                     AlertDialog.Builder(this@MainActivity, R.style.AlertDialog_EditSS)
                         .setTitle(getString(R.string.discard_changes_title))
                         .setMessage(getString(R.string.discard_changes_message))
@@ -251,14 +249,13 @@ class MainActivity : AppCompatActivity() {
                         .setNegativeButton(getString(R.string.cancel), null)
                         .show()
                 } else {
-                    // Default behavior (close app)
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
                 }
             }
         })
 
-        // Initialize sliders with a max of 99 for 100 steps (0-99)
+        // Initialize sliders
         val defaultSize = 24
         val defaultOpacity = 99
         drawSizeSlider.max = 99
@@ -279,24 +276,20 @@ class MainActivity : AppCompatActivity() {
                                                currentAdjustState.saturation != 1f
                 
                 if (hasUnappliedAdjustments) {
-                    // Show dialog asking to apply adjustments
                     AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
                         .setTitle(getString(R.string.apply_adjustments_title))
                         .setMessage(getString(R.string.apply_adjustments_message))
                         .setPositiveButton(getString(R.string.apply_adjustments)) { dialog, _ ->
-                            // Apply adjustments first
                             applyAdjustmentsAndShowSavePanel()
                             dialog.dismiss()
                         }
                         .setNegativeButton(getString(R.string.ignore)) { dialog, _ ->
-                            // Just show the save panel
                             savePanel.visibility = View.VISIBLE
                             scrim.visibility = View.VISIBLE
                             dialog.dismiss()
                         }
                         .show()
                 } else {
-                    // No unapplied adjustments, show save panel directly
                     savePanel.visibility = View.VISIBLE
                     scrim.visibility = View.VISIBLE
                 }
@@ -366,12 +359,11 @@ class MainActivity : AppCompatActivity() {
             drawOptionsLayout.visibility = View.VISIBLE
             cropOptionsLayout.visibility = View.GONE
             adjustOptionsLayout.visibility = View.GONE
-            savePanel.visibility = View.GONE // Hide save panel
-            drawingView.visibility = View.VISIBLE // Show drawing view
-            drawingView.setToolType(CanvasView.ToolType.DRAW) // Set draw mode
-            drawingView.setCropModeInactive() // Clear crop mode active state
+            savePanel.visibility = View.GONE
+            drawingView.visibility = View.VISIBLE
+            drawingView.setToolType(CanvasView.ToolType.DRAW)
+            drawingView.setCropModeInactive()
             
-            // Clear adjustments when switching away from Adjust mode
             if (currentActiveTool == toolAdjust) {
                 drawingView.clearAdjustments()
             }
@@ -385,11 +377,10 @@ class MainActivity : AppCompatActivity() {
             cropOptionsLayout.visibility = View.VISIBLE
             drawOptionsLayout.visibility = View.GONE
             adjustOptionsLayout.visibility = View.GONE
-            savePanel.visibility = View.GONE // Hide save panel
-            drawingView.visibility = View.VISIBLE // Keep drawing view visible for cropping
-            drawingView.setToolType(CanvasView.ToolType.CROP) // Set crop mode
+            savePanel.visibility = View.GONE
+            drawingView.visibility = View.VISIBLE
+            drawingView.setToolType(CanvasView.ToolType.CROP)
             
-            // Clear adjustments when switching away from Adjust mode
             if (currentActiveTool == toolAdjust) {
                 drawingView.clearAdjustments()
             }
@@ -418,40 +409,29 @@ class MainActivity : AppCompatActivity() {
             adjustOptionsLayout.visibility = View.VISIBLE
             drawOptionsLayout.visibility = View.GONE
             cropOptionsLayout.visibility = View.GONE
-            savePanel.visibility = View.GONE // Hide save panel
-            drawingView.visibility = View.VISIBLE // Show drawing view
-            drawingView.setToolType(CanvasView.ToolType.ADJUST) // Set tool type
-            drawingView.setCropModeInactive() // Clear crop mode active state
+            savePanel.visibility = View.GONE
+            drawingView.visibility = View.VISIBLE
+            drawingView.setToolType(CanvasView.ToolType.ADJUST)
+            drawingView.setCropModeInactive()
             currentActiveTool?.isSelected = false
             toolAdjust.isSelected = true
             currentActiveTool = toolAdjust
             
-            // Re-apply adjustments when switching back to Adjust mode
             val currentAdjustState = editViewModel.adjustState.value
             drawingView.setAdjustments(currentAdjustState.brightness, currentAdjustState.contrast, currentAdjustState.saturation)
         }
 
-        // Initialize Save Panel buttons
+        // Save Panel buttons
         val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
         
-        // Save button click handlers
-        buttonSaveCopy.setOnClickListener {
-            saveImageAsCopy()
-        }
-        
-        buttonOverwrite.setOnClickListener {
-            overwriteCurrentImage()
-        }
+        buttonSaveCopy.setOnClickListener { saveImageAsCopy() }
+        buttonOverwrite.setOnClickListener { overwriteCurrentImage() }
 
         val touchListener = View.OnTouchListener { v, event ->
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    v.alpha = 0.5f
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    v.alpha = 1.0f
-                }
+                MotionEvent.ACTION_DOWN -> v.alpha = 0.5f
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> v.alpha = 1.0f
             }
             false
         }
@@ -459,7 +439,7 @@ class MainActivity : AppCompatActivity() {
         buttonSaveCopy.setOnTouchListener(touchListener)
         buttonOverwrite.setOnTouchListener(touchListener)
         
-        // Format selection handling
+        // Format selection
         val radioJPG: RadioButton = findViewById(R.id.radio_jpg)
         val radioPNG: RadioButton = findViewById(R.id.radio_png)
         val radioWEBP: RadioButton = findViewById(R.id.radio_webp)
@@ -480,7 +460,7 @@ class MainActivity : AppCompatActivity() {
             updateSaveButtonsState()
         }
 
-        // Initialize Draw Options
+        // Draw Options
         val drawModePen: ImageView = findViewById(R.id.draw_mode_pen)
         val drawModeCircle: ImageView = findViewById(R.id.draw_mode_circle)
         val drawModeSquare: ImageView = findViewById(R.id.draw_mode_square)
@@ -498,15 +478,12 @@ class MainActivity : AppCompatActivity() {
             updateDrawModeSelection(drawModeSquare)
         }
         
-        // Initialize slider listeners for shared drawing state
+        // Sliders
         drawSizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-99) to size (1-100)
                     val size = (progress + 1).toFloat()
                     editViewModel.updateDrawingSize(size)
-                    
-                    // Show overlay with value
                     drawSizeOverlay.updateFromSlider(seekBar!!, progress, "${progress + 1}")
                 }
             }
@@ -523,11 +500,8 @@ class MainActivity : AppCompatActivity() {
         drawOpacitySlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-99) to opacity percentage (1-100)
                     val opacity = progress + 1
                     editViewModel.updateDrawingOpacity(opacity)
-                    
-                    // Show overlay with percentage value
                     drawOpacityOverlay.updateFromSlider(seekBar!!, progress, "${opacity}%")
                 }
             }
@@ -542,7 +516,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // Initialize Crop Options
+        // Crop Options
         cropModeFreeform = findViewById(R.id.crop_mode_freeform)
         cropModeSquare = findViewById(R.id.crop_mode_square)
         cropModePortrait = findViewById(R.id.crop_mode_portrait)
@@ -573,10 +547,8 @@ class MainActivity : AppCompatActivity() {
             drawingView.setCropMode(CropMode.LANDSCAPE)
         }
 
-        // Set default crop mode
         drawingView.setCropMode(CropMode.FREEFORM)
 
-        // Setup crop apply/cancel button handlers
         val buttonCropApply: Button = findViewById(R.id.button_crop_apply)
         val buttonCropCancel: Button = findViewById(R.id.button_crop_cancel)
 
@@ -597,7 +569,6 @@ class MainActivity : AppCompatActivity() {
             drawingView.setCropModeInactive()
         }
 
-        // Set callbacks for crop operations to update UI
         drawingView.onCropApplied = { _ ->
             currentCropMode?.isSelected = false
             currentCropMode = null
@@ -608,19 +579,17 @@ class MainActivity : AppCompatActivity() {
             currentCropMode = null
         }
 
-        // Initialize Adjust Options
+        // Adjust Options
         val brightnessSlider: SeekBar = findViewById(R.id.adjust_brightness_slider)
         val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
         val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
         val buttonAdjustApply: Button = findViewById(R.id.button_adjust_apply)
         val buttonAdjustCancel: Button = findViewById(R.id.button_adjust_cancel)
         
-        // Set slider max to 200 for 201 steps (0-200) to allow -100 to +100
         brightnessSlider.max = 200
         contrastSlider.max = 200
         saturationSlider.max = 200
         
-        // Set sliders to the middle (100) by default
         brightnessSlider.progress = 100
         contrastSlider.progress = 100
         saturationSlider.progress = 100
@@ -628,11 +597,8 @@ class MainActivity : AppCompatActivity() {
         brightnessSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-200) to brightness value (-100 to 100)
                     val value = progress - 100
                     editViewModel.updateBrightness(value.toFloat())
-                    
-                    // Show overlay with value
                     val displayValue = if (value > 0) "+$value" else "$value"
                     brightnessOverlay.updateFromSlider(seekBar!!, progress, displayValue)
                 }
@@ -652,12 +618,9 @@ class MainActivity : AppCompatActivity() {
         contrastSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-200) to contrast value (-100 to 100), then convert to 0.0-2.0
-                    val rawValue = progress - 100  // -100 to +100
-                    val normalizedValue = (rawValue + 100) / 100f  // 0.0 to 2.0
+                    val rawValue = progress - 100
+                    val normalizedValue = (rawValue + 100) / 100f
                     editViewModel.updateContrast(normalizedValue)
-                    
-                    // Show overlay with value (-100 to +100)
                     val displayValue = if (rawValue > 0) "+$rawValue" else "$rawValue"
                     contrastOverlay.updateFromSlider(seekBar!!, progress, displayValue)
                 }
@@ -677,12 +640,9 @@ class MainActivity : AppCompatActivity() {
         saturationSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // Map progress (0-200) to saturation value (-100 to 100), then convert to 0.0-2.0
-                    val rawValue = progress - 100  // -100 to +100
-                    val normalizedValue = (rawValue + 100) / 100f  // 0.0 to 2.0
+                    val rawValue = progress - 100
+                    val normalizedValue = (rawValue + 100) / 100f
                     editViewModel.updateSaturation(normalizedValue)
-                    
-                    // Show overlay with value (-100 to +100)
                     val displayValue = if (rawValue > 0) "+$rawValue" else "$rawValue"
                     saturationOverlay.updateFromSlider(seekBar!!, progress, displayValue)
                 }
@@ -717,7 +677,7 @@ class MainActivity : AppCompatActivity() {
             saturationSlider.progress = 100
         }
 
-        // Color Swatches Logic
+        // Color Swatches
         val colorBlackContainer: FrameLayout = findViewById(R.id.color_black_container)
         val colorWhiteContainer: FrameLayout = findViewById(R.id.color_white_container)
         val colorRedContainer: FrameLayout = findViewById(R.id.color_red_container)
@@ -727,7 +687,6 @@ class MainActivity : AppCompatActivity() {
         val colorOrangeContainer: FrameLayout = findViewById(R.id.color_orange_container)
         val colorPinkContainer: FrameLayout = findViewById(R.id.color_pink_container)
 
-        // Map color values to their corresponding UI container
         val colorSwatchMap = mapOf(
             android.graphics.Color.BLACK to colorBlackContainer,
             android.graphics.Color.WHITE to colorWhiteContainer,
@@ -739,43 +698,37 @@ class MainActivity : AppCompatActivity() {
             android.graphics.Color.rgb(255, 192, 203) to colorPinkContainer
         )
 
-        // When a swatch is clicked, just update the ViewModel
         val colorClickListener = View.OnClickListener { v ->
             val clickedColor = colorSwatchMap.entries.find { it.value == v }?.key
             clickedColor?.let { editViewModel.updateDrawingColor(it) }
         }
         colorSwatchMap.values.forEach { it.setOnClickListener(colorClickListener) }
 
-        // Set default selections
         updateDrawModeSelection(drawModePen)
 
-        // Connect simple undo/redo to CanvasView - MS Paint style
+        // CanvasView callbacks
         drawingView.onUndoAction = {
-            val undoneBitmap = drawingView.undo()
-            if (undoneBitmap != null) {
-                editViewModel.clearAllActions()
+            lifecycleScope.launch {
+                val undoneBitmap = drawingView.undo()
+                if (undoneBitmap != null) editViewModel.clearAllActions()
             }
         }
 
         drawingView.onRedoAction = {
-            val redoneBitmap = drawingView.redo()
-            if (redoneBitmap != null) {
-                editViewModel.clearAllActions()
+            lifecycleScope.launch {
+                val redoneBitmap = drawingView.redo()
+                if (redoneBitmap != null) editViewModel.clearAllActions()
             }
         }
 
-        // Connect bitmap changes (drawing and crop operations) to ViewModel
         drawingView.onBitmapChanged = { editAction ->
             editViewModel.pushBitmapChangeAction(editAction)
         }
 
-        // Observe the drawing state from the ViewModel and update the UI accordingly
+        // ViewModel Observations
         lifecycleScope.launch {
             editViewModel.drawingState.collect { state ->
-                // Update the drawing view with the latest state
                 drawingView.setDrawingState(state)
-
-                // Update the visual selection of the color swatches
                 colorSwatchMap.forEach { (color, container) ->
                     val border = container.findViewWithTag<View>("border")
                     border?.visibility = if (color == state.color) View.VISIBLE else View.GONE
@@ -794,25 +747,36 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 3. FIX: Removed redundant ViewModel clearing calls.
-        // Since we are using CanvasView's history, we just call undo/redo directly.
+        // FIX: Updated Undo/Redo to use coroutines (fixes lag)
         buttonUndo.setOnClickListener {
-            drawingView.undo()
+            lifecycleScope.launch {
+                showLoadingSpinner()
+                val undoneBitmap = drawingView.undo()
+                if (undoneBitmap != null) {
+                    editViewModel.clearAllActions()
+                }
+                hideLoadingSpinner()
+            }
         }
 
         buttonRedo.setOnClickListener {
-            drawingView.redo()
+            lifecycleScope.launch {
+                showLoadingSpinner()
+                val redoneBitmap = drawingView.redo()
+                if (redoneBitmap != null) {
+                    editViewModel.clearAllActions()
+                }
+                hideLoadingSpinner()
+            }
         }
 
         cropModeFreeform.isSelected = true
         currentCropMode = cropModeFreeform
 
-        // Set draw as default active tool
         toolDraw.isSelected = true
         currentActiveTool = toolDraw
         drawOptionsLayout.visibility = View.VISIBLE
         
-        // Handle incoming intents
         handleIntent(intent)
 
         drawingView.doOnLayout { view ->
@@ -821,24 +785,20 @@ class MainActivity : AppCompatActivity() {
                 val width = view.width
                 val height = view.height
                 
-                // Create a mutable transparent bitmap for sketch mode
                 val transparentBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                 val canvas = android.graphics.Canvas(transparentBitmap)
                 canvas.drawColor(android.graphics.Color.TRANSPARENT)
                 
-                // Set it as the base for the drawing view
                 drawingView.setBitmap(transparentBitmap)
-                drawingView.setSketchMode(true) // Enable sketch mode for transparency
+                drawingView.setSketchMode(true) 
                 
-                // Create a dummy ImageInfo for sketch mode
                 currentImageInfo = ImageInfo(
                     uri = Uri.EMPTY,
                     origin = ImageOrigin.EDITED_INTERNAL,
                     canOverwrite = false,
-                    originalMimeType = "image/jpeg" // Default to JPEG for sketch mode
+                    originalMimeType = "image/jpeg" 
                 )
                 
-                // Set JPEG as the selected format for sketch mode
                 selectedSaveFormat = "image/jpeg"
                 updateFormatSelectionUI()
                 updateSavePanelUI()
@@ -871,10 +831,7 @@ class MainActivity : AppCompatActivity() {
                 val undoFiles = cacheFiles?.filter { 
                     it.name.startsWith("undo_") && it.name.endsWith(".png") 
                 }
-                
                 undoFiles?.forEach { file ->
-                    // Delete if it's older than 24 hours or just indiscriminately clear all on startup
-                    // Since this is onCreate, these are likely from a previous session/crash
                     file.delete()
                 }
             } catch (e: Exception) {
@@ -883,7 +840,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Implement sharing functionality
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: return
 
@@ -903,7 +859,6 @@ class MainActivity : AppCompatActivity() {
                                 compressBitmapToStream(bitmapToShare, outputStream, selectedSaveFormat)
                             }
 
-                            // Schedule cleanup for the temp file
                             lifecycleScope.launch {
                                 delay(300_000) // 5 minutes
                                 tempFile.delete()
@@ -936,7 +891,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Helper function to get file extension from MIME type
     private fun getExtensionFromMimeType(mimeType: String): String {
         return when (mimeType) {
             "image/jpeg" -> "jpg"
@@ -948,7 +902,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Check if permissions are revoked mid-session
         checkPermissionRevocation()
     }
 
@@ -960,21 +913,17 @@ class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent) {
         when (intent.action) {
             Intent.ACTION_VIEW, Intent.ACTION_EDIT -> {
-                // Check if this is a single image or multiple images
                 val clipData = intent.clipData
                 if (clipData != null) {
                     val itemCount = clipData.itemCount
                     if (itemCount > 1) {
-                        // Multiple images - reject for safety
                         return
                     }
-                    // Single image from clip data
                     val item = clipData.getItemAt(0)
                     item?.uri?.let { uri ->
                         loadImageFromUri(uri, Intent.ACTION_EDIT == intent.action)
                     }
                 } else {
-                    // Single image from data URI
                     intent.data?.let { uri ->
                         loadImageFromUri(uri, Intent.ACTION_EDIT == intent.action)
                     }
@@ -985,17 +934,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun captureImageFromCamera() {
         try {
-            // Create private file in app's external files directory
             val imageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
             if (imageDir == null) {
                 showCustomToast(getString(R.string.cannot_access_storage))
                 return
             }
-            
-            // Ensure directory exists
             imageDir.mkdirs()
             
-            // Create private file
             val fileName = "camera_temp_${System.currentTimeMillis()}.jpg"
             val privateFile = File(imageDir, fileName)
             
@@ -1006,7 +951,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             
-            // Launch camera with private file URI
             val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             val photoURI = androidx.core.content.FileProvider.getUriForFile(
                 this,
@@ -1017,10 +961,8 @@ class MainActivity : AppCompatActivity() {
             intent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
             intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
             
-            // Store the private file for handling result
             currentCameraUri = photoURI
             
-            // Start camera activity
             cameraCaptureLauncher.launch(intent)
             
         } catch (e: Exception) {
@@ -1028,7 +970,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Simple Coil-based image loading
     private fun loadImageFromUri(uri: android.net.Uri, isEdit: Boolean) {
         if (isImageLoading) return
         isImageLoading = true
@@ -1043,7 +984,7 @@ class MainActivity : AppCompatActivity() {
                 val request = ImageRequest.Builder(this@MainActivity)
                     .data(uri)
                     .size(coil.size.Size.ORIGINAL)
-                    .lifecycle(this@MainActivity) // Make Coil lifecycle-aware
+                    .lifecycle(this@MainActivity) 
                     .build()
 
                 val result = imageLoader.execute(request)
@@ -1082,11 +1023,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Centralized failure handling
     private fun handleImageLoadFailure(errorMessage: String) {
         runOnUiThread {
             try {
-                // Clear canvas on failed load
                 drawingView.setBitmap(null)
                 drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 showCustomToast(getString(R.string.could_not_load_image, errorMessage))
@@ -1096,13 +1035,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Helper method to clean up private camera files
     private fun cleanupCameraFile(uri: Uri) {
         try {
-            // Get the actual file path from the FileProvider URI
             val path = uri.path
             if (path != null && path.contains("camera_temp_")) {
-                // This is our private file, delete it
                 val file = File(path)
                 if (file.exists()) {
                     file.delete()
@@ -1111,15 +1047,12 @@ class MainActivity : AppCompatActivity() {
                 try {
                     contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 } catch (e: Exception) {
-                    // Ignore cleanup errors
                 }
             }
         } catch (e: Exception) {
-            // Ignore cleanup errors
         }
     }
     
-    // Helper method to determine image origin
     private fun determineImageOrigin(uri: Uri): ImageOrigin {
         val isPersistedWritable = contentResolver.persistedUriPermissions.any {
             it.uri == uri && it.isWritePermission
@@ -1132,12 +1065,11 @@ class MainActivity : AppCompatActivity() {
             uri.toString().contains("media") -> {
                 if (hasImagePermission()) ImageOrigin.IMPORTED_WRITABLE else ImageOrigin.IMPORTED_READONLY
             }
-            uri.toString().contains("camera") -> ImageOrigin.CAMERA_CAPTURED // Legacy support
+            uri.toString().contains("camera") -> ImageOrigin.CAMERA_CAPTURED 
             else -> ImageOrigin.IMPORTED_READONLY
         }
     }
     
-    // Helper method to determine canOverwrite flag
     private fun determineCanOverwrite(origin: ImageOrigin): Boolean {
         return when (origin) {
             ImageOrigin.CAMERA_CAPTURED, ImageOrigin.EDITED_INTERNAL -> true
@@ -1146,7 +1078,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Loading overlay functions
     private fun showLoadingSpinner() {
         overlayContainer.visibility = View.VISIBLE
         disableAllInteractiveElements(true)
@@ -1158,7 +1089,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun disableAllInteractiveElements(disabled: Boolean) {
-        // Disable main action buttons
         findViewById<ImageView>(R.id.button_import)?.isEnabled = !disabled
         findViewById<ImageView>(R.id.button_camera)?.isEnabled = !disabled
         findViewById<ImageView>(R.id.button_undo)?.isEnabled = !disabled
@@ -1166,28 +1096,23 @@ class MainActivity : AppCompatActivity() {
         findViewById<ImageView>(R.id.button_share)?.isEnabled = !disabled
         findViewById<ImageView>(R.id.button_save)?.isEnabled = !disabled
         
-        // Disable tool buttons
         findViewById<ImageView>(R.id.tool_draw)?.isEnabled = !disabled
         findViewById<ImageView>(R.id.tool_crop)?.isEnabled = !disabled
         findViewById<ImageView>(R.id.tool_adjust)?.isEnabled = !disabled
         
-        // Disable save panel if visible
         if (savePanel.visibility == View.VISIBLE) {
             savePanel.isEnabled = !disabled
         }
         
-        // Disable tool options if visible
         if (toolOptionsLayout.visibility == View.VISIBLE) {
             toolOptionsLayout.isEnabled = !disabled
         }
     }
 
-    // Permission checking methods
     private fun hasImagePermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
         } else {
-            // Android 10-12: No permission needed for MediaStore API
             true
         }
     }
@@ -1196,12 +1121,10 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES)
         } else {
-            // Android 10-12: No permission request needed, proceed directly
             openImagePicker()
         }
     }
 
-    // Photo picker logic - Modern implementation using Photo Picker
     private fun openImagePicker() {
         try {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -1214,7 +1137,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Permission denied dialog
     private fun showPermissionDeniedDialog() {
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.permission_required))
@@ -1225,7 +1147,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // Detect permission revocation mid-session and prompt user
     private fun checkPermissionRevocation() {
         val wasOverwriteAvailable = currentImageInfo?.canOverwrite ?: false
         
@@ -1245,7 +1166,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Update save panel UI based on image origin and canOverwrite flag
     private fun updateSavePanelUI() {
         updateSaveButtonsState() 
         updateSaveButtonText()
@@ -1257,7 +1177,6 @@ class MainActivity : AppCompatActivity() {
         currentDrawMode = selectedMode
     }
     
-    // Update save button text based on image origin (camera vs import)
     private fun updateSaveButtonText() {
         val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
         
