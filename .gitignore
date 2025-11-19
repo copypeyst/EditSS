@@ -47,3 +47,6 @@ platform-tools/
 .claude/
 screenshots/
 HISTORY.md
+codes.md
+
+AndroidManifest.xml
