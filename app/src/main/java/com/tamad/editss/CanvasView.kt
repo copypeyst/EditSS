@@ -9,10 +9,8 @@ import android.view.View
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
-import java.util.concurrent.Executors
 import kotlinx.coroutines.*
 import android.os.Build
-import android.widget.Toast
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -37,7 +35,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
 
-    private val saveScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher() + Job())
+    private val saveScope = CoroutineScope(Dispatchers.IO + Job())
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
@@ -110,31 +108,38 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun saveCurrentState() {
         val originalBitmap = baseBitmap ?: return
 
-        val bitmapToSave = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        try {
+            val bitmapToSave = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
-        saveScope.launch {
-            try {
-                val fileName = "undo_${System.currentTimeMillis()}_${UUID.randomUUID()}.webp"
-                val file = File(context.cacheDir, fileName)
-
-                FileOutputStream(file).use { out ->
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        bitmapToSave.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 100, out)
+            saveScope.launch {
+                try {
+                    val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        Bitmap.CompressFormat.WEBP_LOSSLESS
                     } else {
-                        bitmapToSave.compress(Bitmap.CompressFormat.WEBP, 100, out)
+                        Bitmap.CompressFormat.PNG
                     }
-                }
+                    
+                    val extension = if (compressFormat == Bitmap.CompressFormat.PNG) "png" else "webp"
+                    val fileName = "undo_${System.currentTimeMillis()}_${UUID.randomUUID()}.$extension"
+                    val file = File(context.cacheDir, fileName)
 
-                val newPath = file.absolutePath
+                    FileOutputStream(file).use { out ->
+                        bitmapToSave.compress(compressFormat, 100, out)
+                    }
 
-                post {
-                    updateHistoryList(newPath)
+                    val newPath = file.absolutePath
+
+                    post {
+                        updateHistoryList(newPath)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    bitmapToSave.recycle()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                bitmapToSave.recycle()
             }
+        } catch (e: OutOfMemoryError) {
+            e.printStackTrace()
         }
     }
 
@@ -145,20 +150,53 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             subList.clear()
 
             saveScope.launch {
-                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
+                withContext(NonCancellable) {
+                    pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
+                }
             }
         }
 
         historyPaths.add(newPath)
         currentHistoryIndex = historyPaths.size - 1
 
-        // Limit history size
-        if (historyPaths.size > 20) {
-            val oldPath = historyPaths.removeAt(0)
-            saveScope.launch { try { File(oldPath).delete() } catch(e: Exception){} }
+        cleanupHistoryStorage()
+    }
 
-            currentHistoryIndex = historyPaths.size - 1
-            if (savedHistoryIndex >= 0) savedHistoryIndex--
+    private fun cleanupHistoryStorage() {
+        val maxCount = 20
+        val maxSizeBytes = 500 * 1024 * 1024 // 500MB
+
+        saveScope.launch {
+            withContext(NonCancellable) {
+                var deletedAny = false
+                
+                while (historyPaths.size > maxCount) {
+                    val oldPath = historyPaths.removeAt(0)
+                    try { File(oldPath).delete() } catch (e: Exception) {}
+                    deletedAny = true
+                }
+
+                var currentSize = historyPaths.sumOf { File(it).length() }
+                while (currentSize > maxSizeBytes && historyPaths.size > 1) {
+                    val oldPath = historyPaths.removeAt(0)
+                    val file = File(oldPath)
+                    val fileSize = file.length()
+                    try { file.delete() } catch (e: Exception) {}
+                    currentSize -= fileSize
+                    deletedAny = true
+                }
+
+                if (deletedAny) {
+                    post {
+                        currentHistoryIndex = historyPaths.size - 1
+                        if (savedHistoryIndex >= 0) {
+                            if (savedHistoryIndex > currentHistoryIndex) {
+                                savedHistoryIndex = -1
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -202,7 +240,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         savedHistoryIndex = -1
 
         saveScope.launch {
-            pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
+            withContext(NonCancellable) {
+                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
+            }
         }
     }
 
@@ -272,7 +312,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
 
             if (it.hasAlpha() && !isSketchMode) {
-                imageBounds.roundOut(checkerDrawable.bounds)
                 checkerDrawable.draw(canvas)
             }
 
@@ -637,7 +676,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
             return baseBitmap
         } catch (e: OutOfMemoryError) {
-            Toast.makeText(context, R.string.out_of_memory_error, Toast.LENGTH_SHORT).show()
+            e.printStackTrace()
             return null
         }
     }
@@ -1037,6 +1076,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             imageMatrix.postTranslate(baseDx + translationX, baseDy + translationY)
             imageBounds.set(0f, 0f, bitmapWidth, bitmapHeight)
             imageMatrix.mapRect(imageBounds)
+            
+            imageBounds.roundOut(checkerDrawable.bounds)
         }
     }
 }

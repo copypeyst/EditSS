@@ -68,7 +68,7 @@ data class ImageInfo(
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        private const val PERMISSION_REQUEST_CODE = 100
+    private const val PERMISSION_REQUEST_CODE = 100
     }
 
     // UI Variables
@@ -86,12 +86,12 @@ class MainActivity : AppCompatActivity() {
     private var currentActiveTool: ImageView? = null
     private var currentCropMode: View? = null
     private var currentDrawMode: ImageView? = null
-    
+
     private lateinit var cropModeFreeform: View
     private lateinit var cropModeSquare: View
     private lateinit var cropModePortrait: View
     private lateinit var cropModeLandscape: View
-    
+
     // Image State
     private var currentImageInfo: ImageInfo? = null
     private var selectedSaveFormat: String = "image/jpeg"
@@ -99,18 +99,19 @@ class MainActivity : AppCompatActivity() {
     private var currentCameraUri: Uri? = null
     private var isImageLoading = false
     private var isSketchMode = false
-    
+    private var isSaving = false
+
     private lateinit var deleteRequestLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.IntentSenderRequest>
     private var pendingOverwriteUri: Uri? = null
 
     // ViewModel
     private val editViewModel: EditViewModel by viewModels()
-    
+
     // Drawing View & Controls
     private lateinit var drawingView: CanvasView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
-    
+
     // Overlays
     private lateinit var drawSizeOverlay: SliderValueOverlay
     private lateinit var drawOpacityOverlay: SliderValueOverlay
@@ -140,6 +141,7 @@ class MainActivity : AppCompatActivity() {
                     showCustomToast(getString(R.string.error_loading_camera_image, e.message ?: "Unknown error"))
                     cleanupCameraFile(cameraUri)
                 }
+                currentCameraUri = null
             }
         } else {
             val cameraUri = currentCameraUri
@@ -259,8 +261,8 @@ class MainActivity : AppCompatActivity() {
             } else {
                 val currentAdjustState = editViewModel.adjustState.value
                 val hasUnappliedAdjustments = currentAdjustState.brightness != 0f ||
-                                               currentAdjustState.contrast != 1f ||
-                                               currentAdjustState.saturation != 1f
+                                            currentAdjustState.contrast != 1f ||
+                                            currentAdjustState.saturation != 1f
                 
                 if (hasUnappliedAdjustments) {
                     AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
@@ -790,6 +792,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 pendingOverwriteUri?.let {
+                    currentImageInfo = currentImageInfo?.copy(uri = it)
                     pendingOverwriteUri = null
                 }
             }
@@ -798,34 +801,12 @@ class MainActivity : AppCompatActivity() {
 
     // --- Helper Methods ---
 
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        currentCameraUri?.let { uri ->
-            outState.putParcelable("saved_camera_uri", uri)
-        }
-    }
-
-    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
-        super.onRestoreInstanceState(savedInstanceState)
-        val restoredUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            savedInstanceState.getParcelable("saved_camera_uri", Uri::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            savedInstanceState.getParcelable("saved_camera_uri")
-        }
-
-        if (restoredUri != null) {
-            currentCameraUri = restoredUri
-            loadImageFromUri(restoredUri, false)
-        }
-    }
-
     private fun cleanupOldCacheFiles() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val cacheFiles = cacheDir.listFiles()
                 val undoFiles = cacheFiles?.filter { 
-                    (it.name.startsWith("undo_") && (it.name.endsWith(".png") || it.name.endsWith(".webp")))
+                    (it.name.startsWith("undo_") && (it.name.endsWith(".png") || it.name.endsWith(".webp"))) 
                 }
                 undoFiles?.forEach { file ->
                     file.delete()
@@ -1018,18 +999,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-    
+
     private fun handleImageLoadFailure(errorMessage: String) {
         runOnUiThread {
             try {
                 drawingView.setBitmap(null)
                 drawingView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                
-                if (errorMessage.contains("SecurityException") || errorMessage.contains("Permission denied")) {
-                    showCustomToast(getString(R.string.error_restore_image))
-                } else {
-                    showCustomToast(getString(R.string.could_not_load_image, errorMessage))
-                }
+                showCustomToast(getString(R.string.could_not_load_image, errorMessage))
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in handleImageLoadFailure: ${e.message ?: "Unknown error"}")
             }
@@ -1053,7 +1029,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
         }
     }
-    
+
     private fun determineImageOrigin(uri: Uri): ImageOrigin {
         val isPersistedWritable = contentResolver.persistedUriPermissions.any {
             it.uri == uri && it.isWritePermission
@@ -1070,7 +1046,7 @@ class MainActivity : AppCompatActivity() {
             else -> ImageOrigin.IMPORTED_READONLY
         }
     }
-    
+
     private fun determineCanOverwrite(origin: ImageOrigin): Boolean {
         return when (origin) {
             ImageOrigin.CAMERA_CAPTURED, ImageOrigin.EDITED_INTERNAL -> true
@@ -1177,7 +1153,7 @@ class MainActivity : AppCompatActivity() {
         selectedMode.isSelected = true
         currentDrawMode = selectedMode
     }
-    
+
     private fun updateSaveButtonText() {
         val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
         
@@ -1193,7 +1169,7 @@ class MainActivity : AppCompatActivity() {
             buttonSaveCopy.text = getString(R.string.save_copy)
         }
     }
-    
+
     private fun updateSaveButtonsState() {
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
         val warningIcon: ImageView = findViewById(R.id.warning_icon)
@@ -1206,8 +1182,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         val shouldShowOverwrite = info.origin != ImageOrigin.CAMERA_CAPTURED &&
-                                  info.canOverwrite &&
-                                  selectedSaveFormat == info.originalMimeType
+                                info.canOverwrite &&
+                                selectedSaveFormat == info.originalMimeType
         if (shouldShowOverwrite) {
             buttonOverwrite.visibility = View.VISIBLE
             warningIcon.visibility = View.VISIBLE
@@ -1216,9 +1192,10 @@ class MainActivity : AppCompatActivity() {
             warningIcon.visibility = View.GONE
         }
     }
-    
+
     private fun saveImageAsCopy() {
-        if (currentImageInfo == null) return
+        if (currentImageInfo == null || isSaving) return
+        isSaving = true
 
         lifecycleScope.launch {
             showLoadingSpinner()
@@ -1237,6 +1214,7 @@ class MainActivity : AppCompatActivity() {
                 showCustomToast(e.message ?: "Unknown error")
             } finally {
                 hideLoadingSpinner()
+                isSaving = false
             }
         }
     }
@@ -1293,12 +1271,15 @@ class MainActivity : AppCompatActivity() {
         
         uri
     }
-    
+
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: return
         if (!imageInfo.canOverwrite || selectedSaveFormat != imageInfo.originalMimeType) {
             return
         }
+        
+        if (isSaving) return
+        isSaving = true
 
         AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
             .setTitle(getString(R.string.overwrite_changes_title))
@@ -1328,33 +1309,25 @@ class MainActivity : AppCompatActivity() {
                         imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
                         imageLoader.diskCache?.remove(imageInfo.uri.toString())
 
-                    } catch (securityException: SecurityException) {
-                        val recoverableSecurityException = securityException as? RecoverableSecurityException
-                        if (recoverableSecurityException != null) {
-                            pendingOverwriteUri = imageInfo.uri
-                            showCustomToast(getString(R.string.overwrite_permission_rationale))
-                            deleteRequestLauncher.launch(
-                                androidx.activity.result.IntentSenderRequest.Builder(
-                                    recoverableSecurityException.userAction.actionIntent.intentSender
-                                ).build()
-                            )
-                        } else {
-                            showCustomToast(getString(R.string.overwrite_failed, securityException.message))
-                        }
                     } catch (e: Exception) {
                         showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
                     } finally {
                         hideLoadingSpinner()
+                        isSaving = false
                     }
                 }
                 dialog.dismiss()
             }
             .setNegativeButton(getString(R.string.cancel)) { dialog, _ ->
+                isSaving = false
                 dialog.dismiss()
+            }
+            .setOnCancelListener {
+                isSaving = false
             }
             .show()
     }
-    
+
     private fun generateUniqueCopyName(originalDisplayName: String): String {
         val newExtension = when (selectedSaveFormat) {
             "image/jpeg" -> "jpg"
@@ -1414,7 +1387,7 @@ class MainActivity : AppCompatActivity() {
         }
         return "IMG_${timestamp}.$extension"
     }
-    
+
     private fun updateTransparencyWarning() {
         if (currentImageHasTransparency) {
             when {
@@ -1446,7 +1419,7 @@ class MainActivity : AppCompatActivity() {
         }
         updateSaveButtonsState()
     }
-    
+
     private fun detectAndSetImageFormat(uri: Uri) {
         try {
             val mimeType = contentResolver.getType(uri)
@@ -1474,7 +1447,7 @@ class MainActivity : AppCompatActivity() {
             updateFormatSelectionUI()
         }
     }
-    
+
     private fun compressBitmapToStream(bitmap: Bitmap, outputStream: OutputStream, mimeType: String) {
         try {
             val compressFormat = when (mimeType) {
