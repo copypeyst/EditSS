@@ -194,7 +194,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (currentHistoryIndex > 0) {
             currentHistoryIndex--
             loadBitmapFromHistoryAsync()
-            onUndoAction?.invoke()
         }
         return baseBitmap 
     }
@@ -203,7 +202,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (currentHistoryIndex < historyPaths.size - 1) {
             currentHistoryIndex++
             loadBitmapFromHistoryAsync()
-            onRedoAction?.invoke()
         }
         return baseBitmap
     }
