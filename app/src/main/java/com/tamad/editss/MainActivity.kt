@@ -49,7 +49,6 @@ import com.tamad.editss.EditAction
 import androidx.activity.OnBackPressedCallback 
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.viewModels
-import android.app.RecoverableSecurityException
 
 enum class ImageOrigin {
     IMPORTED_READONLY,
@@ -68,7 +67,7 @@ data class ImageInfo(
 class MainActivity : AppCompatActivity() {
 
     companion object {
-    private const val PERMISSION_REQUEST_CODE = 100
+        private const val PERMISSION_REQUEST_CODE = 100
     }
 
     // UI Variables
@@ -86,12 +85,12 @@ class MainActivity : AppCompatActivity() {
     private var currentActiveTool: ImageView? = null
     private var currentCropMode: View? = null
     private var currentDrawMode: ImageView? = null
-
+    
     private lateinit var cropModeFreeform: View
     private lateinit var cropModeSquare: View
     private lateinit var cropModePortrait: View
     private lateinit var cropModeLandscape: View
-
+    
     // Image State
     private var currentImageInfo: ImageInfo? = null
     private var selectedSaveFormat: String = "image/jpeg"
@@ -100,18 +99,18 @@ class MainActivity : AppCompatActivity() {
     private var isImageLoading = false
     private var isSketchMode = false
     private var isSaving = false
-
+    
     private lateinit var deleteRequestLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.IntentSenderRequest>
     private var pendingOverwriteUri: Uri? = null
 
     // ViewModel
     private val editViewModel: EditViewModel by viewModels()
-
+    
     // Drawing View & Controls
     private lateinit var drawingView: CanvasView
     private lateinit var drawSizeSlider: SeekBar
     private lateinit var drawOpacitySlider: SeekBar
-
+    
     // Overlays
     private lateinit var drawSizeOverlay: SliderValueOverlay
     private lateinit var drawOpacityOverlay: SliderValueOverlay
@@ -261,8 +260,8 @@ class MainActivity : AppCompatActivity() {
             } else {
                 val currentAdjustState = editViewModel.adjustState.value
                 val hasUnappliedAdjustments = currentAdjustState.brightness != 0f ||
-                                            currentAdjustState.contrast != 1f ||
-                                            currentAdjustState.saturation != 1f
+                                               currentAdjustState.contrast != 1f ||
+                                               currentAdjustState.saturation != 1f
                 
                 if (hasUnappliedAdjustments) {
                     AlertDialog.Builder(this, R.style.AlertDialog_EditSS)
@@ -999,7 +998,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
+    
     private fun handleImageLoadFailure(errorMessage: String) {
         runOnUiThread {
             try {
@@ -1029,7 +1028,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
         }
     }
-
+    
     private fun determineImageOrigin(uri: Uri): ImageOrigin {
         val isPersistedWritable = contentResolver.persistedUriPermissions.any {
             it.uri == uri && it.isWritePermission
@@ -1046,7 +1045,7 @@ class MainActivity : AppCompatActivity() {
             else -> ImageOrigin.IMPORTED_READONLY
         }
     }
-
+    
     private fun determineCanOverwrite(origin: ImageOrigin): Boolean {
         return when (origin) {
             ImageOrigin.CAMERA_CAPTURED, ImageOrigin.EDITED_INTERNAL -> true
@@ -1153,7 +1152,7 @@ class MainActivity : AppCompatActivity() {
         selectedMode.isSelected = true
         currentDrawMode = selectedMode
     }
-
+    
     private fun updateSaveButtonText() {
         val buttonSaveCopy: Button = findViewById(R.id.button_save_copy)
         
@@ -1169,7 +1168,7 @@ class MainActivity : AppCompatActivity() {
             buttonSaveCopy.text = getString(R.string.save_copy)
         }
     }
-
+    
     private fun updateSaveButtonsState() {
         val buttonOverwrite: Button = findViewById(R.id.button_overwrite)
         val warningIcon: ImageView = findViewById(R.id.warning_icon)
@@ -1182,8 +1181,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         val shouldShowOverwrite = info.origin != ImageOrigin.CAMERA_CAPTURED &&
-                                info.canOverwrite &&
-                                selectedSaveFormat == info.originalMimeType
+                                  info.canOverwrite &&
+                                  selectedSaveFormat == info.originalMimeType
         if (shouldShowOverwrite) {
             buttonOverwrite.visibility = View.VISIBLE
             warningIcon.visibility = View.VISIBLE
@@ -1192,7 +1191,7 @@ class MainActivity : AppCompatActivity() {
             warningIcon.visibility = View.GONE
         }
     }
-
+    
     private fun saveImageAsCopy() {
         if (currentImageInfo == null || isSaving) return
         isSaving = true
@@ -1271,7 +1270,7 @@ class MainActivity : AppCompatActivity() {
         
         uri
     }
-
+    
     private fun overwriteCurrentImage() {
         val imageInfo = currentImageInfo ?: return
         if (!imageInfo.canOverwrite || selectedSaveFormat != imageInfo.originalMimeType) {
@@ -1327,7 +1326,7 @@ class MainActivity : AppCompatActivity() {
             }
             .show()
     }
-
+    
     private fun generateUniqueCopyName(originalDisplayName: String): String {
         val newExtension = when (selectedSaveFormat) {
             "image/jpeg" -> "jpg"
@@ -1387,7 +1386,7 @@ class MainActivity : AppCompatActivity() {
         }
         return "IMG_${timestamp}.$extension"
     }
-
+    
     private fun updateTransparencyWarning() {
         if (currentImageHasTransparency) {
             when {
@@ -1419,7 +1418,7 @@ class MainActivity : AppCompatActivity() {
         }
         updateSaveButtonsState()
     }
-
+    
     private fun detectAndSetImageFormat(uri: Uri) {
         try {
             val mimeType = contentResolver.getType(uri)
@@ -1447,7 +1446,7 @@ class MainActivity : AppCompatActivity() {
             updateFormatSelectionUI()
         }
     }
-
+    
     private fun compressBitmapToStream(bitmap: Bitmap, outputStream: OutputStream, mimeType: String) {
         try {
             val compressFormat = when (mimeType) {

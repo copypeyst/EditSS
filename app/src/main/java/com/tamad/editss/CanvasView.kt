@@ -9,9 +9,10 @@ import android.view.View
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
-import java.util.concurrent.Executors // Import added
+import java.util.concurrent.Executors
 import kotlinx.coroutines.*
 import android.os.Build
+import androidx.core.content.ContextCompat
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
@@ -267,7 +268,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
         savedHistoryIndex = 0
 
-        background = resources.getDrawable(R.drawable.outer_bounds, null)
+        background = ContextCompat.getDrawable(context, R.drawable.outer_bounds)
 
         updateImageMatrix()
         invalidate()
