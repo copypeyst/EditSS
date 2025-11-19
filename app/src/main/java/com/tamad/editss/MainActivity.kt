@@ -239,7 +239,7 @@ class MainActivity : AppCompatActivity() {
                 if (savePanel.visibility == View.VISIBLE) {
                     savePanel.visibility = View.GONE
                     scrim.visibility = View.GONE
-                } else if (drawingView.hasUnsaved changes()) {
+                } else if (drawingView.hasUnsavedChanges()) { // Fixed typo here
                     AlertDialog.Builder(this@MainActivity, R.style.AlertDialog_EditSS)
                         .setTitle(getString(R.string.discard_changes_title))
                         .setMessage(getString(R.string.discard_changes_message))
