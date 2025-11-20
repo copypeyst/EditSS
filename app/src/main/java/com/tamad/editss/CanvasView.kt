@@ -51,7 +51,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val historyStack = LinkedList<HistoryItem>()
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
-    private val MAX_RAM_USAGE = 500 * 1024 * 1024L
+    
+    // CHANGED: Switched from Byte Limit to Count Limit to prevent aggressive deletion logic errors
+    private val MAX_HISTORY_COUNT = 20 
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
@@ -120,8 +122,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         ADJUST
     }
 
-    // Save Logic
-
     fun markAsSaved() {
         savedHistoryIndex = currentHistoryIndex
     }
@@ -130,25 +130,22 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return savedHistoryIndex != currentHistoryIndex
     }
 
-    // History Management
-
     private fun saveCurrentState(action: RestoreAction) {
         val source = baseBitmap ?: return
         if (source.isRecycled) return
 
-        // Create a deep copy for the history
+        // Try to create a deep copy. If OOM, catch it to prevent crash.
         val bitmapToSave = try {
             source.copy(Bitmap.Config.ARGB_8888, true)
-        } catch (e: Exception) {
+        } catch (e: OutOfMemoryError) {
             e.printStackTrace()
-            null
+            return // Stop here to avoid corrupted state
         } ?: return
 
-        // If we are undoing and then drawing, remove the "Redo" steps ahead
+        // Clear redo history
         while (historyStack.size > currentHistoryIndex + 1) {
             val removed = historyStack.removeLast()
-            // Only recycle if this bitmap is NOT the one currently displayed
-            if (removed.bitmap != baseBitmap) {
+            if (removed.bitmap != baseBitmap && !removed.bitmap.isRecycled) {
                 removed.bitmap.recycle()
             }
         }
@@ -157,23 +154,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         historyStack.add(newItem)
         currentHistoryIndex = historyStack.size - 1
 
-        manageMemoryUsage()
+        manageHistorySize()
     }
 
-    private fun manageMemoryUsage() {
-        var currentUsage = 0L
-        for (item in historyStack) {
-            if (!item.bitmap.isRecycled) {
-                currentUsage += item.bitmap.allocationByteCount
-            }
-        }
-
-        // Remove oldest steps if we exceed 500MB, but keep at least 2 steps
-        while (currentUsage > MAX_RAM_USAGE && historyStack.size > 2) {
+    private fun manageHistorySize() {
+        // Simplified logic: Just keep the last 20 items.
+        // This prevents the "Reset Everything" bug caused by incorrect byte calculations.
+        while (historyStack.size > MAX_HISTORY_COUNT) {
             val removed = historyStack.removeFirst()
-            currentUsage -= removed.bitmap.allocationByteCount
             
-            // Safe recycling: Only recycle if it's not the active view
+            // Recycle if not currently displayed
             if (removed.bitmap != baseBitmap && !removed.bitmap.isRecycled) {
                 removed.bitmap.recycle()
             }
@@ -181,7 +171,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             currentHistoryIndex--
             savedHistoryIndex--
         }
-
+        
         if (currentHistoryIndex < 0) currentHistoryIndex = 0
         if (savedHistoryIndex < -1) savedHistoryIndex = -1
     }
@@ -209,16 +199,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun restoreState(item: HistoryItem) {
         if (item.bitmap.isRecycled) return
 
-        // Create a fresh mutable copy for the view to edit.
-        // We rely on GC to collect the previous baseBitmap.
-        // Manual recycling here caused the "Reset" bug.
+        // Copy the history bitmap to baseBitmap so we can edit it further
         baseBitmap = item.bitmap.copy(Bitmap.Config.ARGB_8888, true)
         
         updateImageMatrix()
         invalidate()
     }
-
-    // Bitmap Handling
 
     fun setBitmap(bitmap: Bitmap?) {
         // Clean up old history
@@ -229,25 +215,24 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         currentHistoryIndex = -1
         savedHistoryIndex = -1
         
-        // We do NOT manually recycle baseBitmap here just in case, let GC handle it
+        // Do not recycle baseBitmap manually here, let GC handle it
         baseBitmap = null
         originalHighResBitmap?.recycle()
 
         if (bitmap != null) {
-            // 1. Convert Hardware Bitmap to Software if needed
+            // Convert Hardware to Software immediately
             val safeSoftwareBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
                 bitmap.copy(Bitmap.Config.ARGB_8888, true)
             } else {
                 bitmap.copy(Bitmap.Config.ARGB_8888, true)
             }
 
-            // 2. Save Original High Res
-            originalHighResBitmap = safeSoftwareBitmap // it's already a copy
+            originalHighResBitmap = safeSoftwareBitmap
 
-            // 3. Create Proxy (Safe Software Version)
+            // Create Proxy
             baseBitmap = createProxyBitmap(safeSoftwareBitmap)
             
-            // 4. Save Initial State
+            // Save Initial State
             saveCurrentState(RestoreAction.None)
             savedHistoryIndex = 0
             
@@ -268,7 +253,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun createProxyBitmap(source: Bitmap): Bitmap {
-        // Create a strictly Mutable, Software-backed bitmap
         val maxDimension = 2000
         val ratio = Math.min(
             maxDimension.toFloat() / source.width,
@@ -388,8 +372,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun canUndo(): Boolean = currentHistoryIndex > 0
     fun canRedo(): Boolean = currentHistoryIndex < historyStack.size - 1
 
-    // Drawing
-
     fun setDrawingState(drawingState: DrawingState) {
         paint.color = drawingState.color
         paint.strokeWidth = drawingState.size
@@ -427,8 +409,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    // Tool Logic
-
     fun setSketchMode(isSketch: Boolean) {
         this.isSketchMode = isSketch
         invalidate()
@@ -465,8 +445,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
         invalidate()
     }
-
-    // Gestures
 
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -595,8 +573,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
         return true
     }
-
-    // Crop Logic
 
     private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
         return when (event.action) {
@@ -1065,8 +1041,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    // Adjustments
-
     fun setAdjustments(brightness: Float, contrast: Float, saturation: Float) {
         this.brightness = brightness
         this.contrast = contrast
@@ -1119,8 +1093,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun resetAdjustments() {
         setAdjustments(0f, 1f, 1f)
     }
-
-    // Helpers
 
     fun getDrawing(): Bitmap? {
         return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
