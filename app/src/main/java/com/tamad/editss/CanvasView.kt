@@ -44,8 +44,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private val compressionDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val compressionScope = CoroutineScope(compressionDispatcher + Job())
-    private var isCompressionRunning = false
-    private val saveQueue = mutableListOf<ByteArray>()
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
@@ -136,38 +134,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 originalBitmap.compress(compressFormat, 100, byteArrayOutputStream)
                 val compressedData = byteArrayOutputStream.toByteArray()
 
-                synchronized(this) {
-                    saveQueue.add(compressedData)
-                    if (!isCompressionRunning) {
-                        isCompressionRunning = true
-                        processSaveQueue()
-                    }
+                post {
+                    updateHistoryList(compressedData)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             } catch (e: OutOfMemoryError) {
                 e.printStackTrace()
-            }
-        }
-    }
-
-    private fun processSaveQueue() {
-        compressionScope.launch {
-            while (true) {
-                val nextData = synchronized(this) {
-                    if (saveQueue.isNotEmpty()) {
-                        saveQueue.removeAt(0)
-                    } else {
-                        isCompressionRunning = false
-                        return@launch
-                    }
-                }
-                
-                post {
-                    updateHistoryList(nextData)
-                }
-                
-                kotlinx.coroutines.delay(50)
             }
         }
     }
@@ -244,12 +217,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun clearHistoryCache() {
-        synchronized(this) {
-            historyData.clear()
-            currentHistoryIndex = -1
-            savedHistoryIndex = -1
-            saveQueue.clear()
-        }
+        historyData.clear()
+        currentHistoryIndex = -1
+        savedHistoryIndex = -1
     }
 
 
