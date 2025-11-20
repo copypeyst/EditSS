@@ -577,53 +577,29 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
-        val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
+        val completedAction = currentDrawingTool.onTouchEvent(event, paint)
 
-        // DrawingTool returns non-null ONLY when stroke is completed (ACTION_UP)
-        screenSpaceAction?.let { action ->
-            // Instead of replaying, save individual bitmap snapshots
-            saveIndividualDrawingState(action)
-        }
-
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                isDrawing = true
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                isDrawing = false
-            }
+        // DrawingTool returns completed action ONLY on ACTION_UP
+        completedAction?.let { action ->
+            // Merge the stroke into the bitmap (permanent change)
+            mergeDrawingStrokeIntoBitmap(action)
+            
+            // Save a snapshot of the current state to history
+            val currentBitmap = baseBitmap ?: return@let
+            val snapshot = currentBitmap.copy(Bitmap.Config.ARGB_8888, true)
+            
+            // Store the action data for potential future replay
+            val actionData = ActionData(
+                ActionType.DRAW,
+                path = Path(action.path), 
+                paint = Paint(action.paint)
+            )
+            
+            saveSnapshotToHistory(snapshot, actionData)
         }
 
         invalidate()
         return true
-    }
-
-    private fun saveIndividualDrawingState(action: DrawingAction) {
-        // Create a new bitmap with the current stroke added
-        val currentBitmap = baseBitmap ?: return
-        
-        // Create a copy of current bitmap
-        val newBitmap = currentBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(newBitmap)
-        
-        // Apply the stroke to the new bitmap
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        canvas.concat(inverseMatrix)
-        canvas.drawPath(action.path, action.paint)
-        
-        // Update baseBitmap to the new version
-        baseBitmap?.recycle()
-        baseBitmap = newBitmap
-        
-        // Save snapshot to history for undo/redo
-        val snapshot = newBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        val actionData = ActionData(
-            ActionType.DRAW,
-            path = Path(action.path), 
-            paint = Paint(action.paint)
-        )
-        saveSnapshotToHistory(snapshot, actionData)
     }
 
     private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
