@@ -52,8 +52,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
     
-    // CHANGED: Switched from Byte Limit to Count Limit to prevent aggressive deletion logic errors
-    private val MAX_HISTORY_COUNT = 20 
+    // Reduced limits to prevent the silent OOM crash that causes the "Combined Action" bug
+    private val MAX_HISTORY_COUNT = 15 
+    private val MAX_PROXY_DIMENSION = 1500
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
@@ -134,13 +135,33 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val source = baseBitmap ?: return
         if (source.isRecycled) return
 
-        // Try to create a deep copy. If OOM, catch it to prevent crash.
-        val bitmapToSave = try {
-            source.copy(Bitmap.Config.ARGB_8888, true)
+        // Attempt to save. If OOM occurs, try to clear old history and retry once.
+        var bitmapToSave: Bitmap? = null
+        
+        try {
+            bitmapToSave = source.copy(Bitmap.Config.ARGB_8888, true)
         } catch (e: OutOfMemoryError) {
-            e.printStackTrace()
-            return // Stop here to avoid corrupted state
-        } ?: return
+            // Emergency cleanup: Remove oldest half of history to free RAM
+            while (historyStack.size > 2) {
+                val removed = historyStack.removeFirst()
+                if (removed.bitmap != baseBitmap && !removed.bitmap.isRecycled) {
+                    removed.bitmap.recycle()
+                }
+                currentHistoryIndex--
+                savedHistoryIndex--
+            }
+            if (currentHistoryIndex < 0) currentHistoryIndex = 0
+            System.gc() // Suggest GC
+            
+            // Retry copy
+            try {
+                bitmapToSave = source.copy(Bitmap.Config.ARGB_8888, true)
+            } catch (e2: OutOfMemoryError) {
+                return // Give up, but don't crash
+            }
+        }
+
+        if (bitmapToSave == null) return
 
         // Clear redo history
         while (historyStack.size > currentHistoryIndex + 1) {
@@ -158,16 +179,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun manageHistorySize() {
-        // Simplified logic: Just keep the last 20 items.
-        // This prevents the "Reset Everything" bug caused by incorrect byte calculations.
         while (historyStack.size > MAX_HISTORY_COUNT) {
             val removed = historyStack.removeFirst()
-            
-            // Recycle if not currently displayed
             if (removed.bitmap != baseBitmap && !removed.bitmap.isRecycled) {
                 removed.bitmap.recycle()
             }
-            
             currentHistoryIndex--
             savedHistoryIndex--
         }
@@ -199,7 +215,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun restoreState(item: HistoryItem) {
         if (item.bitmap.isRecycled) return
 
-        // Copy the history bitmap to baseBitmap so we can edit it further
         baseBitmap = item.bitmap.copy(Bitmap.Config.ARGB_8888, true)
         
         updateImageMatrix()
@@ -207,7 +222,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun setBitmap(bitmap: Bitmap?) {
-        // Clean up old history
         historyStack.forEach { 
             if (!it.bitmap.isRecycled) it.bitmap.recycle() 
         }
@@ -215,12 +229,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         currentHistoryIndex = -1
         savedHistoryIndex = -1
         
-        // Do not recycle baseBitmap manually here, let GC handle it
         baseBitmap = null
         originalHighResBitmap?.recycle()
 
         if (bitmap != null) {
-            // Convert Hardware to Software immediately
             val safeSoftwareBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
                 bitmap.copy(Bitmap.Config.ARGB_8888, true)
             } else {
@@ -229,10 +241,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
             originalHighResBitmap = safeSoftwareBitmap
 
-            // Create Proxy
             baseBitmap = createProxyBitmap(safeSoftwareBitmap)
             
-            // Save Initial State
             saveCurrentState(RestoreAction.None)
             savedHistoryIndex = 0
             
@@ -253,10 +263,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun createProxyBitmap(source: Bitmap): Bitmap {
-        val maxDimension = 2000
         val ratio = Math.min(
-            maxDimension.toFloat() / source.width,
-            maxDimension.toFloat() / source.height
+            MAX_PROXY_DIMENSION.toFloat() / source.width,
+            MAX_PROXY_DIMENSION.toFloat() / source.height
         )
 
         val width: Int
