@@ -192,7 +192,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun redo(): Bitmap? {
-        if (currentHistoryIndex < historyPaths.size - 1) {
+        if (currentHistoryIndex < historyBitmapData.size - 1) {
             currentHistoryIndex++
             loadBitmapFromHistory()
             return baseBitmap
