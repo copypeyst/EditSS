@@ -46,7 +46,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
-import com.tamad.editss.DrawingAction
 import androidx.activity.OnBackPressedCallback 
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.viewModels
@@ -693,13 +692,18 @@ class MainActivity : AppCompatActivity() {
         updateDrawModeSelection(drawModePen)
 
         // Canvas View Callbacks
-        drawingView.onActionAdded = { editAction ->
-            when (editAction) {
-                is EditAction.Drawing -> editViewModel.pushDrawingAction(editAction.action)
-                is EditAction.Crop -> editViewModel.pushCropAction(editAction.action)
-                is EditAction.Adjust -> editViewModel.pushAdjustAction(editAction.action)
-                is EditAction.BitmapChange -> editViewModel.pushBitmapChangeAction(editAction)
-            }
+        drawingView.onUndoAction = {
+            val undoneBitmap = drawingView.undo()
+            if (undoneBitmap != null) editViewModel.clearAllActions()
+        }
+
+        drawingView.onRedoAction = {
+            val redoneBitmap = drawingView.redo()
+            if (redoneBitmap != null) editViewModel.clearAllActions()
+        }
+
+        drawingView.onBitmapChanged = { editAction ->
+            editViewModel.pushBitmapChangeAction(editAction)
         }
 
         // ViewModel Observation
@@ -724,31 +728,19 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        lifecycleScope.launch {
-            editViewModel.lastUndoneAction.collect { action ->
-                action?.let {
-                    applyUndoRedoAction(it, isUndone = true)
-                    editViewModel.clearLastUndoneAction()
-                }
-            }
-        }
-
-        lifecycleScope.launch {
-            editViewModel.lastRedoneAction.collect { action ->
-                action?.let {
-                    applyUndoRedoAction(it, isUndone = false)
-                    editViewModel.clearLastRedoneAction()
-                }
-            }
-        }
-
         // Undo/Redo Buttons
         buttonUndo.setOnClickListener {
-            editViewModel.undo()
+            val undoneBitmap = drawingView.undo()
+            if (undoneBitmap != null) {
+                editViewModel.clearAllActions()
+            }
         }
 
         buttonRedo.setOnClickListener {
-            editViewModel.redo()
+            val redoneBitmap = drawingView.redo()
+            if (redoneBitmap != null) {
+                editViewModel.clearAllActions()
+            }
         }
 
         cropModeFreeform.isSelected = true
@@ -808,56 +800,15 @@ class MainActivity : AppCompatActivity() {
 
     // Helper Methods
 
-    private fun applyUndoRedoAction(action: EditAction, isUndone: Boolean) {
-        when (action) {
-            is EditAction.Drawing -> {
-                if (isUndone) {
-                    drawingView.applyDrawingUndo(action)
-                } else {
-                    drawingView.applyDrawingRedo(action)
-                }
-            }
-            is EditAction.Crop -> {
-                val cropAction = action.action
-                if (isUndone) {
-                    // Restore previous bitmap
-                    drawingView.setBitmap(cropAction.previousBitmap)
-                } else {
-                    // Re-apply crop - for now, just invalidate
-                    drawingView.invalidate()
-                }
-            }
-            is EditAction.Adjust -> {
-                val adjustAction = action.action
-                if (isUndone) {
-                    // Restore previous bitmap
-                    drawingView.setBitmap(adjustAction.previousBitmap)
-                } else {
-                    // Apply adjusted bitmap
-                    drawingView.setBitmap(adjustAction.newBitmap)
-                }
-            }
-            is EditAction.BitmapChange -> {
-                val bitmapChange = action
-                if (isUndone) {
-                    drawingView.setBitmap(bitmapChange.previousBitmap)
-                } else {
-                    drawingView.setBitmap(bitmapChange.newBitmap)
-                }
-            }
-        }
-    }
-
     private fun cleanupOldCacheFiles() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val cacheFiles = cacheDir.listFiles()
-                cacheFiles?.forEach { file ->
-                    try {
-                        file.delete()
-                    } catch (e: Exception) {
-                        // Ignore errors when deleting old cache files
-                    }
+                val undoFiles = cacheFiles?.filter { 
+                    (it.name.startsWith("undo_") && (it.name.endsWith(".png") || it.name.endsWith(".webp"))) 
+                }
+                undoFiles?.forEach { file ->
+                    file.delete()
                 }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Failed to cleanup cache: ${e.message}")
@@ -1256,7 +1207,7 @@ class MainActivity : AppCompatActivity() {
                 
                 savePanel.visibility = View.GONE
                 scrim.visibility = View.GONE
-                editViewModel.markActionsAsSaved()
+                drawingView.markAsSaved()
 
             } catch (e: Exception) {
                 showCustomToast(e.message ?: "Unknown error")
@@ -1352,7 +1303,7 @@ class MainActivity : AppCompatActivity() {
                         
                         savePanel.visibility = View.GONE
                         scrim.visibility = View.GONE
-                        editViewModel.markActionsAsSaved()
+                        drawingView.markAsSaved()
 
                         imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
                         imageLoader.diskCache?.remove(imageInfo.uri.toString())
