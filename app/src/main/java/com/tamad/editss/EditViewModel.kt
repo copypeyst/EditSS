@@ -8,14 +8,14 @@ import android.graphics.Path
 import android.graphics.Paint
 import android.graphics.Bitmap
 
-// --- Restored Data Classes for Compatibility ---
-
+// Drawing modes enum
 enum class DrawMode {
     PEN,
     SQUARE,
     CIRCLE
 }
 
+// Crop modes enum
 enum class CropMode {
     FREEFORM,
     SQUARE,
@@ -23,10 +23,11 @@ enum class CropMode {
     LANDSCAPE
 }
 
+// Shared drawing state for Draw, Circle, and Square tools only
 data class DrawingState(
     val color: Int = android.graphics.Color.RED,
-    val size: Float = 25f,
-    val opacity: Int = 255,
+    val size: Float = 25f, // Default to 25
+    val opacity: Int = 255, // Default to 100% opacity (255 out of 255)
     val drawMode: DrawMode = DrawMode.PEN
 )
 
@@ -36,17 +37,16 @@ data class AdjustState(
     val saturation: Float = 1f
 )
 
-// These classes are required by your Tools and MainActivity
 data class DrawingAction(
     val path: Path,
     val paint: Paint,
-    val previousBitmap: Bitmap? = null
+    val previousBitmap: Bitmap? = null // For proper undo/redo of bitmap-based drawing
 )
-
 data class CropAction(
-    val previousBitmap: Bitmap,
-    val cropRect: android.graphics.RectF,
-    val cropMode: CropMode
+    val previousBitmap: Bitmap, // The bitmap state before the crop
+    val cropRect: android.graphics.RectF, // The crop rectangle that was applied
+    val cropMode: CropMode // The crop mode used
+    // previousDrawingActions removed - drawings are now immediately merged into bitmap
 )
 
 data class AdjustAction(
@@ -54,6 +54,7 @@ data class AdjustAction(
     val newBitmap: Bitmap
 )
 
+// Unified action system for both drawing and crop operations
 sealed class EditAction {
     data class Drawing(val action: DrawingAction) : EditAction()
     data class Crop(val action: CropAction) : EditAction()
@@ -66,43 +67,85 @@ sealed class EditAction {
     ) : EditAction()
 }
 
-// --- ViewModel ---
-
 class EditViewModel : ViewModel() {
 
-    // Kept for compatibility with MainActivity, but disconnected from logic to prevent bugs
     private val _undoStack = MutableStateFlow<List<EditAction>>(emptyList())
     val undoStack: StateFlow<List<EditAction>> = _undoStack.asStateFlow()
 
     private val _redoStack = MutableStateFlow<List<EditAction>>(emptyList())
     val redoStack: StateFlow<List<EditAction>> = _redoStack.asStateFlow()
 
+    // Track the size of the undo stack at the point of the last save
+    private val _lastSavedActionCount = MutableStateFlow(0)
+
+    // Shared drawing state for Draw/Circle/Square tools
     private val _drawingState = MutableStateFlow(DrawingState())
     val drawingState: StateFlow<DrawingState> = _drawingState.asStateFlow()
 
     private val _adjustState = MutableStateFlow(AdjustState())
     val adjustState: StateFlow<AdjustState> = _adjustState.asStateFlow()
 
-    // These are left empty or dummy to satisfy MainActivity compilation.
-    // The actual History logic is now exclusively in CanvasView to ensure efficiency.
-    fun pushDrawingAction(action: DrawingAction) { /* Handled by CanvasView */ }
-    fun pushCropAction(action: CropAction) { /* Handled by CanvasView */ }
-    fun pushAdjustAction(action: AdjustAction) { /* Handled by CanvasView */ }
-    fun pushBitmapChangeAction(action: EditAction.BitmapChange) { /* Handled by CanvasView */ }
-
-    fun undo() { 
-        // NOTE: MainActivity calls this. You should change MainActivity to call canvasView.undo()
-    }
-    
-    fun redo() {
-        // NOTE: MainActivity calls this. You should change MainActivity to call canvasView.redo()
-    }
-    
-    fun clearAllActions() {
-        _undoStack.value = emptyList()
+    fun pushDrawingAction(action: DrawingAction) {
+        _undoStack.value = _undoStack.value + EditAction.Drawing(action)
         _redoStack.value = emptyList()
     }
 
+    fun pushCropAction(action: CropAction) {
+        _undoStack.value = _undoStack.value + EditAction.Crop(action)
+        _redoStack.value = emptyList()
+    }
+
+    fun pushAdjustAction(action: AdjustAction) {
+        _undoStack.value = _undoStack.value + EditAction.Adjust(action)
+        _redoStack.value = emptyList()
+    }
+
+    fun pushBitmapChangeAction(action: EditAction.BitmapChange) {
+        // When a bitmap changes (e.g., after a crop), we add this bitmap change to the undo stack.
+        // Drawing actions are now managed by EditAction.Crop when a crop occurs.
+        _undoStack.value = _undoStack.value + action
+        _redoStack.value = emptyList()
+    }
+
+    fun undo() {
+        if (_undoStack.value.isNotEmpty()) {
+            val lastAction = _undoStack.value.last()
+            _undoStack.value = _undoStack.value.dropLast(1)
+            _redoStack.value = _redoStack.value + lastAction
+            
+            // Notify listeners about the undone action
+            _lastUndoneAction.value = lastAction
+        }
+    }
+
+    fun redo() {
+        if (_redoStack.value.isNotEmpty()) {
+            val lastAction = _redoStack.value.last()
+            _redoStack.value = _redoStack.value.dropLast(1)
+            _undoStack.value = _undoStack.value + lastAction
+            
+            // Notify listeners about the redone action
+            _lastRedoneAction.value = lastAction
+        }
+    }
+    
+    // Flow to notify about undone actions
+    private val _lastUndoneAction = MutableStateFlow<EditAction?>(null)
+    val lastUndoneAction: StateFlow<EditAction?> = _lastUndoneAction.asStateFlow()
+    
+    // Flow to notify about redone actions
+    private val _lastRedoneAction = MutableStateFlow<EditAction?>(null)
+    val lastRedoneAction: StateFlow<EditAction?> = _lastRedoneAction.asStateFlow()
+    
+    fun clearLastUndoneAction() {
+        _lastUndoneAction.value = null
+    }
+    
+    fun clearLastRedoneAction() {
+        _lastRedoneAction.value = null
+    }
+
+    // Drawing state management for shared Draw/Circle/Square tools
     fun updateDrawingColor(color: Int) {
         _drawingState.value = _drawingState.value.copy(color = color)
     }
@@ -111,6 +154,7 @@ class EditViewModel : ViewModel() {
         _drawingState.value = _drawingState.value.copy(size = size)
     }
 
+    // Convert percentage (1-100) to alpha value (0-255) for Android Paint
     private fun percentageToAlpha(percentage: Int): Int {
         return ((percentage / 100f) * 255).toInt().coerceIn(0, 255)
     }
@@ -138,5 +182,34 @@ class EditViewModel : ViewModel() {
 
     fun resetAdjustments() {
         _adjustState.value = AdjustState()
+    }
+
+    fun clearAllActions() {
+        _undoStack.value = emptyList()
+        _redoStack.value = emptyList()
+        _lastSavedActionCount.value = 0 // Reset saved count when actions are cleared
+    }
+
+    // New function to mark current actions as saved
+    fun markActionsAsSaved() {
+        _lastSavedActionCount.value = _undoStack.value.size
+    }
+
+    // hasUnsavedChanges now indicates if there are unsaved changes
+    val hasUnsavedChanges: Boolean
+        get() = _undoStack.value.size > _lastSavedActionCount.value
+
+    // Backward compatibility - still available for drawing-only operations
+    fun clearDrawings() {
+        clearAllActions()
+    }
+
+    // Backward compatibility - still available for drawing-only operations
+    val hasDrawings: Boolean
+        get() = hasUnsavedChanges
+
+    // Backward compatibility - still available for drawing-only operations
+    fun markDrawingsAsSaved() {
+        markActionsAsSaved()
     }
 }
