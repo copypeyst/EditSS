@@ -810,7 +810,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val shareUri = withContext(Dispatchers.IO) {
-                    val bitmapToShare = drawingView.getDrawing()
+                    val bitmapToShare = drawingView.getFinalImageForExport()
                         ?: throw Exception("No image to share")
 
                     when (imageInfo.origin) {
@@ -1211,10 +1211,10 @@ class MainActivity : AppCompatActivity() {
             when (selectedSaveFormat) {
                 "image/png", "image/webp" -> drawingView.getTransparentDrawingWithAdjustments()
                 "image/jpeg" -> drawingView.getSketchDrawingOnWhite()
-                else -> drawingView.getDrawing()
+                else -> drawingView.getFinalImageForExport()
             }
         } else {
-            drawingView.getDrawing()?.let {
+            drawingView.getFinalImageForExport()?.let {
                 if (selectedSaveFormat == "image/jpeg" && currentImageHasTransparency) {
                     drawingView.convertTransparentToWhite(it)
                 } else {
@@ -1276,7 +1276,7 @@ class MainActivity : AppCompatActivity() {
                     showLoadingSpinner()
                     try {
                         val displayName = withContext(Dispatchers.IO) {
-                            val bitmapToSave = drawingView.getDrawing()
+                            val bitmapToSave = drawingView.getFinalImageForExport()
                                 ?: throw Exception("Could not get image to overwrite")
                             
                             contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
