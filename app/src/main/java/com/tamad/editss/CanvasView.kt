@@ -356,10 +356,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         canvas.save()
         canvas.clipRect(imageBounds)
-
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        canvas.concat(inverseMatrix)
+        canvas.concat(imageMatrix)
 
         drawActions.forEach { action ->
             canvas.drawPath(action.path, action.paint)
@@ -385,9 +382,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (drawActions.isEmpty() || baseBitmap == null) return
 
         val canvas = Canvas(baseBitmap!!)
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        canvas.concat(inverseMatrix)
 
         drawActions.forEach { action ->
             canvas.drawPath(action.path, action.paint)
@@ -540,13 +534,19 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
-        val resultingAction = currentDrawingTool.onTouchEvent(event, paint)
+        val transformedEvent = MotionEvent.obtain(event)
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        transformedEvent.transform(inverseMatrix)
+
+        val resultingAction = currentDrawingTool.onTouchEvent(transformedEvent, paint)
+        transformedEvent.recycle()
 
         if (resultingAction != null) {
             drawActions.add(DrawAction(resultingAction.path, resultingAction.paint))
             redoDrawActions.clear()
         }
-        
+
         isDrawing = event.action != MotionEvent.ACTION_UP && event.action != MotionEvent.ACTION_CANCEL
 
         invalidate()
@@ -1094,9 +1094,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         val finalBitmap = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(finalBitmap)
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        canvas.concat(inverseMatrix)
 
         drawActions.forEach { action ->
             canvas.drawPath(action.path, action.paint)
