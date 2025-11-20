@@ -319,7 +319,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (currentHistoryIndex >= 0) {
             for (i in 0..currentHistoryIndex) {
                 val command = historyCommands[i]
-                proxyBitmap = command.executeOnProxy(proxyBitmap!!, imageMatrix)
+                proxyBitmap?.let { currentProxy ->
+                    proxyBitmap = command.executeOnProxy(currentProxy, imageMatrix)
+                }
             }
         }
         
@@ -791,7 +793,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         translationY = 0f
         updateImageMatrix()
         invalidate()
-        onCropApplied?.invoke(proxyBitmap!!)
+        proxyBitmap?.let { onCropApplied?.invoke(it) }
 
         return proxyBitmap
     }
@@ -1135,17 +1137,19 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return proxyBitmap
         }
 
-        val adjustedBitmap = Bitmap.createBitmap(proxyBitmap!!.width, proxyBitmap!!.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(adjustedBitmap)
+        proxyBitmap?.let { currentProxy ->
+            val adjustedBitmap = Bitmap.createBitmap(currentProxy.width, currentProxy.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(adjustedBitmap)
 
-        val paint = Paint().apply {
-            colorFilter = imagePaint.colorFilter
-            isAntiAlias = true
-            isFilterBitmap = true
-            isDither = true
+            val paint = Paint().apply {
+                colorFilter = imagePaint.colorFilter
+                isAntiAlias = true
+                isFilterBitmap = true
+                isDither = true
+            }
+
+            canvas.drawBitmap(currentProxy, 0f, 0f, paint)
         }
-
-        canvas.drawBitmap(proxyBitmap!!, 0f, 0f, paint)
         return adjustedBitmap
     }
 
