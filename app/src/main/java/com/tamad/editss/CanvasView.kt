@@ -623,7 +623,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             path = Path(action.path), 
             paint = Paint(action.paint)
         )
-        saveCurrentState(snapshot, actionData)
+        saveSnapshotToHistory(snapshot, actionData)
     }
 
     private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
