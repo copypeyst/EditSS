@@ -12,7 +12,7 @@ class PenTool : BaseDrawingTool() {
     }
 
     override fun onTouchDown(x: Float, y: Float) {
-        currentPath.moveTo(x, y)
+        
     }
 
     override fun onTouchMove(x: Float, y: Float) {

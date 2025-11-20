@@ -120,7 +120,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun markAsSaved() {
-        commitDrawings()
+        saveCurrentState()
         savedHistoryIndex = currentHistoryIndex
     }
 
@@ -714,7 +714,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun applyCrop(): Bitmap? {
-        commitDrawings()
+        saveCurrentState()
         if (baseBitmap == null || cropRect.isEmpty) return null
 
         val bitmapWithDrawings = baseBitmap ?: return null
@@ -1049,7 +1049,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun applyAdjustmentsToBitmap(): Bitmap? {
-        commitDrawings()
+        saveCurrentState()
         if (baseBitmap == null) return null
 
         val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
