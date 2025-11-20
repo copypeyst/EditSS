@@ -670,10 +670,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
         val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
 
+        // DrawingTool returns non-null ONLY when stroke is completed (ACTION_UP)
         screenSpaceAction?.let { action ->
+            // Merge the completed stroke into the bitmap permanently
             mergeDrawingStrokeIntoBitmap(action)
             
-            // Save logic: Use the action's path and paint for history
+            // Save to history for undo/redo
             val actionData = ActionData(
                 ActionType.DRAW,
                 path = Path(action.path), 
@@ -683,7 +685,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
 
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> isDrawing = true
+            MotionEvent.ACTION_DOWN -> {
+                isDrawing = true
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 isDrawing = false
             }
