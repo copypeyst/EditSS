@@ -7,6 +7,8 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.*
+import java.util.concurrent.Executors
 import android.os.Build
 import androidx.core.content.ContextCompat
 import kotlin.math.hypot
@@ -39,6 +41,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val historyData = mutableListOf<ByteArray>()
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
+
+    private val compressionDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    private val compressionScope = CoroutineScope(compressionDispatcher + Job())
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
@@ -117,24 +122,26 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun saveCurrentState() {
         val originalBitmap = baseBitmap ?: return
 
-        try {
-            val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                Bitmap.CompressFormat.WEBP_LOSSLESS
-            } else {
-                Bitmap.CompressFormat.PNG
-            }
+        compressionScope.launch {
+            try {
+                val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Bitmap.CompressFormat.WEBP_LOSSLESS
+                } else {
+                    Bitmap.CompressFormat.PNG
+                }
 
-            val byteArrayOutputStream = ByteArrayOutputStream()
-            originalBitmap.compress(compressFormat, 100, byteArrayOutputStream)
-            val compressedData = byteArrayOutputStream.toByteArray()
+                val byteArrayOutputStream = ByteArrayOutputStream()
+                originalBitmap.compress(compressFormat, 100, byteArrayOutputStream)
+                val compressedData = byteArrayOutputStream.toByteArray()
 
-            post {
-                updateHistoryList(compressedData)
+                post {
+                    updateHistoryList(compressedData)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } catch (e: OutOfMemoryError) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } catch (e: OutOfMemoryError) {
-            e.printStackTrace()
         }
     }
 
@@ -1085,5 +1092,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             
             imageBounds.roundOut(checkerDrawable.bounds)
         }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        compressionScope.cancel()
+        compressionDispatcher.close()
     }
 }
