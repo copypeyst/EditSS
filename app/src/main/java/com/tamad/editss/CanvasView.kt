@@ -200,7 +200,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun undo(): Bitmap? {
         if (currentHistoryIndex > 0) {
             currentHistoryIndex--
-            restoreBitmapFromHistory(currentHistoryIndex)
+            applyStateFromHistory(currentHistoryIndex)
             onUndoAction?.invoke()
             return baseBitmap
         }
@@ -210,17 +210,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun redo(): Bitmap? {
         if (currentHistoryIndex < bitmapHistory.size - 1) {
             currentHistoryIndex++
-            restoreBitmapFromHistory(currentHistoryIndex)
+            applyStateFromHistory(currentHistoryIndex)
             onRedoAction?.invoke()
             return baseBitmap
         }
         return null
     }
 
-    private fun restoreBitmapFromHistory(index: Int) {
+    private fun applyStateFromHistory(index: Int) {
         if (index < 0 || index >= bitmapHistory.size) return
         
-        // Simply restore the bitmap from history
+        // Simply restore the bitmap from the stored snapshots
         val historyBitmap = bitmapHistory[index]
         if (!historyBitmap.isRecycled) {
             baseBitmap?.recycle()
@@ -581,25 +581,40 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         // DrawingTool returns completed action ONLY on ACTION_UP
         completedAction?.let { action ->
-            // Merge the stroke into the bitmap (permanent change)
-            mergeDrawingStrokeIntoBitmap(action)
-            
-            // Save a snapshot of the current state to history
-            val currentBitmap = baseBitmap ?: return@let
-            val snapshot = currentBitmap.copy(Bitmap.Config.ARGB_8888, true)
-            
-            // Store the action data for potential future replay
+            // Store this as an individual action WITHOUT modifying baseBitmap permanently
             val actionData = ActionData(
                 ActionType.DRAW,
                 path = Path(action.path), 
                 paint = Paint(action.paint)
             )
             
-            saveSnapshotToHistory(snapshot, actionData)
+            // Save the action to history (but don't modify baseBitmap yet)
+            saveDrawingActionToHistory(actionData)
         }
 
         invalidate()
         return true
+    }
+
+    private fun saveDrawingActionToHistory(action: ActionData) {
+        // Clear redo history
+        while (bitmapHistory.size > currentHistoryIndex + 1) {
+            val removed = bitmapHistory.removeLast()
+            if (removed != baseBitmap && !removed.isRecycled) {
+                removed.recycle()
+            }
+            actionHistory.removeLast()
+        }
+
+        // Create a new snapshot for this action
+        val currentBitmap = baseBitmap ?: return
+        val snapshot = currentBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        
+        bitmapHistory.add(snapshot)
+        actionHistory.add(action)
+        currentHistoryIndex++
+
+        manageMemoryUsage()
     }
 
     private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
