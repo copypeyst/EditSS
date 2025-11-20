@@ -6,11 +6,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
-import java.io.File
-import java.io.FileOutputStream
-import java.util.UUID
-import java.util.concurrent.Executors
-import kotlinx.coroutines.*
+import java.io.ByteArrayOutputStream
 import android.os.Build
 import androidx.core.content.ContextCompat
 import kotlin.math.hypot
@@ -40,12 +36,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
-    private val historyPaths = mutableListOf<String>()
+    private val historyData = mutableListOf<ByteArray>()
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
-
-    private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
-    private val saveScope = CoroutineScope(saveDispatcher + Job())
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
@@ -125,90 +118,60 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val originalBitmap = baseBitmap ?: return
 
         try {
-            val bitmapToSave = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
-
-            saveScope.launch {
-                try {
-                    val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        Bitmap.CompressFormat.WEBP_LOSSLESS
-                    } else {
-                        Bitmap.CompressFormat.PNG
-                    }
-                    
-                    val extension = if (compressFormat == Bitmap.CompressFormat.PNG) "png" else "webp"
-                    val fileName = "undo_${System.currentTimeMillis()}_${UUID.randomUUID()}.$extension"
-                    val file = File(context.cacheDir, fileName)
-
-                    FileOutputStream(file).use { out ->
-                        bitmapToSave.compress(compressFormat, 100, out)
-                    }
-
-                    val newPath = file.absolutePath
-
-                    post {
-                        updateHistoryList(newPath)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+            val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Bitmap.CompressFormat.WEBP_LOSSLESS
+            } else {
+                Bitmap.CompressFormat.PNG
             }
+
+            val byteArrayOutputStream = ByteArrayOutputStream()
+            originalBitmap.compress(compressFormat, 100, byteArrayOutputStream)
+            val compressedData = byteArrayOutputStream.toByteArray()
+
+            post {
+                updateHistoryList(compressedData)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         } catch (e: OutOfMemoryError) {
             e.printStackTrace()
         }
     }
 
-    private fun updateHistoryList(newPath: String) {
-        if (currentHistoryIndex < historyPaths.size - 1) {
-            val subList = historyPaths.subList(currentHistoryIndex + 1, historyPaths.size)
-            val pathsToDelete = ArrayList(subList)
-            subList.clear()
-
-            saveScope.launch {
-                withContext(NonCancellable) {
-                    pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
-                }
-            }
+    private fun updateHistoryList(compressedData: ByteArray) {
+        if (currentHistoryIndex < historyData.size - 1) {
+            historyData.subList(currentHistoryIndex + 1, historyData.size).clear()
         }
 
-        historyPaths.add(newPath)
-        currentHistoryIndex = historyPaths.size - 1
+        historyData.add(compressedData)
+        currentHistoryIndex = historyData.size - 1
 
         cleanupHistoryStorage()
     }
 
     private fun cleanupHistoryStorage() {
         val maxCount = 20
-        val maxSizeBytes = 500 * 1024 * 1024
+        val maxSizeBytes = 300 * 1024 * 1024
 
-        saveScope.launch {
-            withContext(NonCancellable) {
-                var deletedAny = false
-                
-                while (historyPaths.size > maxCount) {
-                    val oldPath = historyPaths.removeAt(0)
-                    try { File(oldPath).delete() } catch (e: Exception) {}
-                    deletedAny = true
-                }
+        var deletedAny = false
+        
+        while (historyData.size > maxCount) {
+            historyData.removeAt(0)
+            deletedAny = true
+        }
 
-                var currentSize = historyPaths.sumOf { File(it).length() }
-                while (currentSize > maxSizeBytes && historyPaths.size > 1) {
-                    val oldPath = historyPaths.removeAt(0)
-                    val file = File(oldPath)
-                    val fileSize = file.length()
-                    try { file.delete() } catch (e: Exception) {}
-                    currentSize -= fileSize
-                    deletedAny = true
-                }
+        var currentSize = historyData.sumOf { it.size }
+        while (currentSize > maxSizeBytes && historyData.size > 1) {
+            val oldData = historyData.removeAt(0)
+            currentSize -= oldData.size
+            deletedAny = true
+        }
 
-                if (deletedAny) {
-                    post {
-                        currentHistoryIndex = historyPaths.size - 1
-                        if (savedHistoryIndex >= 0) {
-                            if (savedHistoryIndex > currentHistoryIndex) {
-                                savedHistoryIndex = -1
-                            }
-                        }
-                    }
+        if (deletedAny) {
+            currentHistoryIndex = historyData.size - 1
+            if (savedHistoryIndex >= 0) {
+                if (savedHistoryIndex > currentHistoryIndex) {
+                    savedHistoryIndex = -1
                 }
             }
         }
@@ -224,7 +187,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun redo(): Bitmap? {
-        if (currentHistoryIndex < historyPaths.size - 1) {
+        if (currentHistoryIndex < historyData.size - 1) {
             currentHistoryIndex++
             loadBitmapFromHistory()
             return baseBitmap
@@ -233,11 +196,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun loadBitmapFromHistory() {
-        val path = historyPaths[currentHistoryIndex]
+        val compressedData = historyData[currentHistoryIndex]
         val options = BitmapFactory.Options().apply {
             inMutable = true
         }
-        val loadedBitmap = BitmapFactory.decodeFile(path, options)
+        val loadedBitmap = BitmapFactory.decodeByteArray(compressedData, 0, compressedData.size, options)
 
         if (loadedBitmap != null) {
             baseBitmap = loadedBitmap
@@ -247,23 +210,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun clearHistoryCache() {
-        val pathsToDelete = ArrayList(historyPaths)
-        historyPaths.clear()
+        historyData.clear()
         currentHistoryIndex = -1
         savedHistoryIndex = -1
-
-        saveScope.launch {
-            withContext(NonCancellable) {
-                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
-            }
-        }
     }
 
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        saveScope.cancel()
-        saveDispatcher.close()
-    }
+
 
     // Bitmap Handling
 
@@ -297,7 +249,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun canUndo(): Boolean = currentHistoryIndex > 0
-    fun canRedo(): Boolean = currentHistoryIndex < historyPaths.size - 1
+    fun canRedo(): Boolean = currentHistoryIndex < historyData.size - 1
 
     // Drawing
 
