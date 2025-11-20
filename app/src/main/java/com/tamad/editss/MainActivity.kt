@@ -801,19 +801,7 @@ class MainActivity : AppCompatActivity() {
     // Helper Methods
 
     private fun cleanupOldCacheFiles() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val cacheFiles = cacheDir.listFiles()
-                val undoFiles = cacheFiles?.filter { 
-                    (it.name.startsWith("undo_") && (it.name.endsWith(".png") || it.name.endsWith(".webp"))) 
-                }
-                undoFiles?.forEach { file ->
-                    file.delete()
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Failed to cleanup cache: ${e.message}")
-            }
-        }
+        // No longer needed - history is now stored in memory
     }
 
     private fun shareCurrentImage() {
