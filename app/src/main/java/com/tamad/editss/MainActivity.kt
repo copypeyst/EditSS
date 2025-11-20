@@ -801,7 +801,19 @@ class MainActivity : AppCompatActivity() {
     // Helper Methods
 
     private fun cleanupOldCacheFiles() {
-        // No longer needed - history is now stored in memory
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val cacheFiles = cacheDir.listFiles()
+                val undoFiles = cacheFiles?.filter { 
+                    (it.name.startsWith("undo_") && (it.name.endsWith(".png") || it.name.endsWith(".webp"))) 
+                }
+                undoFiles?.forEach { file ->
+                    file.delete()
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to cleanup cache: ${e.message}")
+            }
+        }
     }
 
     private fun shareCurrentImage() {
@@ -810,7 +822,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val shareUri = withContext(Dispatchers.IO) {
-                    val bitmapToShare = drawingView.getFinalImageForExport()
+                    val bitmapToShare = drawingView.getDrawing()
                         ?: throw Exception("No image to share")
 
                     when (imageInfo.origin) {
@@ -1211,10 +1223,10 @@ class MainActivity : AppCompatActivity() {
             when (selectedSaveFormat) {
                 "image/png", "image/webp" -> drawingView.getTransparentDrawingWithAdjustments()
                 "image/jpeg" -> drawingView.getSketchDrawingOnWhite()
-                else -> drawingView.getFinalImageForExport()
+                else -> drawingView.getDrawing()
             }
         } else {
-            drawingView.getFinalImageForExport()?.let {
+            drawingView.getDrawing()?.let {
                 if (selectedSaveFormat == "image/jpeg" && currentImageHasTransparency) {
                     drawingView.convertTransparentToWhite(it)
                 } else {
@@ -1276,7 +1288,7 @@ class MainActivity : AppCompatActivity() {
                     showLoadingSpinner()
                     try {
                         val displayName = withContext(Dispatchers.IO) {
-                            val bitmapToSave = drawingView.getFinalImageForExport()
+                            val bitmapToSave = drawingView.getDrawing()
                                 ?: throw Exception("Could not get image to overwrite")
                             
                             contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
