@@ -42,7 +42,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
-    private val historyPaths = mutableListOf<String>()
+    private data class HistoryState(val bitmapPath: String, val drawActions: List<DrawAction>)
+    private val history = mutableListOf<HistoryState>()
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
 
@@ -129,12 +130,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun saveCurrentState() {
-        commitDrawings()
-        val originalBitmap = baseBitmap ?: return
+        val bitmapToSave = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true) ?: return
 
         try {
-            val bitmapToSave = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
-
             saveScope.launch {
                 try {
                     val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -152,9 +150,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     }
 
                     val newPath = file.absolutePath
+                    val actions = drawActions.map { it.copy(path = Path(it.path)) }
+                    val newState = HistoryState(newPath, actions)
 
                     post {
-                        updateHistoryList(newPath)
+                        updateHistoryList(newState)
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -165,10 +165,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    private fun updateHistoryList(newPath: String) {
-        if (currentHistoryIndex < historyPaths.size - 1) {
-            val subList = historyPaths.subList(currentHistoryIndex + 1, historyPaths.size)
-            val pathsToDelete = ArrayList(subList)
+    private fun updateHistoryList(newState: HistoryState) {
+        if (currentHistoryIndex < history.size - 1) {
+            val subList = history.subList(currentHistoryIndex + 1, history.size)
+            val pathsToDelete = subList.map { it.bitmapPath }
             subList.clear()
 
             saveScope.launch {
@@ -178,8 +178,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
 
-        historyPaths.add(newPath)
-        currentHistoryIndex = historyPaths.size - 1
+        history.add(newState)
+        currentHistoryIndex = history.size - 1
 
         cleanupHistoryStorage()
     }
@@ -192,16 +192,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             withContext(NonCancellable) {
                 var deletedAny = false
                 
-                while (historyPaths.size > maxCount) {
-                    val oldPath = historyPaths.removeAt(0)
-                    try { File(oldPath).delete() } catch (e: Exception) {}
+                while (history.size > maxCount) {
+                    val oldState = history.removeAt(0)
+                    try { File(oldState.bitmapPath).delete() } catch (e: Exception) {}
                     deletedAny = true
                 }
 
-                var currentSize = historyPaths.sumOf { File(it).length() }
-                while (currentSize > maxSizeBytes && historyPaths.size > 1) {
-                    val oldPath = historyPaths.removeAt(0)
-                    val file = File(oldPath)
+                var currentSize = history.sumOf { File(it.bitmapPath).length() }
+                while (currentSize > maxSizeBytes && history.size > 1) {
+                    val oldState = history.removeAt(0)
+                    val file = File(oldState.bitmapPath)
                     val fileSize = file.length()
                     try { file.delete() } catch (e: Exception) {}
                     currentSize -= fileSize
@@ -210,7 +210,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
                 if (deletedAny) {
                     post {
-                        currentHistoryIndex = historyPaths.size - 1
+                        currentHistoryIndex = history.size - 1
                         if (savedHistoryIndex >= 0) {
                             if (savedHistoryIndex > currentHistoryIndex) {
                                 savedHistoryIndex = -1
@@ -255,16 +255,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun loadBitmapFromHistory() {
-        if (currentHistoryIndex < 0 || currentHistoryIndex >= historyPaths.size) return
-        val path = historyPaths[currentHistoryIndex]
+        if (currentHistoryIndex < 0 || currentHistoryIndex >= history.size) return
+        val state = history[currentHistoryIndex]
         val options = BitmapFactory.Options().apply {
             inMutable = true
         }
-        val loadedBitmap = BitmapFactory.decodeFile(path, options)
+        val loadedBitmap = BitmapFactory.decodeFile(state.bitmapPath, options)
 
         if (loadedBitmap != null) {
             baseBitmap = loadedBitmap
             drawActions.clear()
+            drawActions.addAll(state.drawActions.map { it.copy(path = Path(it.path)) })
             redoDrawActions.clear()
             updateImageMatrix()
             invalidate()
@@ -272,8 +273,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun clearHistoryCache() {
-        val pathsToDelete = ArrayList(historyPaths)
-        historyPaths.clear()
+        val statesToDelete = ArrayList(history)
+        history.clear()
         drawActions.clear()
         redoDrawActions.clear()
         currentHistoryIndex = -1
@@ -281,7 +282,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         saveScope.launch {
             withContext(NonCancellable) {
-                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
+                statesToDelete.forEach { try { File(it.bitmapPath).delete() } catch(e: Exception){} }
             }
         }
     }
@@ -322,7 +323,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun canUndo(): Boolean = drawActions.isNotEmpty() || currentHistoryIndex > 0
-    fun canRedo(): Boolean = redoDrawActions.isNotEmpty() || currentHistoryIndex < historyPaths.size - 1
+    fun canRedo(): Boolean = redoDrawActions.isNotEmpty() || currentHistoryIndex < history.size - 1
 
     fun setDrawingState(drawingState: DrawingState) {
         paint.color = drawingState.color
@@ -717,7 +718,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         saveCurrentState()
         if (baseBitmap == null || cropRect.isEmpty) return null
 
-        val bitmapWithDrawings = baseBitmap ?: return null
+        val bitmapWithDrawings = getFinalBitmap() ?: return null
 
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
@@ -741,6 +742,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             )
 
             baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+            drawActions.clear()
+            redoDrawActions.clear()
 
             saveCurrentState()
 
@@ -1052,12 +1055,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         saveCurrentState()
         if (baseBitmap == null) return null
 
-        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(adjustedBitmap)
-        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
-        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
-
+        val adjustedBitmap = getFinalBitmap() ?: return null
+        
         baseBitmap = adjustedBitmap
+        drawActions.clear()
+        redoDrawActions.clear()
+        
         saveCurrentState()
         invalidate()
 
