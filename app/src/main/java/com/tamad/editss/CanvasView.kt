@@ -134,10 +134,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun saveCurrentState(action: RestoreAction) {
         val source = baseBitmap ?: return
-        // CRITICAL: Always verify the bitmap is valid before copying
         if (source.isRecycled) return
 
-        // Create a deep copy for the undo stack
+        // Create a deep copy for the history
         val bitmapToSave = try {
             source.copy(Bitmap.Config.ARGB_8888, true)
         } catch (e: Exception) {
@@ -145,8 +144,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             null
         } ?: return
 
+        // If we are undoing and then drawing, remove the "Redo" steps ahead
         while (historyStack.size > currentHistoryIndex + 1) {
             val removed = historyStack.removeLast()
+            // Only recycle if this bitmap is NOT the one currently displayed
             if (removed.bitmap != baseBitmap) {
                 removed.bitmap.recycle()
             }
@@ -162,15 +163,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun manageMemoryUsage() {
         var currentUsage = 0L
         for (item in historyStack) {
-            currentUsage += item.bitmap.allocationByteCount
+            if (!item.bitmap.isRecycled) {
+                currentUsage += item.bitmap.allocationByteCount
+            }
         }
 
-        while (currentUsage > MAX_RAM_USAGE && historyStack.size > 1) {
+        // Remove oldest steps if we exceed 500MB, but keep at least 2 steps
+        while (currentUsage > MAX_RAM_USAGE && historyStack.size > 2) {
             val removed = historyStack.removeFirst()
             currentUsage -= removed.bitmap.allocationByteCount
             
-            // Only recycle if it's not the one currently displayed (safety check)
-            if (removed.bitmap != baseBitmap) {
+            // Safe recycling: Only recycle if it's not the active view
+            if (removed.bitmap != baseBitmap && !removed.bitmap.isRecycled) {
                 removed.bitmap.recycle()
             }
             
@@ -205,15 +209,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun restoreState(item: HistoryItem) {
         if (item.bitmap.isRecycled) return
 
-        val oldBitmap = baseBitmap
-        
-        // Create a fresh mutable copy for the view to edit
+        // Create a fresh mutable copy for the view to edit.
+        // We rely on GC to collect the previous baseBitmap.
+        // Manual recycling here caused the "Reset" bug.
         baseBitmap = item.bitmap.copy(Bitmap.Config.ARGB_8888, true)
-        
-        // Recycle the old one to free memory immediately
-        if (oldBitmap != null && oldBitmap != item.bitmap && !oldBitmap.isRecycled) {
-            oldBitmap.recycle()
-        }
         
         updateImageMatrix()
         invalidate()
@@ -222,35 +221,33 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     // Bitmap Handling
 
     fun setBitmap(bitmap: Bitmap?) {
-        // 1. Clean up everything
+        // Clean up old history
         historyStack.forEach { 
             if (!it.bitmap.isRecycled) it.bitmap.recycle() 
         }
         historyStack.clear()
         currentHistoryIndex = -1
         savedHistoryIndex = -1
-        baseBitmap?.recycle()
+        
+        // We do NOT manually recycle baseBitmap here just in case, let GC handle it
+        baseBitmap = null
         originalHighResBitmap?.recycle()
 
         if (bitmap != null) {
-            // 2. HARDWARE BITMAP FIX:
-            // If input is HARDWARE, we MUST convert to Software ARGB_8888 immediately.
-            // copy(ARGB_8888, true) handles this conversion automatically.
+            // 1. Convert Hardware Bitmap to Software if needed
             val safeSoftwareBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
                 bitmap.copy(Bitmap.Config.ARGB_8888, true)
             } else {
-                // Even if not hardware, we copy to ensure we don't recycle the caller's bitmap
                 bitmap.copy(Bitmap.Config.ARGB_8888, true)
             }
 
-            // 3. Save Original High Res (Safe Software Version)
-            originalHighResBitmap = safeSoftwareBitmap // already a copy
-            
-            // 4. Create Proxy (Safe Software Version)
-            // We pass the safeSoftwareBitmap to ensure createProxyBitmap never sees a Hardware bitmap
+            // 2. Save Original High Res
+            originalHighResBitmap = safeSoftwareBitmap // it's already a copy
+
+            // 3. Create Proxy (Safe Software Version)
             baseBitmap = createProxyBitmap(safeSoftwareBitmap)
             
-            // 5. Save Initial State
+            // 4. Save Initial State
             saveCurrentState(RestoreAction.None)
             savedHistoryIndex = 0
             
@@ -266,18 +263,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 }
             }
         } else {
-            baseBitmap = null
-            originalHighResBitmap = null
             invalidate()
         }
     }
 
     private fun createProxyBitmap(source: Bitmap): Bitmap {
-        // IMMUTABILITY FIX:
-        // We manually create a new Bitmap and draw onto it.
-        // This guarantees the result is Mutable and Software-backed.
-        // We do NOT use createScaledBitmap which often returns immutable results.
-        
+        // Create a strictly Mutable, Software-backed bitmap
         val maxDimension = 2000
         val ratio = Math.min(
             maxDimension.toFloat() / source.width,
@@ -298,8 +289,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val mutableBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(mutableBitmap)
         val destRect = Rect(0, 0, width, height)
-        
-        // This draw call is safe because 'source' is guaranteed to be Software by setBitmap
         canvas.drawBitmap(source, null, destRect, null)
         
         return mutableBitmap
