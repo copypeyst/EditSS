@@ -6,31 +6,49 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import androidx.core.content.ContextCompat
 import java.util.UUID
 import kotlin.math.hypot
+import kotlin.math.min
+import kotlin.math.max
 
+// === TOP-LEVEL ENUMS (as expected by MainActivity) ===
+enum class CropMode {
+    FREEFORM,
+    SQUARE,
+    PORTRAIT,
+    LANDSCAPE
+}
+
+enum class DrawMode {
+    PEN,
+    CIRCLE,
+    SQUARE
+}
+
+// === DATA CLASSES ===
+private data class DrawAction(
+    val path: Path,
+    val paint: Paint,
+    val id: String = UUID.randomUUID().toString()
+) {
+    fun copy(): DrawAction = DrawAction(Path(path), Paint(paint).apply {
+        color = paint.color
+        strokeWidth = paint.strokeWidth
+        alpha = paint.alpha
+        style = paint.style
+        strokeJoin = paint.strokeJoin
+        strokeCap = paint.strokeCap
+    }, id)
+}
+
+private data class HistorySnapshot(
+    val actions: List<DrawAction>,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+// === CORE VIEW CLASS ===
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
-
-    // === CORE DATA STRUCTURES ===
-    private data class DrawAction(
-        val path: Path,
-        val paint: Paint,
-        val id: String = UUID.randomUUID().toString()
-    ) {
-        fun copy(): DrawAction = DrawAction(Path(path), Paint(paint).apply {
-            color = paint.color
-            strokeWidth = paint.strokeWidth
-            alpha = paint.alpha
-            style = paint.style
-            strokeJoin = paint.strokeJoin
-            strokeCap = paint.strokeCap
-        }, id)
-    }
-
-    private data class HistorySnapshot(
-        val actions: List<DrawAction>,
-        val timestamp: Long = System.currentTimeMillis()
-    )
 
     // === DRAWING STATE ===
     private val paint = Paint().apply {
@@ -71,6 +89,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private val overlayPath = Path()
+    private val cropRect = RectF()
 
     // === BITMAP & TRANSFORM STATE ===
     private var baseBitmap: Bitmap? = null
@@ -86,9 +105,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val checkerDrawable = CheckerDrawable()
 
     // === TOOL & MODE STATE ===
-    enum class ToolType { DRAW, CROP, ADJUST }
-
-    enum class CropMode { FREEFORM, SQUARE, PORTRAIT, LANDSCAPE }
+    enum class ToolType {
+        DRAW,
+        CROP,
+        ADJUST
+    }
 
     private var currentTool: ToolType = ToolType.DRAW
     private var currentCropMode: CropMode = CropMode.FREEFORM
@@ -97,7 +118,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isMovingCropRect = false
     private var isResizingCropRect = false
     private var resizeHandle: Int = 0
-
     private var isSketchMode = false
 
     // === TOUCH & GESTURE STATE ===
@@ -107,6 +127,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var isZooming = false
     private var isDrawing = false
     private var lastPointerCount = 1
+    private var lastFocusX = 0f
+    private var lastFocusY = 0f
 
     private var lastTouchX = 0f
     private var lastTouchY = 0f
@@ -445,7 +467,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 height = visibleBounds.height()
             }
             CropMode.SQUARE -> {
-                val size = kotlin.math.min(visibleBounds.width(), visibleBounds.height())
+                val size = min(visibleBounds.width(), visibleBounds.height())
                 width = size
                 height = size
             }
@@ -473,10 +495,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun getVisibleImageBounds(): RectF {
-        val visibleLeft = kotlin.math.max(imageBounds.left, 0f)
-        val visibleTop = kotlin.math.max(imageBounds.top, 0f)
-        val visibleRight = kotlin.math.min(imageBounds.right, width.toFloat())
-        val visibleBottom = kotlin.math.min(imageBounds.bottom, height.toFloat())
+        val visibleLeft = max(imageBounds.left, 0f)
+        val visibleTop = max(imageBounds.top, 0f)
+        val visibleRight = min(imageBounds.right, width.toFloat())
+        val visibleBottom = min(imageBounds.bottom, height.toFloat())
         return RectF(visibleLeft, visibleTop, visibleRight, visibleBottom)
     }
 
@@ -515,13 +537,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
 
-        val maxAllowedWidth = 2 * kotlin.math.min(centerX - visibleBounds.left, visibleBounds.right - centerX)
-        val maxAllowedHeight = 2 * kotlin.math.min(centerY - visibleBounds.top, visibleBounds.bottom - centerY)
+        val maxAllowedWidth = 2 * min(centerX - visibleBounds.left, visibleBounds.right - centerX)
+        val maxAllowedHeight = 2 * min(centerY - visibleBounds.top, visibleBounds.bottom - centerY)
 
         if (width > maxAllowedWidth || height > maxAllowedHeight) {
             val widthScale = maxAllowedWidth / width
             val heightScale = maxAllowedHeight / height
-            val scale = kotlin.math.min(widthScale, heightScale)
+            val scale = min(widthScale, heightScale)
             width *= scale
             height *= scale
         }
@@ -616,7 +638,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (constrainedWidth > maxAllowedWidth || constrainedHeight > maxAllowedHeight) {
             val widthScale = maxAllowedWidth / constrainedWidth
             val heightScale = maxAllowedHeight / constrainedHeight
-            val scale = kotlin.math.min(widthScale, heightScale)
+            val scale = min(widthScale, heightScale)
             constrainedWidth *= scale
             constrainedHeight *= scale
         }
@@ -656,8 +678,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun updateCropRect(x: Float, y: Float) {
-        cropRect.right = kotlin.math.max(x, cropRect.left)
-        cropRect.bottom = kotlin.math.max(y, cropRect.top)
+        cropRect.right = max(x, cropRect.left)
+        cropRect.bottom = max(y, cropRect.top)
         val startX = cropRect.left
         val startY = cropRect.top
 
