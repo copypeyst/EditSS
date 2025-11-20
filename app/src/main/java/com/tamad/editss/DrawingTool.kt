@@ -26,7 +26,6 @@ abstract class BaseDrawingTool : DrawingTool {
                 startX = x
                 startY = y
                 currentPath.reset()
-                currentPath.moveTo(x, y)
                 onTouchDown(x, y)
                 return null
             }
