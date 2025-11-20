@@ -133,7 +133,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     // History Management
 
     private fun saveCurrentState(action: RestoreAction) {
-        val bitmapToSave = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true) ?: return
+        val source = baseBitmap ?: return
+        // Ensure we create a true independent copy
+        val bitmapToSave = source.copy(Bitmap.Config.ARGB_8888, true) ?: return
 
         while (historyStack.size > currentHistoryIndex + 1) {
             historyStack.removeLast().bitmap.recycle()
@@ -185,10 +187,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun restoreState(item: HistoryItem) {
+        // Do not recycle baseBitmap if it points to the same object (shouldn't happen, but safe guard)
         if (baseBitmap != item.bitmap) {
             baseBitmap?.recycle() 
         }
         
+        // Create a fresh mutable copy for the view to edit
         baseBitmap = item.bitmap.copy(Bitmap.Config.ARGB_8888, true)
         
         updateImageMatrix()
@@ -206,9 +210,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         originalHighResBitmap?.recycle()
 
         if (bitmap != null) {
+            // Safe mutable copy for High Res
             originalHighResBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+            
+            // Safe mutable proxy
             baseBitmap = createProxyBitmap(bitmap)
             
+            // Save Initial State (Index 0)
             saveCurrentState(RestoreAction.None)
             savedHistoryIndex = 0
             
@@ -231,19 +239,32 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun createProxyBitmap(source: Bitmap): Bitmap {
+        // FIX: Use manual drawing to ensure result is Mutable and Software-backed.
+        // This prevents crashes on "Canvas(bitmap)" and handling Hardware bitmaps.
+        
         val maxDimension = 2000
         val ratio = Math.min(
             maxDimension.toFloat() / source.width,
             maxDimension.toFloat() / source.height
         )
 
-        return if (ratio >= 1.0f) {
-            source.copy(Bitmap.Config.ARGB_8888, true)
+        val width: Int
+        val height: Int
+        
+        if (ratio >= 1.0f) {
+            width = source.width
+            height = source.height
         } else {
-            val width = (source.width * ratio).toInt()
-            val height = (source.height * ratio).toInt()
-            Bitmap.createScaledBitmap(source, width, height, true)
+            width = (source.width * ratio).toInt()
+            height = (source.height * ratio).toInt()
         }
+        
+        val mutableBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(mutableBitmap)
+        val destRect = Rect(0, 0, width, height)
+        canvas.drawBitmap(source, null, destRect, null)
+        
+        return mutableBitmap
     }
     
     fun getFinalBitmap(): Bitmap? {
