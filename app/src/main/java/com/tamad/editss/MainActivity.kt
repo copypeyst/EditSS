@@ -693,8 +693,13 @@ class MainActivity : AppCompatActivity() {
         updateDrawModeSelection(drawModePen)
 
         // Canvas View Callbacks
-        drawingView.onBitmapChanged = { editAction ->
-            editViewModel.pushBitmapChangeAction(editAction)
+        drawingView.onActionAdded = { editAction ->
+            when (editAction) {
+                is EditAction.Drawing -> editViewModel.pushDrawingAction(editAction.action)
+                is EditAction.Crop -> editViewModel.pushCropAction(editAction.action)
+                is EditAction.Adjust -> editViewModel.pushAdjustAction(editAction.action)
+                is EditAction.BitmapChange -> editViewModel.pushBitmapChangeAction(editAction)
+            }
         }
 
         // ViewModel Observation
@@ -1251,7 +1256,7 @@ class MainActivity : AppCompatActivity() {
                 
                 savePanel.visibility = View.GONE
                 scrim.visibility = View.GONE
-                drawingView.markAsSaved()
+                editViewModel.markActionsAsSaved()
 
             } catch (e: Exception) {
                 showCustomToast(e.message ?: "Unknown error")
@@ -1347,7 +1352,7 @@ class MainActivity : AppCompatActivity() {
                         
                         savePanel.visibility = View.GONE
                         scrim.visibility = View.GONE
-                        drawingView.markAsSaved()
+                        editViewModel.markActionsAsSaved()
 
                         imageLoader.memoryCache?.remove(MemoryCache.Key(imageInfo.uri.toString()))
                         imageLoader.diskCache?.remove(imageInfo.uri.toString())

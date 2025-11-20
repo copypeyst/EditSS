@@ -78,7 +78,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
-    var onBitmapChanged: ((EditAction) -> Unit)? = null
+    var onActionAdded: ((EditAction) -> Unit)? = null
 
     init {
         density = context.resources.displayMetrics.density
@@ -414,7 +414,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             
             // Push to ViewModel
             val drawingAction = DrawingAction(resultingAction.path, resultingAction.paint)
-            onBitmapChanged?.invoke(EditAction.Drawing(drawingAction))
+            onActionAdded?.invoke(EditAction.Drawing(drawingAction))
         }
 
         isDrawing = event.action != MotionEvent.ACTION_UP && event.action != MotionEvent.ACTION_CANCEL
@@ -620,7 +620,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 cropRect = imageCropRect,
                 cropMode = currentCropMode
             )
-            onBitmapChanged?.invoke(EditAction.Crop(cropAction))
+            onActionAdded?.invoke(EditAction.Crop(cropAction))
 
             cropRect.setEmpty()
             scaleFactor = 1.0f
@@ -938,7 +938,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         
         // Push adjust action to ViewModel
         val adjustAction = AdjustAction(previousBitmap, adjustedBitmap)
-        onBitmapChanged?.invoke(EditAction.Adjust(adjustAction))
+        onActionAdded?.invoke(EditAction.Adjust(adjustAction))
         
         invalidate()
 
