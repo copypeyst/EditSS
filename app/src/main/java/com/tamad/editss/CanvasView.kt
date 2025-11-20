@@ -47,18 +47,24 @@ class DrawingCommand(
 // Crop command
 class CropCommand(
     private val cropRect: RectF,
-    private val cropMode: CropMode
+    private val cropMode: CropMode,
+    private val originalWidth: Int,
+    private val originalHeight: Int
 ) : EditCommand {
     override fun executeOnProxy(proxyBitmap: Bitmap, matrix: Matrix): Bitmap {
-        val inverseMatrix = Matrix()
-        matrix.invert(inverseMatrix)
-        val imageCropRect = RectF()
-        inverseMatrix.mapRect(imageCropRect, cropRect)
+        // Scale crop rectangle to proxy bitmap dimensions
+        val scaleX = proxyBitmap.width.toFloat() / originalWidth
+        val scaleY = proxyBitmap.height.toFloat() / originalHeight
+        
+        val scaledLeft = cropRect.left * scaleX
+        val scaledTop = cropRect.top * scaleY
+        val scaledRight = cropRect.right * scaleX
+        val scaledBottom = cropRect.bottom * scaleY
 
-        val left = imageCropRect.left.coerceIn(0f, proxyBitmap.width.toFloat())
-        val top = imageCropRect.top.coerceIn(0f, proxyBitmap.height.toFloat())
-        val right = imageCropRect.right.coerceIn(0f, proxyBitmap.width.toFloat())
-        val bottom = imageCropRect.bottom.coerceIn(0f, proxyBitmap.height.toFloat())
+        val left = scaledLeft.coerceIn(0f, proxyBitmap.width.toFloat())
+        val top = scaledTop.coerceIn(0f, proxyBitmap.height.toFloat())
+        val right = scaledRight.coerceIn(0f, proxyBitmap.width.toFloat())
+        val bottom = scaledBottom.coerceIn(0f, proxyBitmap.height.toFloat())
 
         if (right <= left || bottom <= top) return proxyBitmap
 
@@ -72,15 +78,10 @@ class CropCommand(
     }
 
     override fun executeOnOriginal(originalBitmap: Bitmap, matrix: Matrix): Bitmap {
-        val inverseMatrix = Matrix()
-        matrix.invert(inverseMatrix)
-        val imageCropRect = RectF()
-        inverseMatrix.mapRect(imageCropRect, cropRect)
-
-        val left = imageCropRect.left.coerceIn(0f, originalBitmap.width.toFloat())
-        val top = imageCropRect.top.coerceIn(0f, originalBitmap.height.toFloat())
-        val right = imageCropRect.right.coerceIn(0f, originalBitmap.width.toFloat())
-        val bottom = imageCropRect.bottom.coerceIn(0f, originalBitmap.height.toFloat())
+        val left = cropRect.left.coerceIn(0f, originalBitmap.width.toFloat())
+        val top = cropRect.top.coerceIn(0f, originalBitmap.height.toFloat())
+        val right = cropRect.right.coerceIn(0f, originalBitmap.width.toFloat())
+        val bottom = cropRect.bottom.coerceIn(0f, originalBitmap.height.toFloat())
 
         if (right <= left || bottom <= top) return originalBitmap
 
@@ -309,12 +310,20 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         
         proxyBitmap = createProxyBitmap(original)
         
+        // Reset scaling when undoing crops
+        scaleFactor = 1.0f
+        translationX = 0f
+        translationY = 0f
+        
         // Apply all commands up to current history index
-        for (i in 0..currentHistoryIndex) {
-            val command = historyCommands[i]
-            proxyBitmap = command.executeOnProxy(proxyBitmap!!, imageMatrix)
+        if (currentHistoryIndex >= 0) {
+            for (i in 0..currentHistoryIndex) {
+                val command = historyCommands[i]
+                proxyBitmap = command.executeOnProxy(proxyBitmap!!, imageMatrix)
+            }
         }
         
+        updateImageMatrix()
         invalidate()
     }
 
@@ -365,6 +374,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         originalBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
         proxyBitmap = createProxyBitmap(originalBitmap!!)
 
+        // Initialize history with empty state (no commands applied)
+        currentHistoryIndex = -1
         savedHistoryIndex = 0
 
         background = ContextCompat.getDrawable(context, R.drawable.outer_bounds)
@@ -581,19 +592,23 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
         val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
 
+        // Store drawing immediately when stroke is completed
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> isDrawing = true
+            MotionEvent.ACTION_DOWN -> {
+                isDrawing = true
+                invalidate()
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 isDrawing = false
-                // Add drawing command to history instead of saving bitmap state
+                // Add drawing command to history when stroke ends
                 screenSpaceAction?.let { action ->
                     val drawingCommand = DrawingCommand(action.path, action.paint)
                     addEditCommand(drawingCommand)
                 }
+                invalidate()
             }
         }
 
-        invalidate()
         return true
     }
 
@@ -762,8 +777,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun applyCrop(): Bitmap? {
         if (proxyBitmap == null || cropRect.isEmpty) return null
 
+        // Store original dimensions for proper crop scaling
+        val originalWidth = originalBitmap?.width ?: proxyBitmap.width
+        val originalHeight = originalBitmap?.height ?: proxyBitmap.height
+
         // Add crop command to history
-        val cropCommand = CropCommand(RectF(cropRect), currentCropMode)
+        val cropCommand = CropCommand(RectF(cropRect), currentCropMode, originalWidth, originalHeight)
         addEditCommand(cropCommand)
 
         cropRect.setEmpty()
