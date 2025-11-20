@@ -14,19 +14,19 @@ import kotlin.math.max
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
-    // === CORE DATA STRUCTURES (PRIVATE TO CANVASVIEW) ===
+    // === CORE DATA STRUCTURES ===
     private data class DrawAction(
         val path: Path,
         val paint: Paint,
         val id: String = UUID.randomUUID().toString()
     ) {
         fun copy(): DrawAction = DrawAction(Path(path), Paint(paint).apply {
-            color = paint.color
-            strokeWidth = paint.strokeWidth
-            alpha = paint.alpha
-            style = paint.style
-            strokeJoin = paint.strokeJoin
-            strokeCap = paint.strokeCap
+            color = this@DrawAction.paint.color
+            strokeWidth = this@DrawAction.paint.strokeWidth
+            alpha = this@DrawAction.paint.alpha
+            style = this@DrawAction.paint.style
+            strokeJoin = this@DrawAction.paint.strokeJoin
+            strokeCap = this@DrawAction.paint.strokeCap
         }, id)
     }
 
@@ -90,9 +90,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val checkerDrawable = CheckerDrawable()
 
     // === TOOL & MODE STATE ===
-    // Use the existing enums from your project, don't redeclare them
-    // Just reference them with the correct package name if needed
-    
     enum class ToolType {
         DRAW,
         CROP,
@@ -189,21 +186,25 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun undo(): Boolean {
-        if (currentHistoryIndex > 0) {
-            currentHistoryIndex--
-            loadStateFromHistory()
-            onUndoAction?.invoke()
-            return true
+        if (canUndo()) {
+            if (currentHistoryIndex > 0) {
+                currentHistoryIndex--
+                loadStateFromHistory()
+                onUndoAction?.invoke()
+                return true
+            }
         }
         return false
     }
 
     fun redo(): Boolean {
-        if (currentHistoryIndex < history.size - 1) {
-            currentHistoryIndex++
-            loadStateFromHistory()
-            onRedoAction?.invoke()
-            return true
+        if (canRedo()) {
+            if (currentHistoryIndex < history.size - 1) {
+                currentHistoryIndex++
+                loadStateFromHistory()
+                onRedoAction?.invoke()
+                return true
+            }
         }
         return false
     }
@@ -222,8 +223,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         savedHistoryIndex = -1
     }
 
-    fun canUndo(): Boolean = currentHistoryIndex > 0 || currentStrokeActions.isNotEmpty()
-    fun canRedo(): Boolean = currentHistoryIndex < history.size - 1
+    fun canUndo(): Boolean {
+        return currentHistoryIndex > 0 || currentStrokeActions.isNotEmpty()
+    }
+
+    fun canRedo(): Boolean {
+        return currentHistoryIndex < history.size - 1
+    }
 
     // === BITMAP MANAGEMENT ===
     fun setBitmap(bitmap: Bitmap?) {
@@ -297,8 +303,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             MotionEvent.ACTION_MOVE -> {
                 val action = currentDrawingTool.onTouchEvent(transformedEvent, paint)
                 if (action != null) {
-                    // FIX: Convert DrawingAction to CanvasView.DrawAction
-                    currentStrokeActions.add(DrawAction(action.path, Paint(paint)))
+                    // CRITICAL FIX: Properly extract path and paint from tool's returned action
+                    val actionPath = action.path
+                    val actionPaint = action.paint
+                    currentStrokeActions.add(DrawAction(actionPath, actionPaint))
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
