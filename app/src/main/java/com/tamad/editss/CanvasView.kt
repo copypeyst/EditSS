@@ -246,7 +246,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return null
         }
 
-        if (currentHistoryIndex < historyPaths.size - 1) {
+        if (currentHistoryIndex < history.size - 1) {
             currentHistoryIndex++
             loadBitmapFromHistory()
             return baseBitmap
