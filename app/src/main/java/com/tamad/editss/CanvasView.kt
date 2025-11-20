@@ -152,6 +152,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return
         }
 
+        saveSnapshotToHistory(snapshot, action)
+    }
+
+    private fun saveSnapshotToHistory(snapshot: Bitmap, action: ActionData) {
         // Clear redo history
         while (bitmapHistory.size > currentHistoryIndex + 1) {
             val removed = bitmapHistory.removeLast()
@@ -196,7 +200,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun undo(): Bitmap? {
         if (currentHistoryIndex > 0) {
             currentHistoryIndex--
-            restoreStateAtIndex(currentHistoryIndex)
+            restoreBitmapFromHistory(currentHistoryIndex)
             onUndoAction?.invoke()
             return baseBitmap
         }
@@ -206,118 +210,23 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun redo(): Bitmap? {
         if (currentHistoryIndex < bitmapHistory.size - 1) {
             currentHistoryIndex++
-            restoreStateAtIndex(currentHistoryIndex)
+            restoreBitmapFromHistory(currentHistoryIndex)
             onRedoAction?.invoke()
             return baseBitmap
         }
         return null
     }
 
-    private fun restoreStateAtIndex(index: Int) {
+    private fun restoreBitmapFromHistory(index: Int) {
         if (index < 0 || index >= bitmapHistory.size) return
         
-        // Start with the original bitmap
-        val original = originalHighResBitmap ?: return
-        var resultBitmap = original.copy(Bitmap.Config.ARGB_8888, true)
-        
-        // Replay actions from start to current index to get the exact state
-        replayActionsUpToIndex(index, resultBitmap)
-        
-        // Update baseBitmap with the result
-        baseBitmap?.recycle()
-        baseBitmap = createProxyBitmap(resultBitmap)
-        resultBitmap.recycle()
-        
-        updateImageMatrix()
-        invalidate()
-    }
-
-    private fun replayActionsUpToIndex(index: Int, resultBitmap: Bitmap) {
-        var currentBitmap = resultBitmap
-        var currentWidth = resultBitmap.width.toFloat()
-        var currentHeight = resultBitmap.height.toFloat()
-
-        // Replay each action from the beginning up to the target index
-        for (i in 1..index) {
-            if (i >= actionHistory.size) break
-            val action = actionHistory[i]
-            
-            when (action.type) {
-                ActionType.DRAW -> {
-                    if (action.path != null && action.paint != null) {
-                        val canvas = Canvas(currentBitmap)
-                        val prevProxy = if (i-1 < bitmapHistory.size) bitmapHistory[i-1] else currentBitmap
-                        
-                        val scaleX = currentWidth / prevProxy.width
-                        val scaleY = currentHeight / prevProxy.height
-                        
-                        val scaleMatrix = Matrix()
-                        scaleMatrix.setScale(scaleX, scaleY)
-                        
-                        val highResPath = Path()
-                        action.path.transform(scaleMatrix, highResPath)
-                        
-                        val highResPaint = Paint(action.paint)
-                        highResPaint.strokeWidth = action.paint.strokeWidth * scaleX
-                        
-                        canvas.drawPath(highResPath, highResPaint)
-                    }
-                }
-                ActionType.CROP -> {
-                    if (action.cropRect != null) {
-                        val scaleX = currentWidth / action.canvasWidth
-                        val scaleY = currentHeight / action.canvasHeight
-                        
-                        val highResRect = RectF(
-                            action.cropRect.left * scaleX,
-                            action.cropRect.top * scaleY,
-                            action.cropRect.right * scaleX,
-                            action.cropRect.bottom * scaleY
-                        )
-                        
-                        val safeLeft = highResRect.left.coerceIn(0f, currentWidth)
-                        val safeTop = highResRect.top.coerceIn(0f, currentHeight)
-                        val safeRight = highResRect.right.coerceIn(0f, currentWidth)
-                        val safeBottom = highResRect.bottom.coerceIn(0f, currentHeight)
-                        
-                        if (safeRight > safeLeft && safeBottom > safeTop) {
-                             val cropped = Bitmap.createBitmap(
-                                currentBitmap,
-                                safeLeft.toInt(),
-                                safeTop.toInt(),
-                                (safeRight - safeLeft).toInt(),
-                                (safeBottom - safeTop).toInt()
-                            )
-                            currentBitmap.recycle()
-                            currentBitmap = cropped
-                            currentWidth = currentBitmap.width.toFloat()
-                            currentHeight = currentBitmap.height.toFloat()
-                        }
-                    }
-                }
-                ActionType.ADJUST -> {
-                    val paint = Paint()
-                    val cm = ColorMatrix()
-                    val translation = action.brightness + (1f - action.contrast) * 128f
-                    cm.set(floatArrayOf(
-                        action.contrast, 0f, 0f, 0f, translation,
-                        0f, action.contrast, 0f, 0f, translation,
-                        0f, 0f, action.contrast, 0f, translation,
-                        0f, 0f, 0f, 1f, 0f
-                    ))
-                    val satMatrix = ColorMatrix().apply { setSaturation(action.saturation) }
-                    cm.postConcat(satMatrix)
-                    paint.colorFilter = ColorMatrixColorFilter(cm)
-                    
-                    val filtered = Bitmap.createBitmap(currentBitmap.width, currentBitmap.height, Bitmap.Config.ARGB_8888)
-                    val c = Canvas(filtered)
-                    c.drawBitmap(currentBitmap, 0f, 0f, paint)
-                    
-                    currentBitmap.recycle()
-                    currentBitmap = filtered
-                }
-                ActionType.IMPORT -> {}
-            }
+        // Simply restore the bitmap from history
+        val historyBitmap = bitmapHistory[index]
+        if (!historyBitmap.isRecycled) {
+            baseBitmap?.recycle()
+            baseBitmap = historyBitmap.copy(Bitmap.Config.ARGB_8888, true)
+            updateImageMatrix()
+            invalidate()
         }
     }
 
@@ -672,16 +581,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         // DrawingTool returns non-null ONLY when stroke is completed (ACTION_UP)
         screenSpaceAction?.let { action ->
-            // Merge the completed stroke into the bitmap permanently
-            mergeDrawingStrokeIntoBitmap(action)
-            
-            // Save to history for undo/redo
-            val actionData = ActionData(
-                ActionType.DRAW,
-                path = Path(action.path), 
-                paint = Paint(action.paint)
-            )
-            saveCurrentState(actionData)
+            // Instead of replaying, save individual bitmap snapshots
+            saveIndividualDrawingState(action)
         }
 
         when (event.action) {
@@ -695,6 +596,34 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         invalidate()
         return true
+    }
+
+    private fun saveIndividualDrawingState(action: DrawingAction) {
+        // Create a new bitmap with the current stroke added
+        val currentBitmap = baseBitmap ?: return
+        
+        // Create a copy of current bitmap
+        val newBitmap = currentBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(newBitmap)
+        
+        // Apply the stroke to the new bitmap
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        canvas.concat(inverseMatrix)
+        canvas.drawPath(action.path, action.paint)
+        
+        // Update baseBitmap to the new version
+        baseBitmap?.recycle()
+        baseBitmap = newBitmap
+        
+        // Save snapshot to history for undo/redo
+        val snapshot = newBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val actionData = ActionData(
+            ActionType.DRAW,
+            path = Path(action.path), 
+            paint = Paint(action.paint)
+        )
+        saveCurrentState(snapshot, actionData)
     }
 
     private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
