@@ -320,31 +320,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun cleanupHistoryStorage() {
         val maxCount = 20
-        val maxSizeBytes = 500 * 1024 * 1024
 
-        var deletedAny = false
-        
-        // Remove old entries by count
-        while (historyBitmapData.size > maxCount) {
-            historyBitmapData.removeAt(0)
-            deletedAny = true
+        // Remove old entries by count (commands don't have size limits like bitmaps)
+        while (historyCommands.size > maxCount) {
+            historyCommands.removeAt(0)
+            currentHistoryIndex--
         }
 
-        // Remove old entries by total size (approximate calculation)
-        var currentSize = historyBitmapData.sumOf { it.size }
-        while (currentSize > maxSizeBytes && historyBitmapData.size > 1) {
-            val removedData = historyBitmapData.removeAt(0)
-            currentSize -= removedData.size
-            deletedAny = true
-        }
-
-        if (deletedAny) {
-            currentHistoryIndex = historyBitmapData.size - 1
-            if (savedHistoryIndex >= 0) {
-                if (savedHistoryIndex > currentHistoryIndex) {
-                    savedHistoryIndex = -1
-                }
-            }
+        if (currentHistoryIndex >= historyCommands.size) {
+            currentHistoryIndex = historyCommands.size - 1
         }
     }
 
@@ -1104,11 +1088,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     // Helpers
 
     fun getDrawing(): Bitmap? {
-        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        return proxyBitmap?.copy(Bitmap.Config.ARGB_8888, true)
     }
 
     fun getDrawingOnTransparent(): Bitmap? {
-        return baseBitmap?.copy(Bitmap.Config.ARGB_8888, true)
+        return proxyBitmap?.copy(Bitmap.Config.ARGB_8888, true)
     }
 
     fun getTransparentDrawing(): Bitmap? {
@@ -1125,14 +1109,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun getFinalBitmap(): Bitmap? {
-        if (baseBitmap == null) return null
+        if (proxyBitmap == null) return null
 
         val hasAdjustments = brightness != 0f || contrast != 1f || saturation != 1f
         if (!hasAdjustments) {
-            return baseBitmap
+            return proxyBitmap
         }
 
-        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
+        val adjustedBitmap = Bitmap.createBitmap(proxyBitmap!!.width, proxyBitmap!!.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(adjustedBitmap)
 
         val paint = Paint().apply {
@@ -1142,7 +1126,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             isDither = true
         }
 
-        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
+        canvas.drawBitmap(proxyBitmap!!, 0f, 0f, paint)
         return adjustedBitmap
     }
 
@@ -1194,7 +1178,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun updateImageMatrix() {
-        baseBitmap?.let {
+        proxyBitmap?.let {
             val viewWidth = width.toFloat()
             val viewHeight = height.toFloat()
             val bitmapWidth = it.width.toFloat()
