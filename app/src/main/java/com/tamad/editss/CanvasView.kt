@@ -780,8 +780,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (proxyBitmap == null || cropRect.isEmpty) return null
 
         // Store original dimensions for proper crop scaling
-        val originalWidth = originalBitmap?.width ?: proxyBitmap.width
-        val originalHeight = originalBitmap?.height ?: proxyBitmap.height
+        val proxy = proxyBitmap ?: return null
+        val originalWidth = originalBitmap?.width ?: proxy.width
+        val originalHeight = originalBitmap?.height ?: proxy.height
 
         // Add crop command to history
         val cropCommand = CropCommand(RectF(cropRect), currentCropMode, originalWidth, originalHeight)
@@ -1137,7 +1138,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return proxyBitmap
         }
 
-        proxyBitmap?.let { currentProxy ->
+        return proxyBitmap?.let { currentProxy ->
             val adjustedBitmap = Bitmap.createBitmap(currentProxy.width, currentProxy.height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(adjustedBitmap)
 
@@ -1149,8 +1150,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
 
             canvas.drawBitmap(currentProxy, 0f, 0f, paint)
+            adjustedBitmap
         }
-        return adjustedBitmap
     }
 
     fun convertTransparentToWhite(bitmap: Bitmap): Bitmap {
