@@ -12,43 +12,28 @@ import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.max
 
-// === TOP-LEVEL ENUMS (as expected by MainActivity) ===
-enum class CropMode {
-    FREEFORM,
-    SQUARE,
-    PORTRAIT,
-    LANDSCAPE
-}
-
-enum class DrawMode {
-    PEN,
-    CIRCLE,
-    SQUARE
-}
-
-// === DATA CLASSES ===
-private data class DrawAction(
-    val path: Path,
-    val paint: Paint,
-    val id: String = UUID.randomUUID().toString()
-) {
-    fun copy(): DrawAction = DrawAction(Path(path), Paint(paint).apply {
-        color = paint.color
-        strokeWidth = paint.strokeWidth
-        alpha = paint.alpha
-        style = paint.style
-        strokeJoin = paint.strokeJoin
-        strokeCap = paint.strokeCap
-    }, id)
-}
-
-private data class HistorySnapshot(
-    val actions: List<DrawAction>,
-    val timestamp: Long = System.currentTimeMillis()
-)
-
-// === CORE VIEW CLASS ===
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
+
+    // === CORE DATA STRUCTURES (PRIVATE TO CANVASVIEW) ===
+    private data class DrawAction(
+        val path: Path,
+        val paint: Paint,
+        val id: String = UUID.randomUUID().toString()
+    ) {
+        fun copy(): DrawAction = DrawAction(Path(path), Paint(paint).apply {
+            color = paint.color
+            strokeWidth = paint.strokeWidth
+            alpha = paint.alpha
+            style = paint.style
+            strokeJoin = paint.strokeJoin
+            strokeCap = paint.strokeCap
+        }, id)
+    }
+
+    private data class HistorySnapshot(
+        val actions: List<DrawAction>,
+        val timestamp: Long = System.currentTimeMillis()
+    )
 
     // === DRAWING STATE ===
     private val paint = Paint().apply {
@@ -105,6 +90,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val checkerDrawable = CheckerDrawable()
 
     // === TOOL & MODE STATE ===
+    // Use the existing enums from your project, don't redeclare them
+    // Just reference them with the correct package name if needed
+    
     enum class ToolType {
         DRAW,
         CROP,
@@ -112,7 +100,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private var currentTool: ToolType = ToolType.DRAW
-    private var currentCropMode: CropMode = CropMode.FREEFORM
+    private var currentCropMode: com.tamad.editss.CropMode = com.tamad.editss.CropMode.FREEFORM
     private var isCropModeActive = false
     private var isCropping = false
     private var isMovingCropRect = false
@@ -265,9 +253,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         paint.strokeWidth = drawingState.size
         paint.alpha = drawingState.opacity
         currentDrawingTool = when (drawingState.drawMode) {
-            DrawMode.PEN -> PenTool()
-            DrawMode.CIRCLE -> CircleTool()
-            DrawMode.SQUARE -> SquareTool()
+            com.tamad.editss.DrawMode.PEN -> PenTool()
+            com.tamad.editss.DrawMode.CIRCLE -> CircleTool()
+            com.tamad.editss.DrawMode.SQUARE -> SquareTool()
         }
     }
 
@@ -309,7 +297,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             MotionEvent.ACTION_MOVE -> {
                 val action = currentDrawingTool.onTouchEvent(transformedEvent, paint)
                 if (action != null) {
-                    currentStrokeActions.add(action.copy())
+                    // FIX: Convert DrawingAction to CanvasView.DrawAction
+                    currentStrokeActions.add(DrawAction(action.path, Paint(paint)))
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -462,16 +451,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         var width: Float
         var height: Float
         when (currentCropMode) {
-            CropMode.FREEFORM -> {
+            com.tamad.editss.CropMode.FREEFORM -> {
                 width = visibleBounds.width()
                 height = visibleBounds.height()
             }
-            CropMode.SQUARE -> {
+            com.tamad.editss.CropMode.SQUARE -> {
                 val size = min(visibleBounds.width(), visibleBounds.height())
                 width = size
                 height = size
             }
-            CropMode.PORTRAIT -> {
+            com.tamad.editss.CropMode.PORTRAIT -> {
                 height = visibleBounds.height()
                 width = height * 9 / 16f
                 if (width > visibleBounds.width()) {
@@ -479,7 +468,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     height = width * 16 / 9f
                 }
             }
-            CropMode.LANDSCAPE -> {
+            com.tamad.editss.CropMode.LANDSCAPE -> {
                 width = visibleBounds.width()
                 height = width * 9 / 16f
                 if (height > visibleBounds.height()) {
@@ -514,9 +503,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (cropRect.isEmpty) return
 
         val targetAspectRatio: Float? = when (currentCropMode) {
-            CropMode.SQUARE -> 1f
-            CropMode.PORTRAIT -> 9f / 16f
-            CropMode.LANDSCAPE -> 16f / 9f
+            com.tamad.editss.CropMode.SQUARE -> 1f
+            com.tamad.editss.CropMode.PORTRAIT -> 9f / 16f
+            com.tamad.editss.CropMode.LANDSCAPE -> 16f / 9f
             else -> null
         }
 
@@ -574,9 +563,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun getAspectRatio(): Float? {
         return when (currentCropMode) {
-            CropMode.SQUARE -> 1f
-            CropMode.PORTRAIT -> 9f / 16f
-            CropMode.LANDSCAPE -> 16f / 9f
+            com.tamad.editss.CropMode.SQUARE -> 1f
+            com.tamad.editss.CropMode.PORTRAIT -> 9f / 16f
+            com.tamad.editss.CropMode.LANDSCAPE -> 16f / 9f
             else -> null
         }
     }
@@ -781,7 +770,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    fun setCropMode(cropMode: CropMode) {
+    fun setCropMode(cropMode: com.tamad.editss.CropMode) {
         this.currentCropMode = cropMode
         this.isCropModeActive = true
         cropRect.setEmpty()
