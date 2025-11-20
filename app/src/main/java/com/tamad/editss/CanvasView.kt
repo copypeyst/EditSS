@@ -30,17 +30,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private val checkerDrawable = CheckerDrawable()
 
-    // Bitmaps
-    private var baseBitmap: Bitmap? = null // This is the "Proxy" (Low Res) for UI
-    private var originalHighResBitmap: Bitmap? = null // The original full quality image
+    private var baseBitmap: Bitmap? = null
+    private var originalHighResBitmap: Bitmap? = null
     
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
-    // Undo/Redo System (RAM Only)
     private data class HistoryItem(
-        val bitmap: Bitmap, // The proxy state
-        val action: RestoreAction // Data needed to replay on high-res
+        val bitmap: Bitmap,
+        val action: RestoreAction
     )
 
     private sealed class RestoreAction {
@@ -52,9 +50,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private val historyStack = LinkedList<HistoryItem>()
     private var currentHistoryIndex = -1
-    private val MAX_RAM_USAGE = 500 * 1024 * 1024L // 500MB Limit
+    private var savedHistoryIndex = -1
+    private val MAX_RAM_USAGE = 500 * 1024 * 1024L
 
-    // Canvas State
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
     private var lastFocusY = 0f
@@ -122,14 +120,22 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         ADJUST
     }
 
-    // RAM-Based History Management
+    // Save Logic
+
+    fun markAsSaved() {
+        savedHistoryIndex = currentHistoryIndex
+    }
+
+    fun hasUnsavedChanges(): Boolean {
+        return savedHistoryIndex != currentHistoryIndex
+    }
+
+    // History Management
 
     private fun saveCurrentState(action: RestoreAction) {
         val bitmapToSave = baseBitmap?.copy(Bitmap.Config.ARGB_8888, true) ?: return
 
-        // If we are in the middle of the stack and draw, remove forward history (Redo paths)
         while (historyStack.size > currentHistoryIndex + 1) {
-            // Help GC by recycling bitmaps in the redo stack
             historyStack.removeLast().bitmap.recycle()
         }
 
@@ -142,20 +148,20 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun manageMemoryUsage() {
         var currentUsage = 0L
-        // Calculate total usage
         for (item in historyStack) {
             currentUsage += item.bitmap.allocationByteCount
         }
 
-        // Remove oldest until we are under the limit
         while (currentUsage > MAX_RAM_USAGE && historyStack.size > 1) {
             val removed = historyStack.removeFirst()
             currentUsage -= removed.bitmap.allocationByteCount
             removed.bitmap.recycle()
             currentHistoryIndex--
+            savedHistoryIndex--
         }
 
         if (currentHistoryIndex < 0) currentHistoryIndex = 0
+        if (savedHistoryIndex < -1) savedHistoryIndex = -1
     }
 
     fun undo(): Bitmap? {
@@ -179,47 +185,33 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun restoreState(item: HistoryItem) {
-        // Recycle current view bitmap to save RAM before loading new one
         if (baseBitmap != item.bitmap) {
             baseBitmap?.recycle() 
         }
         
-        // Create a copy so we don't mutate the history item if we draw again
         baseBitmap = item.bitmap.copy(Bitmap.Config.ARGB_8888, true)
-        
-        // Restore adjustment values if this state had them, or reset if not
-        // Note: Since the bitmap is burned in, we reset the live preview values
-        // unless we want to edit them again. For simplicity in this "Snapshot" model,
-        // we assume the bitmap contains the visual state.
-        
-        // However, if the last action was Adjust, we might want to restore sliders.
-        // For now, we rely on the bitmap visual.
         
         updateImageMatrix()
         invalidate()
     }
 
-    // Bitmap Handling & Proxy System
+    // Bitmap Handling
 
     fun setBitmap(bitmap: Bitmap?) {
-        // Clear old history
         historyStack.forEach { it.bitmap.recycle() }
         historyStack.clear()
         currentHistoryIndex = -1
+        savedHistoryIndex = -1
         baseBitmap?.recycle()
         originalHighResBitmap?.recycle()
 
         if (bitmap != null) {
-            // 1. Save Original High Res
             originalHighResBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-
-            // 2. Create Proxy (Max 2000px)
             baseBitmap = createProxyBitmap(bitmap)
-
-            // 3. Save Initial State
-            saveCurrentState(RestoreAction.None)
             
-            // Reset view
+            saveCurrentState(RestoreAction.None)
+            savedHistoryIndex = 0
+            
             scaleFactor = 1.0f
             translationX = 0f
             translationY = 0f
@@ -254,36 +246,21 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
     
-    // Replay Logic for High Quality Export
-    
     fun getFinalBitmap(): Bitmap? {
         val original = originalHighResBitmap ?: return null
         if (historyStack.isEmpty()) return original
 
-        // Start with a copy of the original high-res
         var resultBitmap = original.copy(Bitmap.Config.ARGB_8888, true)
         
-        // We need to track the size of the image as we apply crops to calculate scale correctly
         var currentWidth = resultBitmap.width.toFloat()
         var currentHeight = resultBitmap.height.toFloat()
 
-        // Replay Loop
-        // Skip index 0 (Import) as resultBitmap is already that
         for (i in 1..currentHistoryIndex) {
             val item = historyStack[i]
             
             when (val action = item.action) {
                 is RestoreAction.Draw -> {
                     val canvas = Canvas(resultBitmap)
-                    // The action stores the proxy width/height at the time of drawing
-                    // We need to compare current resultBitmap size vs proxy size to find scale
-                    
-                    // Since we don't store proxy size in Draw action easily, we rely on the
-                    // fact that the Proxy is a scaled version of the CURRENT HighRes state.
-                    // But wait, the proxy might have been cropped. 
-                    
-                    // To be precise: We need the scale relative to the bitmap it was drawn on.
-                    // The previous history item contains the bitmap it was drawn ON.
                     val prevProxy = historyStack[i-1].bitmap
                     
                     val scaleX = currentWidth / prevProxy.width
@@ -301,7 +278,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     canvas.drawPath(highResPath, highResPaint)
                 }
                 is RestoreAction.Crop -> {
-                    // Calculate scale based on the proxy dimensions stored in the action
                     val scaleX = currentWidth / action.canvasWidth
                     val scaleY = currentHeight / action.canvasHeight
                     
@@ -312,7 +288,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                         action.cropRect.bottom * scaleY
                     )
                     
-                    // Ensure valid coords
                     val safeLeft = highResRect.left.coerceIn(0f, currentWidth)
                     val safeTop = highResRect.top.coerceIn(0f, currentHeight)
                     val safeRight = highResRect.right.coerceIn(0f, currentWidth)
@@ -326,14 +301,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                             (safeRight - safeLeft).toInt(),
                             (safeBottom - safeTop).toInt()
                         )
-                        resultBitmap.recycle() // Free old big bitmap
+                        resultBitmap.recycle()
                         resultBitmap = cropped
                         currentWidth = resultBitmap.width.toFloat()
                         currentHeight = resultBitmap.height.toFloat()
                     }
                 }
                 is RestoreAction.Adjust -> {
-                    val canvas = Canvas(resultBitmap)
                     val paint = Paint()
                     
                     val cm = ColorMatrix()
@@ -349,7 +323,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                     
                     paint.colorFilter = ColorMatrixColorFilter(cm)
                     
-                    // Draw onto itself (create new bitmap to apply filter)
                     val filtered = Bitmap.createBitmap(resultBitmap.width, resultBitmap.height, Bitmap.Config.ARGB_8888)
                     val c = Canvas(filtered)
                     c.drawBitmap(resultBitmap, 0f, 0f, paint)
@@ -568,7 +541,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             MotionEvent.ACTION_DOWN -> isDrawing = true
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 isDrawing = false
-                // State saved inside mergeDrawingStrokeIntoBitmap for the action
             }
         }
 
@@ -743,7 +715,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         val bitmapWithDrawings = baseBitmap ?: return null
         
-        // Capture the current dimensions BEFORE cropping for the history replay
         val currentCanvasWidth = bitmapWithDrawings.width
         val currentCanvasHeight = bitmapWithDrawings.height
 
@@ -768,7 +739,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 (bottom - top).toInt()
             )
             
-            // Save logic: Capture the crop rect relative to the Proxy
             val historyCropRect = RectF(left, top, right, bottom)
 
             baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
@@ -1091,7 +1061,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         baseBitmap = adjustedBitmap
         
-        // Save state with the adjustment values so we can replay later
         saveCurrentState(RestoreAction.Adjust(brightness, contrast, saturation))
         
         invalidate()
@@ -1142,12 +1111,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         imageMatrix.invert(inverseMatrix)
         canvas.concat(inverseMatrix)
         
-        // Apply to the Proxy Bitmap
         canvas.drawPath(action.path, action.paint)
         
-        // Save the Proxy State AND the raw action data for High Res replay
-        // Note: The path here is in SCREEN coordinates. 
-        // When replaying on High Res, we will scale it based on the ratio of Proxy vs High Res.
         saveCurrentState(RestoreAction.Draw(Path(action.path), Paint(action.paint)))
 
         invalidate()
