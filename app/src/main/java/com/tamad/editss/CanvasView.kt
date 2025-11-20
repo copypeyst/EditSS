@@ -36,6 +36,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
 
+    // Internal Action Data for High-Res Export Replay
     private data class ActionData(
         val type: ActionType,
         val path: Path? = null,
@@ -52,13 +53,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         IMPORT, DRAW, CROP, ADJUST
     }
 
+    // RAM-based history
     private val bitmapHistory = LinkedList<Bitmap>()
     private val actionHistory = LinkedList<ActionData>()
     
     private var currentHistoryIndex = -1
     private var savedHistoryIndex = -1
     
-    private val MAX_HISTORY_SIZE = 20
+    // 500MB Limit Implementation
+    private val MAX_RAM_USAGE = 500 * 1024 * 1024L
     private val PROXY_MAX_SIZE = 1500
 
     private var scaleFactor = 1.0f
@@ -101,6 +104,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     var onCropCanceled: (() -> Unit)? = null
     var onUndoAction: (() -> Unit)? = null
     var onRedoAction: (() -> Unit)? = null
+    // Note: We mostly ignore this now to prevent ViewModel loops, but kept for compilation
     var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null
 
     init {
@@ -140,6 +144,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val currentBitmap = baseBitmap ?: return
         if (currentBitmap.isRecycled) return
 
+        // Create Snapshot
         val snapshot = try {
             currentBitmap.copy(Bitmap.Config.ARGB_8888, true)
         } catch (e: OutOfMemoryError) {
@@ -147,6 +152,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             return
         }
 
+        // Clear redo history
         while (bitmapHistory.size > currentHistoryIndex + 1) {
             val removed = bitmapHistory.removeLast()
             if (removed != baseBitmap && !removed.isRecycled) {
@@ -159,15 +165,32 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         actionHistory.add(action)
         currentHistoryIndex++
 
-        if (bitmapHistory.size > MAX_HISTORY_SIZE) {
-            val oldBitmap = bitmapHistory.removeFirst()
-            if (oldBitmap != baseBitmap && !oldBitmap.isRecycled) {
-                oldBitmap.recycle()
+        manageMemoryUsage()
+    }
+
+    private fun manageMemoryUsage() {
+        var currentSize: Long = 0
+        // Calculate total size
+        for (bmp in bitmapHistory) {
+            if (!bmp.isRecycled) {
+                currentSize += bmp.allocationByteCount
+            }
+        }
+        
+        // Remove oldest if over 500MB limit (keeping at least 1 undo)
+        while (currentSize > MAX_RAM_USAGE && bitmapHistory.size > 1) {
+            val removed = bitmapHistory.removeFirst()
+            if (!removed.isRecycled) {
+                currentSize -= removed.allocationByteCount
+                if (removed != baseBitmap) removed.recycle()
             }
             actionHistory.removeFirst()
             currentHistoryIndex--
             savedHistoryIndex--
         }
+
+        if (currentHistoryIndex < 0) currentHistoryIndex = 0
+        if (savedHistoryIndex < -1) savedHistoryIndex = -1
     }
 
     fun undo(): Bitmap? {
@@ -203,12 +226,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun setBitmap(bitmap: Bitmap?) {
+        // Clean up
         bitmapHistory.forEach { if (!it.isRecycled) it.recycle() }
         bitmapHistory.clear()
         actionHistory.clear()
         currentHistoryIndex = -1
         savedHistoryIndex = -1
-        
         baseBitmap = null
         originalHighResBitmap?.recycle()
 
@@ -216,8 +239,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val safeBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
             originalHighResBitmap = safeBitmap
 
+            // Create Proxy
             baseBitmap = createProxyBitmap(safeBitmap)
             
+            // Initial State
             val initialAction = ActionData(ActionType.IMPORT)
             val initialSnapshot = baseBitmap!!.copy(Bitmap.Config.ARGB_8888, true)
             
@@ -552,6 +577,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         screenSpaceAction?.let { action ->
             mergeDrawingStrokeIntoBitmap(action)
             
+            // Save logic: Use the action's path and paint for history
             val actionData = ActionData(
                 ActionType.DRAW,
                 path = Path(action.path), 
