@@ -17,6 +17,13 @@ import kotlin.math.hypot
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
+    interface OnHistorySaveListener {
+        fun onHistorySaveStarted()
+        fun onHistorySaveFinished()
+    }
+
+    private var historySaveListener: OnHistorySaveListener? = null
+
     private val paint = Paint()
     private var currentDrawingTool: DrawingTool = PenTool()
     private val cropPaint = Paint()
@@ -109,6 +116,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.alpha = 192
     }
 
+    fun setOnHistorySaveListener(listener: OnHistorySaveListener) {
+        this.historySaveListener = listener
+    }
+
     enum class ToolType {
         DRAW,
         CROP,
@@ -124,12 +135,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun saveCurrentState() {
+        if (isHistoryLoading) return
         val originalBitmap = baseBitmap ?: return
+
+        isHistoryLoading = true
+        historySaveListener?.onHistorySaveStarted()
 
         val bitmapToSave = try {
             originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
         } catch (e: OutOfMemoryError) {
             e.printStackTrace()
+            isHistoryLoading = false
+            historySaveListener?.onHistorySaveFinished()
             return
         }
 
@@ -155,6 +172,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                withContext(Dispatchers.Main.immediate) {
+                    isHistoryLoading = false
+                    historySaveListener?.onHistorySaveFinished()
+                }
             }
         }
     }
@@ -216,6 +238,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (!canUndo() || isHistoryLoading) return
 
         isHistoryLoading = true
+        historySaveListener?.onHistorySaveStarted()
         val targetIndex = currentHistoryIndex - 1
         val path = historyPaths[targetIndex]
 
@@ -237,6 +260,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             } finally {
                 withContext(Dispatchers.Main.immediate) {
                     isHistoryLoading = false
+                    historySaveListener?.onHistorySaveFinished()
                 }
             }
         }
@@ -246,6 +270,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (!canRedo() || isHistoryLoading) return
 
         isHistoryLoading = true
+        historySaveListener?.onHistorySaveStarted()
         val targetIndex = currentHistoryIndex + 1
         val path = historyPaths[targetIndex]
 
@@ -267,6 +292,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             } finally {
                 withContext(Dispatchers.Main.immediate) {
                     isHistoryLoading = false
+                    historySaveListener?.onHistorySaveFinished()
                 }
             }
         }
@@ -438,7 +464,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     })
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (isHistoryLoading) return false
+        if (isHistoryLoading) return true
 
         lastPointerCount = event.pointerCount
         scaleGestureDetector.onTouchEvent(event)

@@ -46,7 +46,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import com.tamad.editss.DrawMode
 import com.tamad.editss.EditAction
-import androidx.activity.OnBackPressedCallback 
+import androidx.activity.OnBackPressedCallback
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.viewModels
 
@@ -61,10 +61,10 @@ data class ImageInfo(
     val uri: Uri,
     val origin: ImageOrigin,
     var canOverwrite: Boolean,
-    val originalMimeType: String 
+    val originalMimeType: String
 )
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), CanvasView.OnHistorySaveListener {
 
     companion object {
         private const val PERMISSION_REQUEST_CODE = 100
@@ -221,6 +221,7 @@ class MainActivity : AppCompatActivity() {
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         
         drawingView = findViewById(R.id.drawing_view)
+        drawingView.setOnHistorySaveListener(this)
 
         // Back Button Handling
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -730,17 +731,11 @@ class MainActivity : AppCompatActivity() {
 
         // Undo/Redo Buttons
         buttonUndo.setOnClickListener {
-            val undoneBitmap = drawingView.undo()
-            if (undoneBitmap != null) {
-                editViewModel.clearAllActions()
-            }
+            drawingView.undo()
         }
 
         buttonRedo.setOnClickListener {
-            val redoneBitmap = drawingView.redo()
-            if (redoneBitmap != null) {
-                editViewModel.clearAllActions()
-            }
+            drawingView.redo()
         }
 
         cropModeFreeform.isSelected = true
@@ -796,6 +791,14 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun onHistorySaveStarted() {
+        showLoadingSpinner()
+    }
+
+    override fun onHistorySaveFinished() {
+        hideLoadingSpinner()
     }
 
     // Helper Methods
