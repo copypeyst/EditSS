@@ -378,15 +378,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
+        if (isSketchMode) {
+            // Draw fake white background behind everything
+            canvas.drawColor(Color.WHITE)
+        }
+
         baseBitmap?.let {
             if (!it.isRecycled) {
                 canvas.save()
                 canvas.clipRect(imageBounds)
 
-                if (isSketchMode) {
-                    // Draw fake white background for sketch mode
-                    canvas.drawColor(Color.WHITE)
-                } else if (it.hasAlpha()) {
+                if (!isSketchMode && it.hasAlpha()) {
                     checkerDrawable.draw(canvas)
                 }
                 
