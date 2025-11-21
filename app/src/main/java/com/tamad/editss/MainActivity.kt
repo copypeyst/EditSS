@@ -64,7 +64,7 @@ data class ImageInfo(
     val originalMimeType: String
 )
 
-class MainActivity : AppCompatActivity(), CanvasView.OnHistorySaveListener {
+class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val PERMISSION_REQUEST_CODE = 100
@@ -221,7 +221,6 @@ class MainActivity : AppCompatActivity(), CanvasView.OnHistorySaveListener {
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         
         drawingView = findViewById(R.id.drawing_view)
-        drawingView.setOnHistorySaveListener(this)
 
         // Back Button Handling
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -692,21 +691,6 @@ class MainActivity : AppCompatActivity(), CanvasView.OnHistorySaveListener {
 
         updateDrawModeSelection(drawModePen)
 
-        // Canvas View Callbacks
-        drawingView.onUndoAction = {
-            val undoneBitmap = drawingView.undo()
-            if (undoneBitmap != null) editViewModel.clearAllActions()
-        }
-
-        drawingView.onRedoAction = {
-            val redoneBitmap = drawingView.redo()
-            if (redoneBitmap != null) editViewModel.clearAllActions()
-        }
-
-        drawingView.onBitmapChanged = { editAction ->
-            editViewModel.pushBitmapChangeAction(editAction)
-        }
-
         // ViewModel Observation
         lifecycleScope.launch {
             editViewModel.drawingState.collect { state ->
@@ -791,14 +775,6 @@ class MainActivity : AppCompatActivity(), CanvasView.OnHistorySaveListener {
                 }
             }
         }
-    }
-
-    override fun onHistorySaveStarted() {
-        showLoadingSpinner()
-    }
-
-    override fun onHistorySaveFinished() {
-        hideLoadingSpinner()
     }
 
     // Helper Methods
@@ -1515,7 +1491,8 @@ class MainActivity : AppCompatActivity(), CanvasView.OnHistorySaveListener {
         if (previousBitmap != null && newBitmap != null) {
             val action = AdjustAction(previousBitmap, newBitmap)
             editViewModel.pushAdjustAction(action)
-            drawingView.setBitmap(newBitmap)
+            // The setBitmap call is redundant now as applyAdjustmentsToBitmap already updates the internal bitmap
+            // drawingView.setBitmap(newBitmap) 
             showCustomToast(getString(R.string.adjustment_applied))
         }
 

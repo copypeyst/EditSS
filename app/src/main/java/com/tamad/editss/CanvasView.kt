@@ -6,23 +6,24 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
-import java.io.File
-import java.io.FileOutputStream
-import java.util.UUID
-import java.util.concurrent.Executors
-import kotlinx.coroutines.*
-import android.os.Build
 import androidx.core.content.ContextCompat
 import kotlin.math.hypot
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
-    interface OnHistorySaveListener {
-        fun onHistorySaveStarted()
-        fun onHistorySaveFinished()
-    }
+    private data class HistoryStep(
+        val beforePatch: Bitmap,
+        val afterPatch: Bitmap,
+        val bounds: Rect
+    )
 
-    private var historySaveListener: OnHistorySaveListener? = null
+    private val history = mutableListOf<HistoryStep>()
+    private var historyIndex = -1
+    private var savedHistoryIndex = -1
+
+    private val MAX_HISTORY_STEPS = 30
+    private val MAX_HISTORY_MEMORY_MB = 100
+    private val MAX_HISTORY_MEMORY_BYTES = MAX_HISTORY_MEMORY_MB * 1024 * 1024
 
     private val paint = Paint()
     private var currentDrawingTool: DrawingTool = PenTool()
@@ -46,15 +47,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var baseBitmap: Bitmap? = null
     private val imageMatrix = android.graphics.Matrix()
     private val imageBounds = RectF()
-
-    private val historyPaths = mutableListOf<String>()
-    private var currentHistoryIndex = -1
-    private var savedHistoryIndex = -1
-    @Volatile
-    private var isHistoryLoading = false
-
-    private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
-    private val saveScope = CoroutineScope(saveDispatcher + Job())
 
     private var scaleFactor = 1.0f
     private var lastFocusX = 0f
@@ -93,9 +85,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     var onCropApplied: ((Bitmap) -> Unit)? = null
     var onCropCanceled: (() -> Unit)? = null
-    var onUndoAction: (() -> Unit)? = null
-    var onRedoAction: (() -> Unit)? = null
-    var onBitmapChanged: ((EditAction.BitmapChange) -> Unit)? = null
 
     init {
         density = context.resources.displayMetrics.density
@@ -116,216 +105,111 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropCornerPaint.alpha = 192
     }
 
-    fun setOnHistorySaveListener(listener: OnHistorySaveListener) {
-        this.historySaveListener = listener
-    }
-
     enum class ToolType {
         DRAW,
         CROP,
         ADJUST
     }
 
-    fun markAsSaved() {
-        savedHistoryIndex = currentHistoryIndex
-    }
-
-    fun hasUnsavedChanges(): Boolean {
-        return savedHistoryIndex != currentHistoryIndex
-    }
-
-    private fun saveCurrentState() {
-        if (isHistoryLoading) return
-        val originalBitmap = baseBitmap ?: return
-
-        isHistoryLoading = true
-        historySaveListener?.onHistorySaveStarted()
-
-        val bitmapToSave = try {
-            originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        } catch (e: OutOfMemoryError) {
-            e.printStackTrace()
-            isHistoryLoading = false
-            historySaveListener?.onHistorySaveFinished()
-            return
+    private fun addHistoryStep(step: HistoryStep) {
+        if (historyIndex < history.size - 1) {
+            val fromIndex = historyIndex + 1
+            val toIndex = history.size
+            val removed = history.subList(fromIndex, toIndex)
+            removed.forEach {
+                it.beforePatch.recycle()
+                it.afterPatch.recycle()
+            }
+            removed.clear()
         }
 
-        saveScope.launch {
-            try {
-                val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    Bitmap.CompressFormat.WEBP_LOSSLESS
-                } else {
-                    Bitmap.CompressFormat.PNG
-                }
+        history.add(step)
+        historyIndex = history.size - 1
 
-                val extension = if (compressFormat == Bitmap.CompressFormat.PNG) "png" else "webp"
-                val fileName = "undo_${System.currentTimeMillis()}_${UUID.randomUUID()}.$extension"
-                val file = File(context.cacheDir, fileName)
-
-                FileOutputStream(file).use { out ->
-                    bitmapToSave.compress(compressFormat, 100, out)
-                }
-
-                val newPath = file.absolutePath
-                withContext(Dispatchers.Main) {
-                    updateHistoryList(newPath)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                withContext(Dispatchers.Main.immediate) {
-                    isHistoryLoading = false
-                    historySaveListener?.onHistorySaveFinished()
-                }
-            }
+        if (savedHistoryIndex > historyIndex) {
+            savedHistoryIndex = -1
         }
+        
+        cleanupHistoryMemory()
     }
 
-    private fun updateHistoryList(newPath: String) {
-        if (currentHistoryIndex < historyPaths.size - 1) {
-            val subList = historyPaths.subList(currentHistoryIndex + 1, historyPaths.size)
-            val pathsToDelete = ArrayList(subList)
-            subList.clear()
+    private fun cleanupHistoryMemory() {
+        var totalByteCount = history.sumOf { it.beforePatch.byteCount + it.afterPatch.byteCount }
 
-            saveScope.launch(NonCancellable) {
-                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
-            }
-        }
+        while (history.size > MAX_HISTORY_STEPS || totalByteCount > MAX_HISTORY_MEMORY_BYTES) {
+            if (history.isEmpty()) break
 
-        historyPaths.add(newPath)
-        currentHistoryIndex = historyPaths.size - 1
+            val removedStep = history.removeAt(0)
+            totalByteCount -= (removedStep.beforePatch.byteCount + removedStep.afterPatch.byteCount)
+            removedStep.beforePatch.recycle()
+            removedStep.afterPatch.recycle()
 
-        cleanupHistoryStorage()
-    }
-
-    private fun cleanupHistoryStorage() {
-        val maxCount = 20
-        val maxSizeBytes = 500 * 1024 * 1024
-
-        saveScope.launch(NonCancellable) {
-            var deletedAny = false
-
-            while (historyPaths.size > maxCount) {
-                val oldPath = historyPaths.removeAt(0)
-                try { File(oldPath).delete() } catch (e: Exception) {}
-                deletedAny = true
-            }
-
-            var currentSize = historyPaths.sumOf { File(it).length() }
-            while (currentSize > maxSizeBytes && historyPaths.size > 1) {
-                val oldPath = historyPaths.removeAt(0)
-                val file = File(oldPath)
-                val fileSize = file.length()
-                try { file.delete() } catch (e: Exception) {}
-                currentSize -= fileSize
-                deletedAny = true
-            }
-
-            if (deletedAny) {
-                withContext(Dispatchers.Main) {
-                    currentHistoryIndex = historyPaths.size - 1
-                    if (savedHistoryIndex >= 0) {
-                        if (savedHistoryIndex > currentHistoryIndex) {
-                            savedHistoryIndex = -1
-                        }
-                    }
-                }
+            historyIndex--
+            if (savedHistoryIndex >= 0) {
+                savedHistoryIndex--
             }
         }
     }
 
     fun undo() {
-        if (!canUndo() || isHistoryLoading) return
+        if (!canUndo()) return
 
-        isHistoryLoading = true
-        historySaveListener?.onHistorySaveStarted()
-        val targetIndex = currentHistoryIndex - 1
-        val path = historyPaths[targetIndex]
-
-        saveScope.launch {
-            try {
-                val options = BitmapFactory.Options().apply { inMutable = true }
-                val loadedBitmap = BitmapFactory.decodeFile(path, options)
-                withContext(Dispatchers.Main) {
-                    if (loadedBitmap != null) {
-                        baseBitmap = loadedBitmap
-                        currentHistoryIndex = targetIndex
-                        updateImageMatrix()
-                        invalidate()
-                        onUndoAction?.invoke()
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                withContext(Dispatchers.Main.immediate) {
-                    isHistoryLoading = false
-                    historySaveListener?.onHistorySaveFinished()
-                }
-            }
-        }
+        val step = history[historyIndex]
+        applyPatch(step.beforePatch, step.bounds)
+        historyIndex--
+        invalidate()
     }
 
     fun redo() {
-        if (!canRedo() || isHistoryLoading) return
+        if (!canRedo()) return
 
-        isHistoryLoading = true
-        historySaveListener?.onHistorySaveStarted()
-        val targetIndex = currentHistoryIndex + 1
-        val path = historyPaths[targetIndex]
-
-        saveScope.launch {
-            try {
-                val options = BitmapFactory.Options().apply { inMutable = true }
-                val loadedBitmap = BitmapFactory.decodeFile(path, options)
-                withContext(Dispatchers.Main) {
-                    if (loadedBitmap != null) {
-                        baseBitmap = loadedBitmap
-                        currentHistoryIndex = targetIndex
-                        updateImageMatrix()
-                        invalidate()
-                        onRedoAction?.invoke()
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                withContext(Dispatchers.Main.immediate) {
-                    isHistoryLoading = false
-                    historySaveListener?.onHistorySaveFinished()
-                }
+        historyIndex++
+        val step = history[historyIndex]
+        applyPatch(step.afterPatch, step.bounds)
+        invalidate()
+    }
+    
+    private fun applyPatch(patch: Bitmap, bounds: Rect) {
+        baseBitmap?.let {
+            if (!it.isRecycled) {
+                val canvas = Canvas(it)
+                canvas.drawBitmap(patch, bounds.left.toFloat(), bounds.top.toFloat(), null)
             }
         }
     }
-
-    fun clearHistoryCache() {
-        val pathsToDelete = ArrayList(historyPaths)
-        historyPaths.clear()
-        currentHistoryIndex = -1
-        savedHistoryIndex = -1
-
-        saveScope.launch(NonCancellable) {
-            pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
+    
+    fun clearHistory() {
+        history.forEach {
+            it.beforePatch.recycle()
+            it.afterPatch.recycle()
         }
+        history.clear()
+        historyIndex = -1
+        savedHistoryIndex = -1
     }
 
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        saveScope.cancel()
-        saveDispatcher.close()
+    fun markAsSaved() {
+        savedHistoryIndex = historyIndex
+    }
+
+    fun hasUnsavedChanges(): Boolean {
+        return savedHistoryIndex != historyIndex
     }
 
     fun setBitmap(bitmap: Bitmap?) {
-        clearHistoryCache()
+        clearHistory()
         baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
-
+        
         if (baseBitmap != null) {
-            saveCurrentState()
+            val initialBitmap = baseBitmap!!
+            val before = initialBitmap.copy(initialBitmap.config, false)
+            val after = initialBitmap.copy(initialBitmap.config, false)
+            val bounds = Rect(0, 0, initialBitmap.width, initialBitmap.height)
+            addHistoryStep(HistoryStep(before, after, bounds))
+            savedHistoryIndex = 0
         }
-        savedHistoryIndex = 0
 
         background = ContextCompat.getDrawable(context, R.drawable.outer_bounds)
-
         updateImageMatrix()
         invalidate()
         post {
@@ -335,16 +219,123 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    fun updateBitmapWithHistory(bitmap: Bitmap?) {
-        baseBitmap = bitmap?.copy(Bitmap.Config.ARGB_8888, true)
-        saveCurrentState()
-        updateImageMatrix()
-        invalidate()
+    fun canUndo(): Boolean = historyIndex >= 0
+    fun canRedo(): Boolean = historyIndex < history.size - 1
+
+    private fun saveDrawingStroke(action: DrawingAction) {
+        val currentBitmap = baseBitmap ?: return
+
+        val strokeBoundsF = RectF()
+        action.path.computeBounds(strokeBoundsF, true)
+        
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        inverseMatrix.mapRect(strokeBoundsF)
+
+        val dirtyRect = Rect()
+        strokeBoundsF.roundOut(dirtyRect)
+        
+        dirtyRect.inset(-2, -2)
+
+        if (!dirtyRect.intersect(0, 0, currentBitmap.width, currentBitmap.height)) {
+            return
+        }
+
+        val beforePatch = try {
+            Bitmap.createBitmap(currentBitmap, dirtyRect.left, dirtyRect.top, dirtyRect.width(), dirtyRect.height())
+        } catch (e: Exception) { return }
+
+        mergeDrawingStrokeIntoBitmap(action)
+
+        val afterPatch = try {
+            Bitmap.createBitmap(currentBitmap, dirtyRect.left, dirtyRect.top, dirtyRect.width(), dirtyRect.height())
+        } catch (e: Exception) { 
+            beforePatch.recycle()
+            return 
+        }
+
+        addHistoryStep(HistoryStep(beforePatch, afterPatch, dirtyRect))
+    }
+    
+    fun applyCrop(): Bitmap? {
+        if (baseBitmap == null || cropRect.isEmpty) return null
+
+        val bitmapWithDrawings = baseBitmap ?: return null
+
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        val imageCropRect = RectF()
+        inverseMatrix.mapRect(imageCropRect, cropRect)
+
+        val left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat())
+        val top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat())
+        val right = imageCropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat())
+        val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat())
+
+        if (right <= left || bottom <= top) return null
+
+        val beforeBitmap = baseBitmap!!.copy(baseBitmap!!.config, true)
+
+        try {
+            val croppedBitmap = Bitmap.createBitmap(
+                bitmapWithDrawings,
+                left.toInt(),
+                top.toInt(),
+                (right - left).toInt(),
+                (bottom - top).toInt()
+            )
+
+            baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+            
+            val afterBitmap = baseBitmap!!.copy(baseBitmap!!.config, true)
+            val bounds = Rect(0, 0, beforeBitmap.width, beforeBitmap.height)
+            addHistoryStep(HistoryStep(beforeBitmap, afterBitmap, bounds))
+
+            cropRect.setEmpty()
+            scaleFactor = 1.0f
+            translationX = 0f
+            translationY = 0f
+            updateImageMatrix()
+            invalidate()
+            onCropApplied?.invoke(baseBitmap!!)
+
+            return baseBitmap
+        } catch (e: OutOfMemoryError) {
+            beforeBitmap.recycle()
+            e.printStackTrace()
+            return null
+        }
     }
 
-    fun canUndo(): Boolean = currentHistoryIndex > 0
-    fun canRedo(): Boolean = currentHistoryIndex < historyPaths.size - 1
+    fun applyAdjustmentsToBitmap(): Bitmap? {
+        if (baseBitmap == null) return null
 
+        val beforeBitmap = baseBitmap!!.copy(baseBitmap!!.config, true)
+
+        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(adjustedBitmap)
+        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
+        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
+        
+        baseBitmap = adjustedBitmap
+        
+        val afterBitmap = baseBitmap!!.copy(baseBitmap!!.config, true)
+        val bounds = Rect(0, 0, beforeBitmap.width, beforeBitmap.height)
+        addHistoryStep(HistoryStep(beforeBitmap, afterBitmap, bounds))
+        
+        invalidate()
+
+        return baseBitmap
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        clearHistory()
+    }
+
+    // --- [ The rest of your CanvasView code remains largely the same ] ---
+    // --- [ No changes needed for drawing, gestures, tools, etc. ] ---
+    
     fun setDrawingState(drawingState: DrawingState) {
         paint.color = drawingState.color
         paint.strokeWidth = drawingState.size
@@ -464,8 +455,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     })
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (isHistoryLoading) return true
-
         lastPointerCount = event.pointerCount
         scaleGestureDetector.onTouchEvent(event)
 
@@ -534,22 +523,34 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private fun handleDrawTouchEvent(event: MotionEvent): Boolean {
         val screenSpaceAction = currentDrawingTool.onTouchEvent(event, paint)
 
-        screenSpaceAction?.let { action ->
-            mergeDrawingStrokeIntoBitmap(action)
-        }
-
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> isDrawing = true
+            MotionEvent.ACTION_DOWN -> {
+                isDrawing = true
+                screenSpaceAction?.let { mergeDrawingStrokeIntoBitmap(it) }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                 if(isDrawing) screenSpaceAction?.let { mergeDrawingStrokeIntoBitmap(it) }
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (isDrawing) {
                     isDrawing = false
-                    saveCurrentState()
+                    screenSpaceAction?.let { saveDrawingStroke(it) }
                 }
             }
         }
 
         invalidate()
         return true
+    }
+    
+    fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
+        if (baseBitmap == null) return
+
+        val canvas = Canvas(baseBitmap!!)
+        val inverseMatrix = Matrix()
+        imageMatrix.invert(inverseMatrix)
+        canvas.concat(inverseMatrix)
+        canvas.drawPath(action.path, action.paint)
     }
 
     private fun handleCropTouchEvent(event: MotionEvent, x: Float, y: Float): Boolean {
@@ -710,51 +711,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         cropRect.setEmpty()
         invalidate()
         onCropCanceled?.invoke()
-    }
-
-    fun applyCrop(): Bitmap? {
-        if (baseBitmap == null || cropRect.isEmpty) return null
-
-        val bitmapWithDrawings = baseBitmap ?: return null
-
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        val imageCropRect = RectF()
-        inverseMatrix.mapRect(imageCropRect, cropRect)
-
-        val left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat())
-        val top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat())
-        val right = imageCropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat())
-        val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat())
-
-        if (right <= left || bottom <= top) return null
-
-        try {
-            val croppedBitmap = Bitmap.createBitmap(
-                bitmapWithDrawings,
-                left.toInt(),
-                top.toInt(),
-                (right - left).toInt(),
-                (bottom - top).toInt()
-            )
-
-            baseBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true)
-
-            saveCurrentState()
-
-            cropRect.setEmpty()
-            scaleFactor = 1.0f
-            translationX = 0f
-            translationY = 0f
-            updateImageMatrix()
-            invalidate()
-            onCropApplied?.invoke(baseBitmap!!)
-
-            return baseBitmap
-        } catch (e: OutOfMemoryError) {
-            e.printStackTrace()
-            return null
-        }
     }
 
     private fun moveCropRect(x: Float, y: Float) {
@@ -1046,21 +1002,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         imagePaint.xfermode = null
     }
 
-    fun applyAdjustmentsToBitmap(): Bitmap? {
-        if (baseBitmap == null) return null
-
-        val adjustedBitmap = Bitmap.createBitmap(baseBitmap!!.width, baseBitmap!!.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(adjustedBitmap)
-        val paint = Paint().apply { colorFilter = imagePaint.colorFilter }
-        canvas.drawBitmap(baseBitmap!!, 0f, 0f, paint)
-
-        baseBitmap = adjustedBitmap
-        saveCurrentState()
-        invalidate()
-
-        return baseBitmap
-    }
-
     fun resetAdjustments() {
         setAdjustments(0f, 1f, 1f)
     }
@@ -1114,18 +1055,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         canvas.drawColor(Color.WHITE)
         canvas.drawBitmap(bitmap, 0f, 0f, null)
         return whiteBitmap
-    }
-
-    fun mergeDrawingStrokeIntoBitmap(action: DrawingAction) {
-        if (baseBitmap == null) return
-
-        val canvas = Canvas(baseBitmap!!)
-        val inverseMatrix = Matrix()
-        imageMatrix.invert(inverseMatrix)
-        canvas.concat(inverseMatrix)
-        canvas.drawPath(action.path, action.paint)
-
-        invalidate()
     }
 
     fun getTransparentDrawingWithAdjustments(): Bitmap? {
