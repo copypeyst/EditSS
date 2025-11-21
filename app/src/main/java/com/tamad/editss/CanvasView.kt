@@ -256,7 +256,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         strokeBoundsF.roundOut(dirtyRect)
         
         val strokeWidth = action.paint.strokeWidth.toInt()
-        dirtyRect.inset(-(strokeWidth + 4), -(strokeWidth + 4))
+        // Calculate padding based on stroke width, scale factor, and anti-aliasing
+        val scalePadding = (strokeWidth * scaleFactor * 1.5f).toInt()
+        val antiAliasPadding = (strokeWidth * 0.5f).toInt()
+        val basePadding = 8 // Base padding for safety
+        val totalPadding = strokeWidth + scalePadding + antiAliasPadding + basePadding
+        
+        dirtyRect.inset(-totalPadding, -totalPadding)
 
         if (!dirtyRect.intersect(0, 0, currentBitmap.width, currentBitmap.height)) {
             return
