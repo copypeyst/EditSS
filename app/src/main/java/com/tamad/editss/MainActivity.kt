@@ -223,10 +223,7 @@ class MainActivity : AppCompatActivity() {
         
         drawingView.undoRedoListener = object : CanvasView.OnUndoRedoStateChangedListener {
             override fun onStateChanged(canUndo: Boolean, canRedo: Boolean) {
-                buttonUndo.isEnabled = canUndo
-                buttonRedo.isEnabled = canRedo
-                buttonUndo.alpha = if (canUndo) 1.0f else 0.5f
-                buttonRedo.alpha = if (canRedo) 1.0f else 0.5f
+                updateUndoRedoButtonState()
             }
         }
         
