@@ -954,7 +954,7 @@ class MainActivity : AppCompatActivity() {
                     
                     currentImageInfo = ImageInfo(uri, origin, canOverwrite, originalMimeType)
                     
-                    drawingView.setBitmap(bitmap)
+                    drawingView.setBitmap(bitmap.copy(Bitmap.Config.ARGB_8888, true))
                     
                     val displayName = getDisplayNameFromUri(uri) ?: "Image"
                     showCustomToast(getString(R.string.loaded_image_successfully, displayName))
