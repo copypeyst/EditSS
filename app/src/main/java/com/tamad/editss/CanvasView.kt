@@ -124,11 +124,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     private fun saveCurrentState() {
-        val bitmapToSaveRef = baseBitmap ?: return
+        val originalBitmap = baseBitmap ?: return
+
+        val bitmapToSave = try {
+            originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        } catch (e: OutOfMemoryError) {
+            e.printStackTrace()
+            return
+        }
 
         saveScope.launch {
             try {
-                val bitmapToSave = bitmapToSaveRef.copy(Bitmap.Config.ARGB_8888, true)
                 val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     Bitmap.CompressFormat.WEBP_LOSSLESS
                 } else {
@@ -159,10 +165,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val pathsToDelete = ArrayList(subList)
             subList.clear()
 
-            saveScope.launch {
-                withContext(NonCancellable) {
-                    pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
-                }
+            saveScope.launch(NonCancellable) {
+                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
             }
         }
 
@@ -176,33 +180,31 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val maxCount = 20
         val maxSizeBytes = 500 * 1024 * 1024
 
-        saveScope.launch {
-            withContext(NonCancellable) {
-                var deletedAny = false
+        saveScope.launch(NonCancellable) {
+            var deletedAny = false
 
-                while (historyPaths.size > maxCount) {
-                    val oldPath = historyPaths.removeAt(0)
-                    try { File(oldPath).delete() } catch (e: Exception) {}
-                    deletedAny = true
-                }
+            while (historyPaths.size > maxCount) {
+                val oldPath = historyPaths.removeAt(0)
+                try { File(oldPath).delete() } catch (e: Exception) {}
+                deletedAny = true
+            }
 
-                var currentSize = historyPaths.sumOf { File(it).length() }
-                while (currentSize > maxSizeBytes && historyPaths.size > 1) {
-                    val oldPath = historyPaths.removeAt(0)
-                    val file = File(oldPath)
-                    val fileSize = file.length()
-                    try { file.delete() } catch (e: Exception) {}
-                    currentSize -= fileSize
-                    deletedAny = true
-                }
+            var currentSize = historyPaths.sumOf { File(it).length() }
+            while (currentSize > maxSizeBytes && historyPaths.size > 1) {
+                val oldPath = historyPaths.removeAt(0)
+                val file = File(oldPath)
+                val fileSize = file.length()
+                try { file.delete() } catch (e: Exception) {}
+                currentSize -= fileSize
+                deletedAny = true
+            }
 
-                if (deletedAny) {
-                    post {
-                        currentHistoryIndex = historyPaths.size - 1
-                        if (savedHistoryIndex >= 0) {
-                            if (savedHistoryIndex > currentHistoryIndex) {
-                                savedHistoryIndex = -1
-                            }
+            if (deletedAny) {
+                withContext(Dispatchers.Main) {
+                    currentHistoryIndex = historyPaths.size - 1
+                    if (savedHistoryIndex >= 0) {
+                        if (savedHistoryIndex > currentHistoryIndex) {
+                            savedHistoryIndex = -1
                         }
                     }
                 }
@@ -233,7 +235,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
-                withContext(Dispatchers.Main) {
+                withContext(Dispatchers.Main.immediate) {
                     isHistoryLoading = false
                 }
             }
@@ -263,7 +265,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
-                withContext(Dispatchers.Main) {
+                withContext(Dispatchers.Main.immediate) {
                     isHistoryLoading = false
                 }
             }
@@ -276,10 +278,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         currentHistoryIndex = -1
         savedHistoryIndex = -1
 
-        saveScope.launch {
-            withContext(NonCancellable) {
-                pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
-            }
+        saveScope.launch(NonCancellable) {
+            pathsToDelete.forEach { try { File(it).delete() } catch(e: Exception){} }
         }
     }
 
@@ -438,6 +438,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     })
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (isHistoryLoading) return false
+
         lastPointerCount = event.pointerCount
         scaleGestureDetector.onTouchEvent(event)
 
