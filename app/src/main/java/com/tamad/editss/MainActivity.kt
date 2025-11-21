@@ -120,7 +120,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var saturationOverlay: SliderValueOverlay
 
     // Launchers
-
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             result.data?.data?.let { uri ->
@@ -751,9 +750,8 @@ class MainActivity : AppCompatActivity() {
                 
                 drawingView.setBitmap(transparentBitmap)
                 
-                // Ensure white background is applied after bitmap is set
                 drawingView.post {
-                    drawingView.setSketchMode(true) // Re-apply to override any background reset
+                    drawingView.setSketchMode(true)
                 }
                 
                 currentImageInfo = ImageInfo(
@@ -798,7 +796,6 @@ class MainActivity : AppCompatActivity() {
     }
     
     // Helper Methods
-    
     private fun createBitmapToShare(): Bitmap? {
         val bitmap = if (isSketchMode) {
             when (selectedSaveFormat) {

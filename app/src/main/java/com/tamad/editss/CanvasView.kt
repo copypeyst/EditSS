@@ -263,10 +263,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         strokeBoundsF.roundOut(dirtyRect)
         
         val strokeWidth = action.paint.strokeWidth.toInt()
-        // Calculate padding based on stroke width, scale factor, and anti-aliasing
         val scalePadding = (strokeWidth * scaleFactor * 1.5f).toInt()
         val antiAliasPadding = (strokeWidth * 0.5f).toInt()
-        val basePadding = 8 // Base padding for safety
+        val basePadding = 8
         val totalPadding = strokeWidth + scalePadding + antiAliasPadding + basePadding
         
         dirtyRect.inset(-totalPadding, -totalPadding)
@@ -391,7 +390,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 canvas.clipRect(imageBounds)
 
                 if (isSketchMode) {
-                    // Draw white background only within image bounds for sketch mode
                     canvas.drawColor(Color.WHITE)
                 } else if (it.hasAlpha()) {
                     checkerDrawable.draw(canvas)
@@ -414,7 +412,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun setSketchMode(isSketch: Boolean) {
         this.isSketchMode = isSketch
         
-        // Reset to outer bounds drawable for all modes
         background = ContextCompat.getDrawable(context, R.drawable.outer_bounds)
         
         invalidate()
