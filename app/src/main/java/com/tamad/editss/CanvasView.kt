@@ -151,7 +151,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             if (!it.isRecycled) {
                 val canvas = Canvas(it)
                 val paint = Paint().apply {
-                    xfermode = PorterDuff.Mode.SRC
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC)
                 }
                 canvas.drawBitmap(patch, bounds.left.toFloat(), bounds.top.toFloat(), paint)
             }
