@@ -253,7 +253,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         strokeBoundsF.roundOut(dirtyRect)
         
         val strokeWidth = action.paint.strokeWidth.toInt()
-        dirtyRect.inset(-(strokeWidth / 2 + 2), -(strokeWidth / 2 + 2))
+        dirtyRect.inset(-(strokeWidth + 4), -(strokeWidth + 4))
 
         if (!dirtyRect.intersect(0, 0, currentBitmap.width, currentBitmap.height)) {
             return
@@ -373,10 +373,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             if (!it.isRecycled) {
                 canvas.save()
                 canvas.clipRect(imageBounds)
-
-                if (isSketchMode) {
-                    canvas.drawColor(Color.WHITE)
-                }
 
                 if (it.hasAlpha() && !isSketchMode) {
                     checkerDrawable.draw(canvas)

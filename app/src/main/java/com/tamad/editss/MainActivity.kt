@@ -745,12 +745,12 @@ class MainActivity : AppCompatActivity() {
                 val width = view.width
                 val height = view.height
                 
-                val transparentBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(transparentBitmap)
-                canvas.drawColor(android.graphics.Color.TRANSPARENT)
+                val whiteBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(whiteBitmap)
+                canvas.drawColor(android.graphics.Color.WHITE)
                 
-                drawingView.setBitmap(transparentBitmap)
-                drawingView.setSketchMode(true) 
+                drawingView.setBitmap(whiteBitmap)
+                // No need to call setSketchMode(true) anymore as the onDraw logic is simplified
                 
                 currentImageInfo = ImageInfo(
                     uri = Uri.EMPTY,
