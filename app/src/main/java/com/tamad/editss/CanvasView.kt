@@ -383,7 +383,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 canvas.save()
                 canvas.clipRect(imageBounds)
 
-                if (it.hasAlpha() && !isSketchMode) {
+                if (isSketchMode) {
+                    // Draw fake white background for sketch mode
+                    canvas.drawColor(Color.WHITE)
+                } else if (it.hasAlpha()) {
                     checkerDrawable.draw(canvas)
                 }
                 

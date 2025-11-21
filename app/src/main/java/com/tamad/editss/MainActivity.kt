@@ -745,12 +745,9 @@ class MainActivity : AppCompatActivity() {
                 val width = view.width
                 val height = view.height
                 
-                val whiteBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(whiteBitmap)
-                canvas.drawColor(android.graphics.Color.WHITE)
+                val transparentBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                 
-                drawingView.setBitmap(whiteBitmap)
-                // No need to call setSketchMode(true) anymore as the onDraw logic is simplified
+                drawingView.setBitmap(transparentBitmap)
                 
                 currentImageInfo = ImageInfo(
                     uri = Uri.EMPTY,
@@ -1206,8 +1203,10 @@ class MainActivity : AppCompatActivity() {
     private suspend fun createBitmapToSave(): Bitmap = withContext(Dispatchers.IO) {
         val bitmap = if (isSketchMode) {
             when (selectedSaveFormat) {
-                "image/png", "image/webp" -> drawingView.getTransparentDrawingWithAdjustments()
-                "image/jpeg" -> drawingView.getSketchDrawingOnWhite()
+                "image/png", "image/webp" -> drawingView.getDrawing()
+                "image/jpeg" -> drawingView.getDrawing()?.let {
+                    drawingView.convertTransparentToWhite(it)
+                }
                 else -> drawingView.getDrawing()
             }
         } else {
