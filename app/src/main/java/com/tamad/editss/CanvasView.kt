@@ -11,6 +11,13 @@ import kotlin.math.hypot
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
+    private fun createWhiteBackgroundDrawable(): android.graphics.drawable.Drawable {
+        val paint = Paint().apply { color = Color.WHITE }
+        val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.WHITE)
+        return android.graphics.drawable.BitmapDrawable(resources, bitmap)
+    }
+
     private data class HistoryStep(
         val beforeState: Bitmap,
         val afterState: Bitmap,
@@ -378,11 +385,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        if (isSketchMode) {
-            // Draw fake white background behind everything
-            canvas.drawColor(Color.WHITE)
-        }
-
         baseBitmap?.let {
             if (!it.isRecycled) {
                 canvas.save()
@@ -408,6 +410,17 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun setSketchMode(isSketch: Boolean) {
         this.isSketchMode = isSketch
+        
+        if (isSketch) {
+            // Set white background for sketch mode - this must be called AFTER setBitmap
+            // to ensure it overrides the outer_bounds background
+            val whiteDrawable = android.graphics.drawable.ColorDrawable(Color.WHITE)
+            background = whiteDrawable
+        } else {
+            // Reset to outer bounds drawable for regular mode
+            background = ContextCompat.getDrawable(context, R.drawable.outer_bounds)
+        }
+        
         invalidate()
     }
 

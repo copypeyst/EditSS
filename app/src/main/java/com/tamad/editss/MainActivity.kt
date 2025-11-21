@@ -742,12 +742,19 @@ class MainActivity : AppCompatActivity() {
         drawingView.doOnLayout { view ->
             if (currentImageInfo == null) {
                 isSketchMode = true
+                drawingView.setSketchMode(true)
+                
                 val width = view.width
                 val height = view.height
                 
                 val transparentBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                 
                 drawingView.setBitmap(transparentBitmap)
+                
+                // Ensure white background is applied after bitmap is set
+                drawingView.post {
+                    drawingView.setSketchMode(true) // Re-apply to override any background reset
+                }
                 
                 currentImageInfo = ImageInfo(
                     uri = Uri.EMPTY,
@@ -926,7 +933,6 @@ class MainActivity : AppCompatActivity() {
         if (isImageLoading) return
         isImageLoading = true
 
-        isSketchMode = false
         drawingView.setSketchMode(false)
         editViewModel.clearAllActions()
 
