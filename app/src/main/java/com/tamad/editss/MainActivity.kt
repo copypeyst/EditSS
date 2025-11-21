@@ -799,13 +799,33 @@ class MainActivity : AppCompatActivity() {
     
     // Helper Methods
     
+    private fun createBitmapToShare(): Bitmap? {
+        return if (isSketchMode) {
+            when (selectedSaveFormat) {
+                "image/png", "image/webp" -> drawingView.getFinalBitmap()
+                "image/jpeg" -> drawingView.getFinalBitmap()?.let {
+                    drawingView.convertTransparentToWhite(it)
+                }
+                else -> drawingView.getFinalBitmap()
+            }
+        } else {
+            drawingView.getFinalBitmap()?.let {
+                if (selectedSaveFormat == "image/jpeg" && currentImageHasTransparency) {
+                    drawingView.convertTransparentToWhite(it)
+                } else {
+                    it
+                }
+            }
+        }
+    }
+    
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: return
 
         lifecycleScope.launch {
             try {
                 val shareUri = withContext(Dispatchers.IO) {
-                    val bitmapToShare = drawingView.getDrawing()
+                    val bitmapToShare = createBitmapToShare()
                         ?: throw Exception("No image to share")
 
                     when (imageInfo.origin) {
