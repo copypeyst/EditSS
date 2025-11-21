@@ -31,7 +31,6 @@ import android.graphics.Bitmap
 import android.graphics.Bitmap.CompressFormat
 import android.os.Environment
 import android.content.ContentValues
-import android.media.MediaScannerConnection
 import kotlinx.coroutines.*
 import androidx.core.view.doOnLayout
 import androidx.lifecycle.lifecycleScope
@@ -80,6 +79,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scrim: View
     private lateinit var transparencyWarningText: TextView
     private lateinit var overlayContainer: FrameLayout
+    private lateinit var buttonUndo: ImageView
+    private lateinit var buttonRedo: ImageView
 
     // Tool State
     private var currentActiveTool: ImageView? = null
@@ -181,8 +182,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        cleanupOldCacheFiles()
-
         // Ads Setup
         MobileAds.initialize(this) {}
         val adView = findViewById<AdView>(R.id.ad_banner)
@@ -191,8 +190,8 @@ class MainActivity : AppCompatActivity() {
 
         // Bind UI
         rootLayout = findViewById(R.id.root_layout)
-        val buttonUndo: ImageView = findViewById(R.id.button_undo)
-        val buttonRedo: ImageView = findViewById(R.id.button_redo)
+        buttonUndo = findViewById(R.id.button_undo)
+        buttonRedo = findViewById(R.id.button_redo)
         val buttonSave: ImageView = findViewById(R.id.button_save)
         val buttonImport: ImageView = findViewById(R.id.button_import)
         val buttonCamera: ImageView = findViewById(R.id.button_camera)
@@ -221,6 +220,17 @@ class MainActivity : AppCompatActivity() {
         adjustOptionsLayout = findViewById(R.id.adjust_options)
         
         drawingView = findViewById(R.id.drawing_view)
+        
+        drawingView.undoRedoListener = object : CanvasView.OnUndoRedoStateChangedListener {
+            override fun onStateChanged(canUndo: Boolean, canRedo: Boolean) {
+                buttonUndo.isEnabled = canUndo
+                buttonRedo.isEnabled = canRedo
+                buttonUndo.alpha = if (canUndo) 1.0f else 0.5f
+                buttonRedo.alpha = if (canRedo) 1.0f else 0.5f
+            }
+        }
+        
+        updateUndoRedoButtonState()
 
         // Back Button Handling
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -690,7 +700,7 @@ class MainActivity : AppCompatActivity() {
         colorSwatchMap.values.forEach { it.setOnClickListener(colorClickListener) }
 
         updateDrawModeSelection(drawModePen)
-
+        
         // ViewModel Observation
         lifecycleScope.launch {
             editViewModel.drawingState.collect { state ->
@@ -776,25 +786,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-    // Helper Methods
-
-    private fun cleanupOldCacheFiles() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val cacheFiles = cacheDir.listFiles()
-                val undoFiles = cacheFiles?.filter { 
-                    (it.name.startsWith("undo_") && (it.name.endsWith(".png") || it.name.endsWith(".webp"))) 
-                }
-                undoFiles?.forEach { file ->
-                    file.delete()
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Failed to cleanup cache: ${e.message}")
-            }
-        }
+    
+    private fun updateUndoRedoButtonState() {
+        val canUndo = drawingView.canUndo()
+        val canRedo = drawingView.canRedo()
+        buttonUndo.isEnabled = canUndo
+        buttonRedo.isEnabled = canRedo
+        buttonUndo.alpha = if (canUndo) 1.0f else 0.5f
+        buttonRedo.alpha = if (canRedo) 1.0f else 0.5f
     }
-
+    
+    // Helper Methods
+    
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: return
 
@@ -964,6 +967,8 @@ class MainActivity : AppCompatActivity() {
                     
                     currentImageHasTransparency = bitmap.hasAlpha()
                     updateTransparencyWarning()
+                    
+                    updateUndoRedoButtonState()
 
                 } else {
                     val error = (result as coil.request.ErrorResult).throwable
@@ -1046,8 +1051,12 @@ class MainActivity : AppCompatActivity() {
     private fun disableAllInteractiveElements(disabled: Boolean) {
         findViewById<ImageView>(R.id.button_import)?.isEnabled = !disabled
         findViewById<ImageView>(R.id.button_camera)?.isEnabled = !disabled
-        findViewById<ImageView>(R.id.button_undo)?.isEnabled = !disabled
-        findViewById<ImageView>(R.id.button_redo)?.isEnabled = !disabled
+        
+        val canUndo = drawingView.canUndo()
+        val canRedo = drawingView.canRedo()
+        findViewById<ImageView>(R.id.button_undo)?.isEnabled = !disabled && canUndo
+        findViewById<ImageView>(R.id.button_redo)?.isEnabled = !disabled && canRedo
+
         findViewById<ImageView>(R.id.button_share)?.isEnabled = !disabled
         findViewById<ImageView>(R.id.button_save)?.isEnabled = !disabled
         
@@ -1485,16 +1494,8 @@ class MainActivity : AppCompatActivity() {
         val contrastSlider: SeekBar = findViewById(R.id.adjust_contrast_slider)
         val saturationSlider: SeekBar = findViewById(R.id.adjust_saturation_slider)
         
-        val previousBitmap = drawingView.getBaseBitmap()
-        val newBitmap = drawingView.applyAdjustmentsToBitmap()
-
-        if (previousBitmap != null && newBitmap != null) {
-            val action = AdjustAction(previousBitmap, newBitmap)
-            editViewModel.pushAdjustAction(action)
-            // The setBitmap call is redundant now as applyAdjustmentsToBitmap already updates the internal bitmap
-            // drawingView.setBitmap(newBitmap) 
-            showCustomToast(getString(R.string.adjustment_applied))
-        }
+        drawingView.applyAdjustmentsToBitmap()
+        showCustomToast(getString(R.string.adjustment_applied))
 
         editViewModel.resetAdjustments()
         brightnessSlider.progress = 100
