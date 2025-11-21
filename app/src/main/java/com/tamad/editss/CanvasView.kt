@@ -390,7 +390,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 canvas.save()
                 canvas.clipRect(imageBounds)
 
-                if (!isSketchMode && it.hasAlpha()) {
+                if (isSketchMode) {
+                    // Draw white background only within image bounds for sketch mode
+                    canvas.drawColor(Color.WHITE)
+                } else if (it.hasAlpha()) {
                     checkerDrawable.draw(canvas)
                 }
                 
@@ -411,15 +414,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun setSketchMode(isSketch: Boolean) {
         this.isSketchMode = isSketch
         
-        if (isSketch) {
-            // Set white background for sketch mode - this must be called AFTER setBitmap
-            // to ensure it overrides the outer_bounds background
-            val whiteDrawable = android.graphics.drawable.ColorDrawable(Color.WHITE)
-            background = whiteDrawable
-        } else {
-            // Reset to outer bounds drawable for regular mode
-            background = ContextCompat.getDrawable(context, R.drawable.outer_bounds)
-        }
+        // Reset to outer bounds drawable for all modes
+        background = ContextCompat.getDrawable(context, R.drawable.outer_bounds)
         
         invalidate()
     }
