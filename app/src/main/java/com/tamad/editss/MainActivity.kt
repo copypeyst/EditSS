@@ -120,6 +120,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var saturationOverlay: SliderValueOverlay
 
     // Launchers
+
     private val oldImagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             result.data?.data?.let { uri ->
@@ -796,61 +797,33 @@ class MainActivity : AppCompatActivity() {
     }
     
     // Helper Methods
-    private fun createBitmapToShare(): Bitmap? {
-        val bitmap = if (isSketchMode) {
-            when (selectedSaveFormat) {
-                "image/png", "image/webp" -> drawingView.getDrawing()
-                "image/jpeg" -> drawingView.getDrawing()?.let {
-                    drawingView.convertTransparentToWhite(it)
-                }
-                else -> drawingView.getDrawing()
-            }
-        } else {
-            drawingView.getDrawing()?.let {
-                if (selectedSaveFormat == "image/jpeg" && currentImageHasTransparency) {
-                    drawingView.convertTransparentToWhite(it)
-                } else {
-                    it
-                }
-            }
-        }
-        return bitmap ?: throw Exception("No image to share")
-    }
-    
     private fun shareCurrentImage() {
         val imageInfo = currentImageInfo ?: return
 
         lifecycleScope.launch {
             try {
                 val shareUri = withContext(Dispatchers.IO) {
-                    val bitmapToShare = createBitmapToShare()
+                    val bitmapToShare = drawingView.getDrawing()
                         ?: throw Exception("No image to share")
 
-                    when (imageInfo.origin) {
-                        ImageOrigin.EDITED_INTERNAL, ImageOrigin.CAMERA_CAPTURED -> {
-                            val cacheDir = cacheDir
-                            val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
-                            val tempFile = File(cacheDir, fileName)
+                    val cacheDir = cacheDir
+                    val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
+                    val tempFile = File(cacheDir, fileName)
 
-                            contentResolver.openOutputStream(Uri.fromFile(tempFile))?.use { outputStream ->
-                                compressBitmapToStream(bitmapToShare, outputStream, selectedSaveFormat)
-                            }
-
-                            lifecycleScope.launch {
-                                delay(300_000)
-                                tempFile.delete()
-                            }
-
-                            androidx.core.content.FileProvider.getUriForFile(
-                                this@MainActivity,
-                                "${packageName}.fileprovider",
-                                tempFile
-                            )
-                        }
-                        else -> {
-                            imageInfo.uri
-                        }
+                    contentResolver.openOutputStream(Uri.fromFile(tempFile))?.use { outputStream ->
+                        compressBitmapToStream(bitmapToShare, outputStream, selectedSaveFormat)
                     }
+
+                    lifecycleScope.launch {
+                        delay(300_000)
+                        tempFile.delete()
+                    }
+
+                    androidx.core.content.FileProvider.getUriForFile(
+                        this@MainActivity,
+                        "${packageName}.fileprovider",
+                        tempFile
+                    )
                 }
 
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
