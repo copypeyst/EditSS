@@ -798,37 +798,25 @@ class MainActivity : AppCompatActivity() {
     
     // Helper Methods
     private fun shareCurrentImage() {
-        val imageInfo = currentImageInfo ?: return
+        if (isSaving) return
+        isSaving = true
 
         lifecycleScope.launch {
             try {
+                showLoadingSpinner()
                 val shareUri = withContext(Dispatchers.IO) {
-                    val bitmapToShare = drawingView.getDrawing()?.let {
-                        if (selectedSaveFormat == "image/jpeg" && currentImageHasTransparency) {
-                            drawingView.convertTransparentToWhite(it)
-                        } else {
-                            it
-                        }
-                    } ?: throw Exception("No image to share")
-
-                    val cacheDir = cacheDir
-                    val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
-                    val tempFile = File(cacheDir, fileName)
-
-                    contentResolver.openOutputStream(Uri.fromFile(tempFile))?.use { outputStream ->
-                        compressBitmapToStream(bitmapToShare, outputStream, selectedSaveFormat)
-                    }
+                    val bitmapToShare = createBitmapToSave()
+                    val savedUri = saveBitmapToMediaStore(bitmapToShare)
 
                     lifecycleScope.launch {
                         delay(300_000)
-                        tempFile.delete()
+                        try {
+                            contentResolver.delete(savedUri, null, null)
+                        } catch (e: Exception) {
+                        }
                     }
 
-                    androidx.core.content.FileProvider.getUriForFile(
-                        this@MainActivity,
-                        "${packageName}.fileprovider",
-                        tempFile
-                    )
+                    savedUri
                 }
 
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -842,6 +830,9 @@ class MainActivity : AppCompatActivity() {
 
             } catch (e: Exception) {
                 showCustomToast(getString(R.string.share_failed, e.message ?: "Unknown error"))
+            } finally {
+                hideLoadingSpinner()
+                isSaving = false
             }
         }
     }
