@@ -23,13 +23,19 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val afterState: Bitmap,
         val bounds: Rect,
         val isFullState: Boolean
-    )
+    ) {
+        fun getSizeInBytes(): Long {
+            return beforeState.allocationByteCount.toLong() + afterState.allocationByteCount.toLong()
+        }
+    }
 
     private val history = mutableListOf<HistoryStep>()
     private var historyIndex = -1
     private var savedHistoryIndex = -1
 
-    private val MAX_HISTORY_STEPS = 50
+    private val maxMemory = Runtime.getRuntime().maxMemory()
+    private val maxHistoryMemory = maxMemory / 4
+    private var currentHistoryMemory = 0L
     
     interface OnUndoRedoStateChangedListener {
         fun onStateChanged(canUndo: Boolean, canRedo: Boolean)
@@ -128,6 +134,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val toIndex = history.size
             val removed = history.subList(fromIndex, toIndex)
             removed.forEach {
+                currentHistoryMemory -= it.getSizeInBytes()
                 it.beforeState.recycle()
                 it.afterState.recycle()
             }
@@ -136,13 +143,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         history.add(step)
         historyIndex = history.size - 1
+        currentHistoryMemory += step.getSizeInBytes()
 
         if (savedHistoryIndex > historyIndex) {
             savedHistoryIndex = -1
         }
         
-        while (history.size > MAX_HISTORY_STEPS) {
+        while (currentHistoryMemory > maxHistoryMemory && history.isNotEmpty()) {
             val removedStep = history.removeAt(0)
+            currentHistoryMemory -= removedStep.getSizeInBytes()
             removedStep.beforeState.recycle()
             removedStep.afterState.recycle()
             historyIndex--
@@ -207,6 +216,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             it.afterState.recycle()
         }
         history.clear()
+        currentHistoryMemory = 0L
         historyIndex = -1
         savedHistoryIndex = -1
         undoRedoListener?.onStateChanged(canUndo(), canRedo())
@@ -251,6 +261,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun commitDrawingStroke(action: DrawingAction) {
         val currentBitmap = baseBitmap ?: return
+        if (currentBitmap.isRecycled) return
 
         val strokeBoundsF = RectF()
         action.path.computeBounds(strokeBoundsF, true)
@@ -292,7 +303,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
     
     fun applyCrop(): Bitmap? {
-        if (baseBitmap == null || cropRect.isEmpty) return null
+        if (baseBitmap == null || baseBitmap!!.isRecycled || cropRect.isEmpty) return null
 
         val beforeState = baseBitmap!!.copy(baseBitmap!!.config ?: Bitmap.Config.ARGB_8888, true)
         val bitmapWithDrawings = beforeState
@@ -308,6 +319,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat())
 
         if (right <= left || bottom <= top) {
+            beforeState.recycle()
+            return null
+        }
+
+        if (right - left < 50 || bottom - top < 50) {
             beforeState.recycle()
             return null
         }
@@ -344,7 +360,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun applyAdjustmentsToBitmap(): Bitmap? {
-        if (baseBitmap == null) return null
+        if (baseBitmap == null || baseBitmap!!.isRecycled) return null
 
         val beforeState = baseBitmap!!.copy(baseBitmap!!.config ?: Bitmap.Config.ARGB_8888, true)
 
@@ -366,8 +382,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         clearHistory()
-        baseBitmap?.recycle()
-        baseBitmap = null
     }
     
     fun setDrawingState(drawingState: DrawingState) {
@@ -417,7 +431,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
 
-    fun getBaseBitmap(): Bitmap? = baseBitmap
+    fun getBaseBitmap(): Bitmap? = if (baseBitmap?.isRecycled == false) baseBitmap else null
 
     fun setToolType(toolType: ToolType) {
         this.currentTool = toolType
