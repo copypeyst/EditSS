@@ -34,7 +34,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var savedHistoryIndex = -1
 
     private val maxMemory = Runtime.getRuntime().maxMemory()
-    private val maxHistoryMemory = maxMemory / 4
+    private val maxHistoryMemory = (maxMemory * 0.95).toLong()
     private var currentHistoryMemory = 0L
     
     interface OnUndoRedoStateChangedListener {
@@ -149,7 +149,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             savedHistoryIndex = -1
         }
         
-        while (currentHistoryMemory > maxHistoryMemory && history.isNotEmpty()) {
+        while (currentHistoryMemory > maxHistoryMemory && history.size > 1) {
             val removedStep = history.removeAt(0)
             currentHistoryMemory -= removedStep.getSizeInBytes()
             removedStep.beforeState.recycle()
@@ -305,28 +305,27 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun applyCrop(): Bitmap? {
         if (baseBitmap == null || baseBitmap!!.isRecycled || cropRect.isEmpty) return null
 
-        val beforeState = baseBitmap!!.copy(baseBitmap!!.config ?: Bitmap.Config.ARGB_8888, true)
-        val bitmapWithDrawings = beforeState
-
         val inverseMatrix = Matrix()
         imageMatrix.invert(inverseMatrix)
         val imageCropRect = RectF()
         inverseMatrix.mapRect(imageCropRect, cropRect)
 
+        val bitmapWithDrawings = baseBitmap!!
+        
         val left = imageCropRect.left.coerceIn(0f, bitmapWithDrawings.width.toFloat())
         val top = imageCropRect.top.coerceIn(0f, bitmapWithDrawings.height.toFloat())
         val right = imageCropRect.right.coerceIn(0f, bitmapWithDrawings.width.toFloat())
         val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat())
 
         if (right <= left || bottom <= top) {
-            beforeState.recycle()
             return null
         }
 
         if (right - left < 50 || bottom - top < 50) {
-            beforeState.recycle()
             return null
         }
+
+        val beforeState = baseBitmap!!.copy(baseBitmap!!.config ?: Bitmap.Config.ARGB_8888, true)
 
         try {
             val croppedBitmap = Bitmap.createBitmap(
@@ -382,6 +381,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         clearHistory()
+        baseBitmap = null
     }
     
     fun setDrawingState(drawingState: DrawingState) {
