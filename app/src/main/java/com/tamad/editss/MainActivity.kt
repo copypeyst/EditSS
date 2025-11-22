@@ -807,6 +807,9 @@ class MainActivity : AppCompatActivity() {
                 val shareUri = withContext(Dispatchers.IO) {
                     val bitmapToShare = createBitmapToSave()
 
+                    cacheDir.listFiles { file -> file.name.startsWith("share_temp_") }
+                        ?.forEach { it.delete() }
+
                     val cacheDir = cacheDir
                     val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
                     val tempFile = File(cacheDir, fileName)
