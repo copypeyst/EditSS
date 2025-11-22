@@ -798,10 +798,12 @@ class MainActivity : AppCompatActivity() {
     
     // Helper Methods
     private fun shareCurrentImage() {
-        val imageInfo = currentImageInfo ?: return
+        if (isSaving) return
+        isSaving = true
 
         lifecycleScope.launch {
             try {
+                showLoadingSpinner()
                 val shareUri = withContext(Dispatchers.IO) {
                     val bitmapToShare = createBitmapToSave()
 
@@ -831,6 +833,9 @@ class MainActivity : AppCompatActivity() {
 
             } catch (e: Exception) {
                 showCustomToast(getString(R.string.share_failed, e.message ?: "Unknown error"))
+            } finally {
+                hideLoadingSpinner()
+                isSaving = false
             }
         }
     }
