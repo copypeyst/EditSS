@@ -803,8 +803,13 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val shareUri = withContext(Dispatchers.IO) {
-                    val bitmapToShare = drawingView.getDrawing()
-                        ?: throw Exception("No image to share")
+                    val bitmapToShare = drawingView.getDrawing()?.let {
+                        if (selectedSaveFormat == "image/jpeg" && currentImageHasTransparency) {
+                            drawingView.convertTransparentToWhite(it)
+                        } else {
+                            it
+                        }
+                    } ?: throw Exception("No image to share")
 
                     val cacheDir = cacheDir
                     val fileName = "share_temp_${System.currentTimeMillis()}.${getExtensionFromMimeType(selectedSaveFormat)}"
