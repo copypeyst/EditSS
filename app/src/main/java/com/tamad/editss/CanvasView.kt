@@ -251,7 +251,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private fun commitDrawingStroke(action: DrawingAction) {
         val currentBitmap = baseBitmap ?: return
-        if (currentBitmap.isRecycled) return
 
         val strokeBoundsF = RectF()
         action.path.computeBounds(strokeBoundsF, true)
@@ -293,7 +292,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
     
     fun applyCrop(): Bitmap? {
-        if (baseBitmap == null || baseBitmap!!.isRecycled || cropRect.isEmpty) return null
+        if (baseBitmap == null || cropRect.isEmpty) return null
 
         val beforeState = baseBitmap!!.copy(baseBitmap!!.config ?: Bitmap.Config.ARGB_8888, true)
         val bitmapWithDrawings = beforeState
@@ -309,11 +308,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         val bottom = imageCropRect.bottom.coerceIn(0f, bitmapWithDrawings.height.toFloat())
 
         if (right <= left || bottom <= top) {
-            beforeState.recycle()
-            return null
-        }
-
-        if (right - left < 50 || bottom - top < 50) {
             beforeState.recycle()
             return null
         }
@@ -350,7 +344,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun applyAdjustmentsToBitmap(): Bitmap? {
-        if (baseBitmap == null || baseBitmap!!.isRecycled) return null
+        if (baseBitmap == null) return null
 
         val beforeState = baseBitmap!!.copy(baseBitmap!!.config ?: Bitmap.Config.ARGB_8888, true)
 
@@ -372,6 +366,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         clearHistory()
+        baseBitmap?.recycle()
         baseBitmap = null
     }
     
@@ -422,7 +417,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
 
-    fun getBaseBitmap(): Bitmap? = if (baseBitmap?.isRecycled == false) baseBitmap else null
+    fun getBaseBitmap(): Bitmap? = baseBitmap
 
     fun setToolType(toolType: ToolType) {
         this.currentTool = toolType

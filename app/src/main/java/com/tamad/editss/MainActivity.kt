@@ -48,8 +48,6 @@ import com.tamad.editss.EditAction
 import androidx.activity.OnBackPressedCallback
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.viewModels
-import android.app.RecoverableSecurityException
-import androidx.activity.result.IntentSenderRequest
 
 enum class ImageOrigin {
     IMPORTED_READONLY,
@@ -183,10 +181,6 @@ class MainActivity : AppCompatActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
-        savedInstanceState?.let { bundle ->
-            currentCameraUri = bundle.getParcelable("camera_uri")
-        }
 
         // Ads Setup
         MobileAds.initialize(this) {}
@@ -557,8 +551,6 @@ class MainActivity : AppCompatActivity() {
                 currentCropMode = null
                 drawingView.setCropModeInactive()
                 showCustomToast(getString(R.string.crop_applied))
-            } else {
-                showCustomToast("Unable to crop further.")
             }
         }
 
@@ -793,11 +785,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-    }
-    
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putParcelable("camera_uri", currentCameraUri)
     }
     
     private fun updateUndoRedoButtonState() {
@@ -1287,16 +1274,8 @@ class MainActivity : AppCompatActivity() {
                             val bitmapToSave = drawingView.getDrawing()
                                 ?: throw Exception("Could not get image to overwrite")
                             
-                            try {
-                                contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
-                                    compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
-                                }
-                            } catch (e: RecoverableSecurityException) {
-                                pendingOverwriteUri = imageInfo.uri
-                                val intentSender = e.userAction.actionIntent.intentSender
-                                val intentSenderRequest = IntentSenderRequest.Builder(intentSender).build()
-                                deleteRequestLauncher.launch(intentSenderRequest)
-                                throw Exception("Requesting permission...")
+                            contentResolver.openOutputStream(imageInfo.uri, "wt")?.use { outputStream ->
+                                compressBitmapToStream(bitmapToSave, outputStream, selectedSaveFormat)
                             }
                             
                             getDisplayNameFromUri(imageInfo.uri)
@@ -1313,9 +1292,7 @@ class MainActivity : AppCompatActivity() {
                         imageLoader.diskCache?.remove(imageInfo.uri.toString())
 
                     } catch (e: Exception) {
-                        if (e.message != "Requesting permission...") {
-                            showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
-                        }
+                        showCustomToast(getString(R.string.overwrite_failed, e.message ?: "Unknown error"))
                     } finally {
                         hideLoadingSpinner()
                         isSaving = false
